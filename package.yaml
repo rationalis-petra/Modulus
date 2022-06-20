@@ -1,0 +1,59 @@
+name:                modulus
+version:             0.1.0.0
+github:              "rationalis-petra/modulus"
+license:             BSD3
+author:              "Connor Redfern"
+maintainer:          "connor.redfern@optusnet.com.au"
+copyright:           "Connor Redfern"
+
+extra-source-files:
+- README.md
+- ChangeLog.md
+
+# Metadata used when publishing your package
+# synopsis:            Interpreter for the Modulus Programming Lanugage
+# category:            Lanugages
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README.md file.
+description:         Please see the README on GitHub at <https://github.com/githubuser/modulus#readme>
+
+dependencies:
+- base >= 4.7 && < 5
+- megaparsec           # for implementing the parser
+- mtl                  # access to monads
+- transformers         # also to access monads?
+- containers         
+- vector               # for interpreting in-language vectors
+- text                 # for parsing/representing strings in the lanugage
+- optparse-applicative # command-line argument parsing
+- lens                 # lenses
+# - bindings-libffi
+# - libffi
+# - llvm-hs
+
+library:
+  source-dirs: src
+
+executables:
+  modulus:
+    main:                Main.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - modulus
+
+tests:
+  modulus-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - modulus
