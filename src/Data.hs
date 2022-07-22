@@ -205,7 +205,7 @@ data ModulusType
   | MDep ModulusType String ModulusType
   | ImplMDep ModulusType String ModulusType
   | MDot ModulusType String
-  | MEffect (Set.Set EffectType)
+  | MEffect (Set.Set EffectType) ModulusType
   --        id  name   params        instance-types           
   |  MNamed Int String [ModulusType] [[ModulusType]]
 
@@ -216,12 +216,12 @@ data ModulusType
   -- BAD -> we want him gone!
   | Undef
   | Large
-  deriving Eq
+  deriving (Eq, Ord)
 
 data EffectType
-  = IO
-  | CustomE Int  
-  deriving (Show, Eq)
+  = IOEff
+  | CustomEff Int [ModulusType]  
+  deriving (Show, Eq, Ord)
 
 type Expr = Object EvalM
 
@@ -229,7 +229,7 @@ type EvalM = ActionMonadT (ReaderT Context (ExceptT String (State ProgState)))
 
 newtype ActionMonadT m a = ActionMonadT (m (MaybeEffect m a))
 
-data ProgState = ProgState { _uid_counter :: Int }  
+data ProgState = ProgState { _uid_counter :: Int, _var_counter :: Int }  
 
 
 instance Show PrimType where 

@@ -2,8 +2,10 @@ module Typecheck.TypeUtils where
 
 import Data (Object(..),
              PrimE(..),
+             EffectType(..),
              ModulusType(..),
              PrimType(..))
+import Typecheck.InfType
 import Control.Monad.Except (Except, throwError, catchError)
 
 import qualified Data.Map as Map
@@ -27,6 +29,7 @@ typeExpr (CConstructor _ _ _ _ _ _ ty) = pure ty
 typeExpr (CustomCtor _ _ _ _ ty) = pure ty
 
 typeExpr e = throwError $ "untypable expr: " <> show e
+
 
 
 typePrim :: PrimE -> PrimType 
@@ -144,3 +147,44 @@ getFree (MDep l s r) env =
   getFree l env <> getFree r (Set.insert s env)
 getFree (ImplMDep l s r) env = 
   getFree l env <> getFree r (Set.insert s env)
+
+
+
+ -- CONVERSIONS 
+toInf :: ModulusType -> InfType  
+toInf (TypeN n)            = ITypeN n
+toInf (MVar sym)           = IMVar (Left sym)
+toInf (Signature sig)      = IMSig (Map.map toInf sig)
+toInf (MArr t1 t2)         = IMArr (toInf t1) (toInf t2)
+toInf (MDep t1 sym t2)     = IMDep (toInf t1) sym (toInf t2)
+toInf (ImplMDep t1 sym t2) = IMImplDep (toInf t1) sym (toInf t2)
+toInf (MDot ty field)      = IMDot (toInf ty) field
+toInf (MNamed id name params variants)
+      = IMNamed id name (map toInf params) (map (map toInf) variants)
+toInf (MEffect set ty)     = IMEffect (Set.map toInfEffect set) (toInf ty)
+  where
+    toInfEffect :: EffectType -> InfEffectType
+    toInfEffect IOEff = IEffIO
+    toInfEffect (CustomEff id args) = (ICustomEff id (map toInf args))
+toInf (MPrim prim)         = IMPrim prim
+toInf (MVector ty)         = IMVector (toInf ty)
+
+toMls :: InfType -> ModulusType  
+toMls (ITypeN n) = TypeN n
+toMls (IMVar sym) = case sym of 
+  Left str -> MVar str
+  -- TODO: what if this variable occurs when not mangling?!
+  Right n -> MVar (show n)
+toMls (IMSig sig) = Signature (Map.map toMls sig)
+toMls (IMArr t1 t2) = MArr (toMls t1) (toMls t2)
+toMls (IMDep t1 sym t2) = MDep (toMls t1) sym (toMls t2)
+toMls (IMImplDep t1 sym t2) = ImplMDep (toMls t1) sym (toMls t2)
+toMls (IMDot ty field) = MDot (toMls ty) field
+toMls (IMNamed id name params variants) = MNamed id name (map toMls params) (map (map toMls) variants)
+toMls (IMEffect set ty) = MEffect (Set.map toMlsEffect set) (toMls ty)
+  where
+    toMlsEffect :: InfEffectType -> EffectType
+    toMlsEffect IEffIO = IOEff 
+    toMlsEffect (ICustomEff id args) = (CustomEff id (map toMls args))
+toMls (IMPrim prim) = MPrim prim
+toMls (IMVector ty) = MVector (toMls ty)

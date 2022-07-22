@@ -9,7 +9,10 @@ import Interpret.Eval
 import Syntax.Macroexpand 
 import Syntax.Intermediate (toIntermediate) 
 import Syntax.Conversions (toTIntermediateTop) 
+-- import Typecheck.Typecheck
+
 import Typecheck.Typecheck
+import qualified Typecheck.Environment as Env
 import qualified Core
 
 
@@ -27,7 +30,7 @@ import qualified Data.Map as Map
 import Options.Applicative
 import Data.Semigroup ((<>))
 
-defaultState = ProgState { _uid_counter = 0 }  
+defaultState = ProgState { _uid_counter = 0, _var_counter = 0 }  
 
 data Args = Args
   { file        :: String,
@@ -133,7 +136,7 @@ runExprs (e : es) ctx state (IOpts {tc=tc}) b = do
             tint <- evalToIO (toTIntermediateTop val (toEnv ctx)) ctx state'
             case tint of 
               Just (t, state'') ->
-                case runCheckerTop t (toEnv ctx) of    
+                case runCheckerTop t (Env.toEnv ctx) of    
                   Right res -> do
                     tint <- case res of 
                       Left (tint, ty) -> do
@@ -195,6 +198,7 @@ evalTopList (e:es) ctx state b = do
       let ctx' =
             foldl (\ctx (s, x) -> Ctx.insertCurrent s x ctx) ctx bindlist 
       evalTopList es ctx' state' b
+
 
 toEnv :: Context -> CheckEnv
 toEnv (ValContext {currentModule=curr, globalModule=glbl}) = 

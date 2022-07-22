@@ -29,18 +29,18 @@ import Typecheck.TypeUtils (isLarge)
 -- type annotation, unlike the 'raw' version. Further, several definitions are
 -- toTIntermediate
 
-data IType
+data IType ty
   = InferType
-  | MType ModulusType 
+  | MType ty 
   deriving Show
 
 {-- The two types of binding that can occur within a function are type and val
     bindings. Binding a type means it is available and in scope for subsequent
     types within the body to use, i.e. a ∀a.a --}
-data TArg
-  = BoundArg String ModulusType 
-  | ValArg String ModulusType
-  | InfArg String
+data TArg ty
+  = BoundArg String ty 
+  | ValArg String ty
+  | InfArg String Int
   deriving Show
 
 
@@ -48,39 +48,39 @@ data TArg
     this means that type-definitions need to be (able to be) resolved at
     'compile-time', so all created modules have the types be equal. 
     Thus, definitions are realised here with --}
-data TDefinition  
+data TDefinition ty
   --             name  type-args id  definitions                   type of variant
-  = TVariantDef String [String] Int [(String, Int, [ModulusType])] ModulusType
-  | TEffectDef  String [String] Int [(String, Int, [ModulusType])]
-  | TSingleDef  String TIntermediate (Maybe ModulusType)
-  | TOpenDef TIntermediate (Maybe ModulusType)
+  = TVariantDef String [String] Int [(String, Int, [ty])] ty
+  | TEffectDef  String [String] Int [(String, Int, [ty])]
+  | TSingleDef  String (TIntermediate ty) (Maybe ty)
+  | TOpenDef (TIntermediate ty) (Maybe ty)
   deriving Show
 
-data TIntTop
-  = TExpr TIntermediate
-  | TDefinition TDefinition
+data TIntTop ty
+  = TExpr (TIntermediate ty)
+  | TDefinition (TDefinition ty)
   deriving Show
 
-data TPattern
+data TPattern ty
   = TWildCardPat 
   | TBindPat String
-  --        id1 id2 sub-patterns constructor-type
-  | TVarPat Int Int [TPattern]   ModulusType
+  --        id1 id2 sub-patterns  constructor-type
+  | TVarPat Int Int [TPattern ty] ty
   deriving Show
   
 
 {-- --}
-data TIntermediate
+data TIntermediate ty
   = TValue Expr
   | TSymbol String
-  | TApply TIntermediate TIntermediate
-  | TImplApply TIntermediate TIntermediate
-  | TModule [TDefinition]
-  | TSignature [TDefinition]
-  | TLambda [(TArg, Bool)] TIntermediate (Maybe ModulusType)
-  | TIF TIntermediate TIntermediate TIntermediate
-  | TAccess TIntermediate String
-  | TMatch TIntermediate [(TPattern, TIntermediate)]
+  | TApply (TIntermediate ty) (TIntermediate ty)
+  | TImplApply (TIntermediate ty) (TIntermediate ty)
+  | TModule [TDefinition ty]
+  | TSignature [TDefinition ty]
+  | TLambda [(TArg ty, Bool)] (TIntermediate ty) (Maybe ty)
+  | TIF (TIntermediate ty) (TIntermediate ty) (TIntermediate ty)
+  | TAccess (TIntermediate ty) String
+  | TMatch (TIntermediate ty) [(TPattern ty, TIntermediate ty)]
   deriving Show
 
 

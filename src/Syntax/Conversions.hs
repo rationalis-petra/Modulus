@@ -13,12 +13,12 @@ import Data(Intermediate(..),
 
 import Data.Environments
 import Interpret.Eval (eval)
-import Interpret.EvalM (local, fresh_id, throwError)
+import Interpret.EvalM (local, fresh_id, fresh_var, throwError)
 import Control.Monad.State (State, runState)
 import Control.Monad.Except (ExceptT, runExceptT)
 import Interpret.Transform
 import qualified Interpret.Context as Ctx
-import qualified Typecheck.Environment as Env 
+import qualified Typecheck.EnvironmentOld as Env 
 import Syntax.TIntermediate
 import Typecheck.TypeUtils (isLarge)
 
@@ -29,11 +29,11 @@ import qualified Typecheck.Typecheck
 -- typeEval :: Intermediate -> CheckEnv -> EvalM Expr
 -- typeEval ctx = 
   
-
+type MT = ModulusType
 
   
 
-toTIntermediateTop :: Intermediate -> CheckEnv -> EvalM TIntTop
+toTIntermediateTop :: Intermediate -> CheckEnv -> EvalM (TIntTop MT)
 toTIntermediateTop (IDefinition def) env =    
   case def of 
     ISingleDef s i -> do
@@ -95,7 +95,7 @@ toTIntermediateTop (IDefinition def) env =
 toTIntermediateTop i env = TExpr <$> toTIntermediate i env
 
 -- TODO: make sure to update the context with typeLookup
-toTIntermediate :: Intermediate -> CheckEnv -> EvalM TIntermediate
+toTIntermediate :: Intermediate -> CheckEnv -> EvalM (TIntermediate MT)
 toTIntermediate (IValue expr) _ = pure (TValue expr)
 toTIntermediate (ISymbol s) env = pure (TSymbol s)
 toTIntermediate (IAccess i s) env = do
@@ -111,10 +111,11 @@ toTIntermediate (IApply i1 i2) env = do
 
 toTIntermediate (ILambda args bdy) env = do
   (args', env') <- processArgs args env
+  id <- fresh_var
   bdy' <- toTIntermediate bdy env'
   pure $ TLambda args' bdy' Nothing
   where
-    processArgs :: [(Arg, Bool)] -> CheckEnv -> EvalM ([(TArg, Bool)], CheckEnv)
+    processArgs :: [(Arg, Bool)] -> CheckEnv -> EvalM ([(TArg MT, Bool)], CheckEnv)
     processArgs [] env = pure ([], env)
     processArgs ((Sym s, b) : xs) env =
       if b then  do
@@ -122,7 +123,8 @@ toTIntermediate (ILambda args bdy) env = do
         pure $ ((BoundArg s (TypeN 1), b) : tl, env')
       else do
         (tl, env') <- processArgs xs env
-        pure $ (((InfArg s), b) : tl, env')
+        var <- fresh_var
+        pure $ (((InfArg s var), b) : tl, env')
     processArgs ((Annotation s i, b) : xs) env = do
       ty <- local (Env.toCtx env) (eval i)
       case ty of
@@ -139,7 +141,7 @@ toTIntermediate (ILambda args bdy) env = do
 toTIntermediate (IModule defList) env = do
   TModule <$> getDefs defList env
   where
-    getDefs :: [IDefinition] -> CheckEnv -> EvalM [TDefinition]
+    getDefs :: [IDefinition] -> CheckEnv -> EvalM [TDefinition MT]
     getDefs [] _ = pure []
     getDefs (x:xs) env = case x of
       ISingleDef s i -> do
@@ -159,7 +161,7 @@ toTIntermediate (IModule defList) env = do
 toTIntermediate (ISignature defList) env = do
   TSignature <$> getDefs defList env
   where
-    getDefs :: [IDefinition] -> CheckEnv -> EvalM [TDefinition]
+    getDefs :: [IDefinition] -> CheckEnv -> EvalM [TDefinition MT]
     getDefs [] _ = pure []
     getDefs (x:xs) env = case x of
       ISingleDef s i -> do
@@ -188,13 +190,13 @@ toTIntermediate (IMatch e1 cases) env = do
   pure (TMatch e1' cases')
 
   where
-    toCase :: (IPattern, Intermediate) -> EvalM (TPattern, TIntermediate)
+    toCase :: (IPattern, Intermediate) -> EvalM (TPattern MT, TIntermediate MT)
     toCase (ipat, e) = do 
       tpat <- toTPat ipat 
       e' <- toTIntermediate e env
       pure (tpat, e')
 
-    toTPat :: IPattern -> EvalM TPattern
+    toTPat :: IPattern -> EvalM (TPattern MT)
     toTPat IWildCard = pure TWildCardPat
     toTPat (ISingPattern s) = pure (TBindPat s)
     toTPat (ICheckPattern pat subPatterns) = do

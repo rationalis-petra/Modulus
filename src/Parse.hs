@@ -18,8 +18,8 @@ type Parser = Parsec Void Text
 sc :: Parser ()  
 sc = L.space
   space1
-  (L.skipLineComment ";;")
-  (L.skipBlockComment "(;" ";)")
+  (L.skipLineComment "#")
+  (L.skipBlockComment "#(" ")#")
   
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc

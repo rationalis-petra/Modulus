@@ -8,7 +8,7 @@ import qualified Interpret.Context as Context
 import Data
 import Interpret.Eval
 import Interpret.Transform
-import Typecheck.Typecheck (subtype)
+-- import Typecheck.Typecheck2 (subtype)
 
 -- helper functions
 get_symlist [] = Just []
@@ -185,11 +185,11 @@ doConstrain _ _ = lift $ throwError "bad args to <: expected module and signatur
 mlsConstrain = liftFun2 doConstrain Undef Undef Undef
 
 -- subtype
-doSubtype :: Expr -> Expr -> EvalM Expr
-doSubtype (Type t1) (Type t2) = 
-  if subtype t1 t2 then pure (PrimE (Bool True)) else pure (PrimE (Bool False))
-doSubtype _ _ = lift $ throwError "bad args to subtype"
-mlsSubtype = liftFun2 doSubtype Undef Undef Undef
+-- doSubtype :: Expr -> Expr -> EvalM Expr
+-- doSubtype (Type t1) (Type t2) = 
+--   if subtype t1 t2 then pure (PrimE (Bool True)) else pure (PrimE (Bool False))
+-- doSubtype _ _ = lift $ throwError "bad args to subtype"
+-- mlsSubtype = liftFun2 doSubtype Undef Undef Undef
 
 
 
@@ -217,7 +217,7 @@ coreModule = Map.fromList [
   ("Node", mlsNode),
   ("syntax", Special Mac),
   -- ("macro-expand", (mlsMacroExpand, Undef))
-  ("subtype", mlsSubtype),
+  -- ("subtype", mlsSubtype),
   
   -- language constructs
   (".",           Special Access),

@@ -193,7 +193,7 @@ eval (CSig body) = (Type . Signature) <$> evalDefs body
 
 err = Except.throwError
 
-toTopCore :: TIntTop -> Except String TopCore  
+toTopCore :: TIntTop ModulusType -> Except String TopCore  
 toTopCore (TDefinition def) = TopDef <$> fromDef def
   where
     fromDef (TSingleDef name body (Just ty)) = do
@@ -211,7 +211,7 @@ toTopCore (TDefinition def) = TopDef <$> fromDef def
 toTopCore (TExpr v) = TopExpr <$> toCore v
 
 
-toCore :: TIntermediate -> Except String Core  
+toCore :: TIntermediate ModulusType -> Except String Core  
 toCore (TValue v) = pure (CVal v)
 toCore (TSymbol s) = pure (CSym s)
 toCore (TAccess int field) = do
@@ -240,7 +240,7 @@ toCore (TLambda ((arg, b) : xs) body ty) = do
       pure (CAbs nme coreBody sty)
     (_, ValArg nme _) -> 
       pure (CAbs nme coreBody sty)
-    (_, InfArg _) -> err "cannot convert inferred arguments!"
+    (_, InfArg _ _) -> err "cannot convert inferred arguments!"
 
 toCore (TLambda [] body _) = toCore body
 toCore (TModule map) = do

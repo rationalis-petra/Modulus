@@ -1,8 +1,8 @@
 import Parse
-import Test
+import TypeTest
 
 main :: IO ()
 main = do
   runParseSuite
-  runTypeTests
+  -- runTypeTests
   putStrLn "tests complete"
