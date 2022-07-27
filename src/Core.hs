@@ -212,6 +212,7 @@ toTopCore (TExpr v) = TopExpr <$> toCore v
 
 
 toCore :: TIntermediate ModulusType -> Except String Core  
+toCore (TType ty) = pure (CVal (Type ty))
 toCore (TValue v) = pure (CVal v)
 toCore (TSymbol s) = pure (CSym s)
 toCore (TAccess int field) = do

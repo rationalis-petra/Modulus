@@ -13,14 +13,13 @@ import Syntax.TIntermediate
 
 import qualified Typecheck.Environment as Env
 import Typecheck.InfType
-import Typecheck.TypeUtils (typeExpr, toInf, toMls)
+import Typecheck.TypeUtils (typeExpr, toInf, toMls, infGetFree)
 
 type LRSubst = ([(InfType, Int)], [(InfType, String)], [(InfType, String)])
 type Subst = ([(InfType, Int)], [(InfType, String)])
 type TypeM = ExceptT String (State Int)
 
 err = throwError  
-
 runCheckerTop :: TIntTop ModulusType -> Env.CheckEnv
               -> Either String (Either (TIntTop ModulusType, ModulusType) (TIntTop ModulusType))
 runCheckerTop term env = 
@@ -44,7 +43,8 @@ runCheckerTop term env =
 runChecker :: TIntermediate ModulusType -> Env.CheckEnv
            -> Either String (TIntermediate ModulusType, ModulusType)
 runChecker term env = 
-  let mnd = do 
+  let mnd :: TypeM (TIntermediate ModulusType, ModulusType)
+      mnd  = do 
         (infterm, ty, subst) <- typeCheck term env
         if subst /= nosubst then
           throwError "substitution not empty at conclusion of type-checking!!"
@@ -60,23 +60,24 @@ runChecker term env =
 
 typeCheckTop :: TIntTop ModulusType -> Env.CheckEnv
              -> TypeM (Either (TIntTop InfType, InfType) (TIntTop InfType))
-typeCheckTop (TExpr e) env = (Left . (\(x, y, z) -> (TExpr x, y))) <$> typeCheck e env
+typeCheckTop (TExpr e) env = do
+      (expr, ty, (substint, subststr)) <- typeCheck e env
+      (expr', ty') <- buildDepFn expr ty
+      pure $ Left $ (TExpr expr', ty')
+
 typeCheckTop (TDefinition def) env = 
   case def of 
     TSingleDef name expr Nothing -> do
-      (expr', ty, subst) <- typeCheck expr env
-      if subst /= nosubst
+      (expr', ty, (substint, subststr)) <- typeCheck expr env
+      if subststr /= []
         then 
-          throwError "subst non-empty at toplevel!"
-        else
-          pure $ Right $ TDefinition $ TSingleDef name expr' (Just ty)
+          throwError "subst strings non-empty at toplevel!"
+        else do
+          (expr'', ty') <- buildDepFn expr' ty
+          pure $ Right $ TDefinition $ TSingleDef name expr'' (Just ty')
 
     TSingleDef name expr (Just mty) -> do
       throwError "cannot check type-annotated single definitions"
-      -- (expr', ty) <- typeCheck expr env
-      -- inf <- toInf mty
-      -- checkEq ty mty'
-      -- pure $ Right $ TDefinition $ TSingleDef name expr' (Just mty)
 
     TOpenDef expr Nothing -> do 
       (expr', ty, subst) <- typeCheck expr env
@@ -93,6 +94,22 @@ typeCheckTop (TDefinition def) env =
 
     -- TEffectDef  String [String] Int [(String, Int, [ModulusType])]
 
+buildDepFn :: (TIntermediate InfType) -> InfType -> TypeM (TIntermediate InfType, InfType)
+buildDepFn expr ty = do
+  let bothFree = Set.toList (infGetFree ty Set.empty)
+  free <- mapM (\x -> case x of
+                   Right n -> pure n
+                   Left str ->
+                     throwError ("non-inference type variable free when building Dependent Fn " <> str <> " in type " <> show ty <> " for val " <> show expr))
+          bothFree
+  let mkFunTy [] ty = ty
+      mkFunTy (id : ids) ty = IMImplDep (ITypeN 1) ("#" <> show id) (mkFunTy ids ty)
+      mkFun [] bdy = bdy
+      mkFun vars bdy =
+        TLambda (map (\id -> (BoundArg ("#" <> show id) (ITypeN 1), True)) vars) bdy (Just (mkFunTy free ty))
+  pure (mkFun free expr, mkFunTy free ty)
+        
+
   
 
 
@@ -106,7 +123,7 @@ typeCheck expr env = case expr of
   (TSymbol s) -> do
     case runExcept (Env.lookup s env) of 
       Right ty -> pure (TSymbol s, ty, nosubst)
-      Left err -> throwError ("couldn't find type of " <> s)
+      Left err -> throwError ("couldn't find type of symbol " <> s)
 
   (TApply l r) -> do 
     (l', tl, substl) <- typeCheck l env
@@ -118,35 +135,104 @@ typeCheck expr env = case expr of
         let substsing = toSing substcomb
         subst <- compose substsing substboth
         pure (TApply l' r', t2, subst)
-      other -> throwError (show other <> " is not a function type") 
+      _ -> do
+        (args, unbound, subst, rettype) <- deriveFn tl tr r'
+        let (fnl_expr, fnl_ty) = mkFnlFn (reverse args) unbound l' rettype
+        subst_fnl <- compose subst substboth
+        pure (fnl_expr, fnl_ty, subst_fnl) -- TODO: VERY NAUGHTY!!
+        
+    where
+      -- deriveFn will take the LHS of the apply, it's type and the RHS of the
+      -- apply and it's type, and deduce a list of arguments (and unbount types)
+      -- from which a new term can be constructed that contains the necessary
+      -- implicit application/function abstractions
+      -- for example, if we had a function f : {a} -> {b} -> a -> b -> (a × b) in
+      -- application f 2, deriveFn would return [int, b, 2], ["b"]
 
-  -- (TLambda args body mty) -> do 
-  --    -- env' <- updateFromargs env args
-  --    -- (body', ty, subst) <- typeCheck body env 
-  --    -- case mty of 
-  --    --   Nothing -> do
-  --    --     fnl_ty <- buildFnType args subst ty  
-  --    --     let fnl_args = fixArgs args subst  
-  --    --         fnl_lambda = TLambda fnl_args body' (Just ty)
-  --    --     pure (fnl_lambda, fnl_ty, subst)
+      -- mkFnlFn is simply the function which constructs a term of appropriate
+      -- type given the output from deriveFn. In the above example, it would
+      -- take as input [int, b, 2], ["b"] (along with the function f, and 
+      -- construct the term (λ {b} [x : b] (f {int} {b} 2 x)), which has type
+      -- {b} -> b -> (int × b) 
 
-     -- where 
-     --   -- TODO: consider substitutions!
-     --   buildFnType ((ty, bl):tys) subst bodyty = do
-     --     ret_ty <- buildFnType tys subst bodyty
-     --     case ty of 
-     --       BoundArg str t -> if bl then  
-     --         pure (IMImplDep t str ret_ty )
-     --         else pure (IMDep t str ret_ty)
-     --       ValArg str t -> if bl then 
-     --         throwError "non-dependent arg cannot be implicit!"
-     --         else pure (IMArr t ret_ty)
-     --       -- InfArg str id -> if bl then 
-     --       --   throwError "non-dependent arg cannot be implicit!"
-     --       --   else IMArr t ret_ty 
-     --   buildFnType [] _ bodyty = pure bodyty
+
+                  -- lhs/ty  rhs/ty     rhs
+      deriveFn :: InfType -> InfType -> TIntermediate InfType
+               -> TypeM ([(Bool, TIntermediate InfType)], [(InfType, String)], Subst, InfType)
+      deriveFn (IMImplDep (ITypeN 1) s t2) tr r = do
+        (args, unbnd, subst, rettype) <- deriveFn t2 tr r
+        case findStrSubst s subst of 
+          Just ty -> pure (((True, (TType ty)) : args),
+                           unbnd,
+                           rmStrSubst s subst,
+                           dosubst ([], [(ty, s)]) rettype)
+          Nothing -> pure ((True, TType (IMVar (Left s))) : args, ((ITypeN 1, s):unbnd),
+                           rmStrSubst s subst, rettype)
+      deriveFn (IMArr t1 t2) tr r = do
+        substlr <- constrain tr t1
+        let subst = toSing substlr
+        pure ([(False, r)], [], subst, t2)
+      deriveFn t _ _ = throwError ("cannot apply to non-function value of type: " <> show t)
+
+      mkFnlFn :: [(Bool, TIntermediate InfType)] -> [(InfType, String)] -> TIntermediate InfType -> InfType
+              -> (TIntermediate InfType, InfType)
+      mkFnlFn args unbound bdy bodyty = (fnlfn, fnlty)
+        where
+          fnlfn = if (null args)
+            then
+              (mkbdy [] bdy)
+            else
+              TLambda (map (\(ty, s) -> (BoundArg s ty, True)) unbound) (mkbdy args bdy) (Just bodyty) 
+          mkbdy [] bdy = bdy
+          mkbdy ((implicit, term):xs) bdy =
+            if implicit then
+              TImplApply (mkbdy xs bdy) term
+            else
+              TApply (mkbdy xs bdy) term
+
+          fnlty = mkfnlty unbound bodyty 
+          mkfnlty [] ret = ret
+          mkfnlty ((ty, s):xs) ret = IMImplDep ty s (mkfnlty xs ret)
+          
+
+  (TLambda args body mty) -> do 
+     env' <- updateFromArgs env args
+     (body', ty, subst) <- typeCheck body env'
+     case mty of 
+       Nothing -> do
+         let fnl_args = fixArgs args subst
+         fnl_ty <- buildFnType fnl_args subst ty
+         let fnl_lambda = TLambda fnl_args body' (Just fnl_ty)
+         pure (fnl_lambda, fnl_ty, subst)
+
+     where 
+       buildFnType :: [(TArg InfType, Bool)] -> Subst -> InfType -> TypeM InfType 
+       buildFnType [] _ bodyty = pure bodyty
+       -- TODO: consider substitutions!
+       buildFnType ((ty, bl):tys) subst bodyty = do
+         ret_ty <- buildFnType tys subst bodyty
+         case ty of 
+           BoundArg str t -> if bl then  
+             pure (IMImplDep t str ret_ty )
+             else pure (IMDep t str ret_ty)
+           ValArg str t -> if bl then 
+             throwError "non-dependent arg cannot be implicit!"
+             else pure (IMArr t ret_ty)
+           InfArg _ _ -> 
+             throwError "buildFnType not expecting inference!"
+
+       -- TODO: consider adding implicit type parameters!!
+       fixArgs :: [(TArg ModulusType, Bool)] -> Subst -> [(TArg InfType, Bool)]
+       fixArgs [] subst = []  
+       fixArgs ((arg, impl) : args) subst = case arg of  
+         BoundArg str ty -> (BoundArg str (toInf ty), impl) : fixArgs args subst
+         ValArg str ty -> (ValArg str (toInf ty), impl) : fixArgs args subst
+         InfArg nme id ->
+           let ty = dosubst subst (IMVar (Right id))
+           in (ValArg nme ty, impl) : fixArgs args subst
+
   (TAccess term field) -> do
-    (term', ty, subst) <- typeCheck term env 
+    (term', ty, subst) <- typeCheck term env
     -- TODO: what if there is a substituion 
     case ty of 
       (IMSig map) -> case Map.lookup field map of 
@@ -155,13 +241,10 @@ typeCheck expr env = case expr of
       t -> throwError ("expected signature, got " <> show t)
          
        
-  
-  
-
   (TIF cond e1 e2) -> do 
-    (cond', tcond, substcond) <- typeCheck cond env 
-    (e1', te1, subste1) <- typeCheck e1 env 
-    (e2', te2, subste2) <- typeCheck e2 env 
+    (cond', tcond, substcond) <- typeCheck cond env
+    (e1', te1, subste1) <- typeCheck e1 env
+    (e2', te2, subste2) <- typeCheck e2 env
     substcnd' <- constrain tcond (IMPrim BoolT)
     substterms <- constrain te1 te2
     let substcnd'' = toSing substcnd'
@@ -180,7 +263,7 @@ typeCheck expr env = case expr of
       case arg of
         BoundArg str ty -> pure (Env.insert str (toInf ty) env')
         ValArg str ty -> pure (Env.insert str (toInf ty) env')
-        InfArg str id -> do pure (Env.insert str (IMVar (Right id)) env')
+        InfArg str id -> pure (Env.insert str (IMVar (Right id)) env')
 
  --  TODO: add an implicit-application check at constraint points, so typechecks
  --  for any term can have implicit application!  
@@ -192,6 +275,10 @@ typeCheck expr env = case expr of
 -- In constrainl(constrainr), we unify variables we are inferring (integers),
 -- but the substitution of dependently-bound (string) variables occurs only on
 -- the left(right) side
+
+-- TODO: break down constrain so that we have a "top" constrain that can
+-- instantiate either left or right implicit dependent products?  
+-- TODO: perhaps this needs to be done at any level (not just the top?)
 constrain :: InfType -> InfType -> TypeM LRSubst
 constrain (IMVar v1) (IMVar v2) = case (v1, v2) of 
 -- TODO: unioning variables: prioritise inference variable substitution, as is
@@ -265,6 +352,7 @@ constrain (IMDot t1 field1) (IMDot t2 field2) =
   else 
     err ("cannot constrain type" <> show t1 <> " and " <> show t2 <> " as they access different fields")
 
+
 -- TOOD: IMNamed/IMEffect 
 -- constrain (IMNamed id1 name1 params1 instances1) (IMNamed id2 name2 params2 instances2) = 
 
@@ -292,14 +380,45 @@ constrain (IMVector ty1) (IMVector ty2) = constrain ty1 ty2
 constrain t1 t2 =   
   err ("cannot constrain types" <> show t1 <> " and " <> show t2 <> " as they have different forms")
 
-
-  
 -- toInfType :: ModulusType -> InfType 
 
 
 
+-- Implicit argument inference  
+deriveLeft :: TIntermediate InfType -> InfType -> LRSubst -> TypeM (TIntermediate InfType, InfType, LRSubst)
+deriveLeft tinf ty (i, l, r) = do
+  (tinf', ty, (i', l')) <- derive tinf ty (i, l)
+  pure (tinf', ty, (i', l', r))
+deriveRight :: TIntermediate InfType -> InfType -> LRSubst -> TypeM (TIntermediate InfType, InfType, LRSubst)
+deriveRight tinf ty (i, l, r) = do
+  (tinf', ty, (i', r')) <- derive tinf ty (i, r)
+  pure (tinf', ty, (i', l, r'))
 
+derive :: TIntermediate InfType -> InfType -> Subst -> TypeM (TIntermediate InfType, InfType, Subst)
+derive tint (IMImplDep t1 s t2) subst = 
+  case t1 of 
+    (ITypeN 1) -> case findStrSubst s subst of 
+      -- TODO: the toMls feels dodgy...
+      Just ty -> pure (TImplApply tint (TType ty), dosubst ([], [(ty, s)]) t2, rmStrSubst s subst)
+      Nothing -> throwError ("unable to find type substitution in type: " <> show (IMImplDep t1 s t2))
+    (IMSig sig) -> 
+      throwError "inference for signatures not implemented yet!"
+    _ -> throwError ("implicit argument only supported for type Type and Signature, not for " <> show t1)
+-- if not implicit application, ignore!
+derive tint ty subst = pure (tint, ty, subst)
 
+findStrSubst :: String -> Subst -> Maybe InfType
+findStrSubst str (i, (ty, str') : ss) =
+  if str == str' then
+    Just ty
+  else findStrSubst str (i, ss)
+findStrSubst _ (_, []) = Nothing
+
+rmStrSubst :: String -> Subst -> Subst
+rmStrSubst str (f, (ty, str'):ss)=
+  if str == str' then rmStrSubst str (f, ss)
+  else let (f', ss') = rmStrSubst str (f, ss) in (f', ((ty, str') : ss'))
+rmStrSubst str (f,[]) = (f,[])
 
 
 -- Substitution Utilities  
@@ -320,6 +439,8 @@ rightsubst :: InfType -> Either String Int -> LRSubst
 rightsubst ty s = case s of
   Left str -> ([], [], [(ty, str)])
   Right n -> ([(ty, n)], [], [])
+
+
 
 -- composition of substitutions: For HM substitutions, they are run in order,
 -- while for the string-based substitutions, we don't know in what order they
@@ -516,6 +637,7 @@ occurs' _ (IMPrim _) = False
 coalesce :: TIntermediate InfType -> TIntermediate ModulusType
 coalesce term = case term of 
   (TValue v)        -> TValue v
+  (TType ty)        -> TType (toMls ty)
   (TSymbol s)       -> TSymbol s
   (TApply l r)      -> TApply (coalesce l) (coalesce r) 
   (TImplApply l r)  -> TImplApply (coalesce l) (coalesce r)

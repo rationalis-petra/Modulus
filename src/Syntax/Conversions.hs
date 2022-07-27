@@ -111,7 +111,6 @@ toTIntermediate (IApply i1 i2) env = do
 
 toTIntermediate (ILambda args bdy) env = do
   (args', env') <- processArgs args env
-  id <- fresh_var
   bdy' <- toTIntermediate bdy env'
   pure $ TLambda args' bdy' Nothing
   where

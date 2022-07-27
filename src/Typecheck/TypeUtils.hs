@@ -148,6 +148,22 @@ getFree (MDep l s r) env =
 getFree (ImplMDep l s r) env = 
   getFree l env <> getFree r (Set.insert s env)
 
+infGetFree :: InfType -> Set.Set (Either String Int) -> Set.Set (Either String Int)
+infGetFree (IMPrim _) _ = Set.empty
+infGetFree (ITypeN _) _ = Set.empty
+infGetFree (IMVar v) env =
+  if (Set.member v env) then Set.empty else Set.singleton v
+infGetFree (IMArr l r) env = 
+  infGetFree l env <> infGetFree r env
+infGetFree (IMDep l s r) env = 
+  infGetFree l env <> infGetFree r (Set.insert (Left s) env)
+infGetFree (IMImplDep l s r) env = 
+  infGetFree l env <> infGetFree r (Set.insert (Left s) env)
+infGetFree (IMSig sig) env = 
+  let env' = Map.foldrWithKey (\str _ env -> Set.insert (Left str) env) env sig 
+  in
+    Map.foldr (\ty free -> Set.union (infGetFree ty env') free) Set.empty sig
+
 
 
  -- CONVERSIONS 
@@ -174,7 +190,7 @@ toMls (ITypeN n) = TypeN n
 toMls (IMVar sym) = case sym of 
   Left str -> MVar str
   -- TODO: what if this variable occurs when not mangling?!
-  Right n -> MVar (show n)
+  Right n -> MVar ("#" <> (show n))
 toMls (IMSig sig) = Signature (Map.map toMls sig)
 toMls (IMArr t1 t2) = MArr (toMls t1) (toMls t2)
 toMls (IMDep t1 sym t2) = MDep (toMls t1) sym (toMls t2)

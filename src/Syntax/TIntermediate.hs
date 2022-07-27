@@ -72,6 +72,7 @@ data TPattern ty
 {-- --}
 data TIntermediate ty
   = TValue Expr
+  | TType ty -- upon coalesce --> convert to TValue (MType (toMls ty))
   | TSymbol String
   | TApply (TIntermediate ty) (TIntermediate ty)
   | TImplApply (TIntermediate ty) (TIntermediate ty)
