@@ -129,7 +129,17 @@ eval (CApp e1 e2) = do
       let new_ctx = case var of
             "_" -> fn_ctx
             _ -> Ctx.insert var arg fn_ctx
-      local new_ctx (eval body)
+      new_bdy <- case ty of
+        ImplMDep _ _ _ -> do
+          case getDepType arg of 
+            Just tyarg -> pure (substCore (tyarg, var) body)
+            Nothing -> throwError "failed to getDepType"
+        MDep _ _ _ -> do
+          case getDepType arg of 
+            Just tyarg -> pure (substCore (tyarg, var) body)
+            Nothing -> throwError "failed to getDepType"
+        _ -> pure body
+      local new_ctx (eval new_bdy)
     CConstructor name id1 id2 n (x:xs) vars ty -> do
       arg <- eval e2
       pure (CConstructor name id1 id2 n xs vars ty)
@@ -140,10 +150,8 @@ eval (CApp e1 e2) = do
       pure (CConstructor name id1 id2 (n - 1) [] (arg : l) ty)
     n -> throwError ("non-function called " <> show n)
 eval (CAbs var body ty) = do
-  -- TODO: Change the value data-type so that user-defined functions have
-  --       associated type
   ctx <- ask
-  pure $ CFunction var body ctx ty  
+  pure $ CFunction var body ctx ty
 
 eval (CMod body) = Module <$> evalDefs body
   where
@@ -302,3 +310,76 @@ toCore (TIF cond e1 e2) = do
   pure (CIF cond' e1' e2')
 
 -- toCore x = err ("unimplemented" <> show x)
+
+
+substCore :: (ModulusType, String) -> Core -> Core  
+substCore s (CVal expr)        = CVal (substExpr s expr)
+substCore _ (CSym str)         = CSym str
+substCore s (CDot mdle field)  = CDot (substCore s mdle) field
+substCore s (CAbs var body ty) = CAbs var (substCore s body) (doSubstMls s ty)
+substCore s (CApp t1 t2)       = CApp (substCore s t1) (substCore s t2)
+-- CMAbs String ModulusType Core
+-- CSeq [Core]
+-- CLet [(String, Core)] Core
+-- CLetOpen [(Core, SigDefn)] Core
+-- CMatch Core [(Pattern, Core)]
+-- CIF Core Core Core
+-- CMod [Definition]
+-- CSig [Definition]
+
+substExpr :: (ModulusType, String) -> Object m -> Object m
+substExpr _ (PrimE e) = (PrimE e)
+
+  -- | Coll (CollE m) 
+  -- | Keyword String
+substExpr s (Type ty) = (Type (doSubstMls s ty))
+  -- | Variant String Int Int [Object m]
+  -- | Constructor String Int Int Int [Object m]
+  -- | CConstructor String Int Int Int [String] [Object m] ModulusType
+  -- | Module (Map.Map String (Object m))
+
+  -- -- Pattern matching on inbuilt data-types nargs currying
+  -- | CustomCtor Int [(Object m)]
+  --   -- constructor
+  --   ([Object m] -> m (Object m))
+  --   -- matcher
+  --   (Object m -> m (Maybe [(Object m)]))
+  --   -- type
+  --   ModulusType
+  -- -- TODO: pattern-matching on structures.
+
+  -- -- Syntax and macros
+  -- | AST AST
+  -- | Symbol String
+  -- | Special Special
+  -- | Macro [String] Intermediate ValContext
+  -- | InbuiltMac ([AST] -> m AST)
+
+
+  -- -- EVALUATION & FUNCTIONS
+  -- | Function [String] Intermediate ValContext
+  -- | CFunction String Core ValContext ModulusType 
+  -- | CDFunction String Core ValContext ModulusType 
+  -- | InbuiltFun (Object m -> m (Object m)) ModulusType
+
+  -- -- ALGEBRAIC EFFECTS
+  -- | IOEffect
+  -- | IOAction Int Int ([Object m] -> IO (m (Object m))) [Object m]
+  -- | Effect Int Int
+  -- | Action Int Int Int [Object m]
+  -- | Handler [(Int, Int, [String], Intermediate)]
+
+
+getDepType :: Object EvalM -> Maybe ModulusType
+getDepType (Type t) = Just t
+getDepType (Module map) =
+
+  let map' :: Map.Map String ModulusType
+      map' = Map.foldrWithKey (\k v m -> case v of
+                                  Just v' -> Map.insert k v' m
+                                  Nothing -> m)
+                                  Map.empty (Map.map getDepType map) 
+  in
+    if Map.null map' then Nothing else Just (Signature map')
+    
+getDepType _ = Nothing

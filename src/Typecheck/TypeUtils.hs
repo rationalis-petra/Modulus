@@ -70,7 +70,7 @@ hasType (Module mod) (Signature sig) =
 
   in
     if hasTypes then 
-      let (Signature substSig) = foldr (\(k, t) sig -> subst k t sig) (Signature sig) mtypes
+      let (Signature substSig) = foldr (\(k, t) sig -> doSubstMls (t, k) sig) (Signature sig) mtypes
       in 
         Map.foldrWithKey (\k t b -> b && case Map.lookup k mod of 
                       Just v -> hasType v t
@@ -87,37 +87,6 @@ typeEq _t1 _t2 = case (_t1, _t2) of
   (MArr t1 t2, MArr t1' t2') -> do
     typeEq t1 t1' && typeEq t2 t2'
   (_, _) -> False
-
--- TODO: rename apply
--- subst is something more like an apply/reduce: it performs a limited type of
--- "evaluation"
-subst :: String -> ModulusType -> ModulusType -> ModulusType
-subst s t (TypeN n) = (TypeN n)
-subst s t (MPrim p) = (MPrim p)
-subst s t (MVar s') = if s == s' then t else (MVar s')
-subst s t (MArr t1 t2) = (MArr (subst s t t1) (subst s t t2))
--- subst s t (MDep t1 s' t2) =
---   --                        TODO: should be subst here?
---   if s == s' then (MDep (subst s t t1) s' t2)
---   else (MDep (subst s t t1) s' (subst s t t2))
--- subst s t (ImplMDep t1 s' t2) =
---   --                        TODO: should be subst here?
---   if s == s' then (ImplMDep (subst s t t1) s' t2)
---   else (ImplMDep (subst s t t1) s' (subst s t t2))
-subst s t (MDot t1 field) =
-  case subst s t t1 of
-    Signature sig -> case Map.lookup field sig of 
-      Just x -> x
-      -- TODO: allow throwing of errors!
-      Nothing -> (MDot (Signature sig) field)
-    t -> MDot t field
-subst s t (Signature sig) = Signature (Map.map (subst s t) sig) 
-subst s t (MNamed id name variants instances) =
-  if s == name then
-    MNamed id name variants instances
-  else
-    MNamed id name (map (subst s t) variants) (map (map (subst s t)) instances)
-
 
 occursCheck :: String -> ModulusType -> Bool
 occursCheck s t = case t of 
@@ -204,3 +173,25 @@ toMls (IMEffect set ty) = MEffect (Set.map toMlsEffect set) (toMls ty)
     toMlsEffect (ICustomEff id args) = (CustomEff id (map toMls args))
 toMls (IMPrim prim) = MPrim prim
 toMls (IMVector ty) = MVector (toMls ty)
+
+
+doSubstMls :: (ModulusType, String) -> ModulusType -> ModulusType
+doSubstMls _ (TypeN n) = (TypeN n)
+doSubstMls (ty, v) (MVar v') = if v == v' then ty else (MVar v')
+-- Signature (Map.Map String ModulusType)
+doSubstMls s (MArr t1 t2) = MArr (doSubstMls s t1) (doSubstMls s t2)
+doSubstMls (ty, v) (MDep t1 v' t2) =
+  MDep (doSubstMls (ty, v) t1) v' (if v == v' then t2 else doSubstMls (ty, v) t2)
+doSubstMls (ty, v) (ImplMDep t1 v' t2) =
+  ImplMDep (doSubstMls (ty, v) t1) v' (if v == v' then t2 else doSubstMls (ty, v) t2)
+doSubstMls s (MDot ty field) = 
+  case doSubstMls s ty of
+    Signature m -> case Map.lookup field m of 
+      Just ty -> ty
+    ty' -> (MDot ty' field)
+-- MEffect (Set.Set EffectType) ModulusType
+--  MNamed Int String [ModulusType] [[ModulusType]]
+doSubstMls _ (MPrim p) = MPrim p
+doSubstMls s (MVector ty) = MVector (doSubstMls s ty)
+-- Undef
+-- Large

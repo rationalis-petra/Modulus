@@ -123,6 +123,7 @@ data Object m
   -- EVALUATION & FUNCTIONS
   | Function [String] Intermediate ValContext
   | CFunction String Core ValContext ModulusType 
+  | CDFunction String Core ValContext ModulusType 
   | InbuiltFun (Object m -> m (Object m)) ModulusType
 
   -- ALGEBRAIC EFFECTS

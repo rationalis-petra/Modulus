@@ -8,7 +8,8 @@ import Control.Lens
 
 import Data (EffectType(..),
              PrimType(..),
-             ModulusType(..))
+             ModulusType(..),
+             Object(Type))
 import Syntax.TIntermediate
 
 import qualified Typecheck.Environment as Env
@@ -135,11 +136,17 @@ typeCheck expr env = case expr of
         let substsing = toSing substcomb
         subst <- compose substsing substboth
         pure (TApply l' r', t2, subst)
+      IMDep t1 s t2 -> do 
+        substcomb <- constrain tr t1 
+        let substsing = toSing substcomb
+        subst <- compose substsing substboth
+        ty <- toDepLiteral r' env
+        pure (TApply l' r', dosubst ([], [(ty, s)]) t2, subst)
       _ -> do
         (args, unbound, subst, rettype) <- deriveFn tl tr r'
         let (fnl_expr, fnl_ty) = mkFnlFn (reverse args) unbound l' rettype
         subst_fnl <- compose subst substboth
-        pure (fnl_expr, fnl_ty, subst_fnl) -- TODO: VERY NAUGHTY!!
+        pure (fnl_expr, fnl_ty, subst_fnl)
         
     where
       -- deriveFn will take the LHS of the apply, it's type and the RHS of the
@@ -610,25 +617,19 @@ occurs' _ (IMPrim _) = False
   
 
 -- MISC TYPE UTILS
--- depType: given a value
+-- toDepLiteral: given a value, convert to literal
 -- + if it is a type return that type
--- + if it is a module, return the (dependent) type of that module
+-- + if it is a module, return the (literal) value of that module
+-- + if it is a symbol (string: s) and has type Type type, return (IMVar a)
+-- + if it is a non-type value, error!
+-- + if application, error! (TODO: evaluate if pure!)
 -- Intended to be used so arguments to 'dependent' functions can be converted
 -- into types, and then substituted in to make sure it all works!
--- depType :: TIntermediate -> TypeM (InfType)
--- depType (TValue (TypeN t)) = pure t
--- depType (TValue (Module m)) = do 
---   lst <- mapM (\(s, v) -> do
---                    t' <- depType (TValue v)
---                    pure (Just (s, t'))
---                    `catchError` (\_ -> pure Nothing)) (Map.toList m)
---   --lst :: [(Maybe (String, ModulusType))]
---   let lst' = foldr (\v tl -> case v of
---                        Just x -> x : tl
---                        Nothing -> tl) [] lst
---   pure (Signature (Map.fromList lst'))
-
--- depType v = throwError ("cannot get as dep-type: " <> show v)
+toDepLiteral :: TIntermediate InfType -> Env.CheckEnv -> TypeM InfType
+toDepLiteral (TValue (Type t)) env = pure (toInf t)
+toDepLiteral (TValue v) env = throwError ("non-type value given to toDepLiteral: " <> show v)
+toDepLiteral (TType ty) env = pure ty
+-- toDepLiteral (TSymbol str)
 
 
 -- Second Phase: post-check
