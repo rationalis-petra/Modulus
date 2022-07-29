@@ -263,6 +263,28 @@ typeCheck expr env = case expr of
     s4 <- compose s3 substterms'
     pure (TIF cond' e1' e2', dosubst s4 te1, s4)
 
+  -- TODO: mutually recursive definitions...
+  (TModule defs) -> do  
+    result <- mapM (\int -> typeCheckDef int env) defs
+    -- extract different values from the result   
+    let defs' = map (\(def, _, _, _) -> def) result
+        sig = foldr (\(_, str, ty, _) m -> Map.insert str ty m) Map.empty result
+
+        foldCmp mnd [] = mnd
+        foldCmp mnd (s:ss) = do
+          s' <- mnd
+          foldCmp (compose s s') ss
+
+    subst <- foldCmp (pure nosubst) (map (\(_, _, _, subst) -> subst) result)
+
+    pure (TModule defs', IMSig sig, subst)
+
+    
+
+
+  other -> 
+    throwError ("typecheck unimplemented for intermediate term " <> show other)
+
   where
     updateFromArgs env [] = pure env
     updateFromArgs env ((arg, _) : args) = do 
@@ -272,8 +294,19 @@ typeCheck expr env = case expr of
         ValArg str ty -> pure (Env.insert str (toInf ty) env')
         InfArg str id -> pure (Env.insert str (IMVar (Right id)) env')
 
- --  TODO: add an implicit-application check at constraint points, so typechecks
- --  for any term can have implicit application!  
+
+typeCheckDef :: TDefinition ModulusType -> Env.CheckEnv -> TypeM (TDefinition InfType, String, InfType, Subst)
+-- typeCheckDef (TVariantDef name vars id variants ty)
+-- typeCheckDef (TEffectDef  name vars id actions)
+typeCheckDef (TSingleDef name body ty) env = do 
+  bnd <- case ty of 
+    Nothing -> freshVar
+    Just ty -> pure (toInf ty)
+  (body', ty', subst) <- typeCheck body (Env.insert name bnd env)
+  pure (TSingleDef name body' (Just ty'), name, ty', subst)
+
+
+-- typeCheckDef (TOpenDef body ty)
 
 
 -- constrain: like unify, but instead of t1[subst] = t2[subst], we have
@@ -309,9 +342,11 @@ constrain ty (IMVar v) =
   else
     pure (rightsubst ty v)
 constrain (IMPrim t1) (IMPrim t2) =
-  if t1 == t2 then pure lrnosubst else err "non-equal primitives in constrain"
+  if t1 == t2 then pure lrnosubst else err ("non-equal primitives in constrain: "
+                                            <> show t1 <> " and " <> show t2)
 constrain (ITypeN n1) (ITypeN n2) =
-  if n1 == n2 then pure lrnosubst else err "non-equal primitives in constrain"
+  if n1 == n2 then pure lrnosubst else err ("non-equal primitives in constrain"
+                                            <> show (ITypeN n1) <> " and " <> show (ITypeN n2))
 
 constrain (IMArr l1 r1) (IMArr l2 r2) = do
   -- remember: function subtyping is contravaraiant in the argument and
@@ -669,3 +704,9 @@ coalesceTop :: TIntTop InfType -> TIntTop ModulusType
 coalesceTop (TExpr term) = TExpr (coalesce term)
 coalesceTop (TDefinition def) = TDefinition (coalesceDef def)
   
+
+freshVar :: TypeM InfType  
+freshVar = do
+  id <- get 
+  put (id + 1)
+  pure (IMVar (Right id))
