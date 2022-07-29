@@ -112,8 +112,6 @@ buildDepFn expr ty = do
         
 
   
-
-
 typeCheck :: TIntermediate ModulusType -> Env.CheckEnv -> TypeM (TIntermediate InfType, InfType, Subst)
 typeCheck expr env = case expr of
   (TValue v) -> do
@@ -541,7 +539,7 @@ substvar (ty, var) term =
   case term of 
     IMVar var' -> if var == var' then ty else term
     IMArr t1 t2 -> 
-      IMArr (substvar (ty, var) t1) (substvar (ty, var) t1)
+      IMArr (substvar (ty, var) t1) (substvar (ty, var) t2)
     IMDep t1 s t2 -> case var of 
       Left str ->
         if str == s then 

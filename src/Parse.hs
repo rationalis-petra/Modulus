@@ -33,7 +33,7 @@ many1 p = (:) <$> p <*> (many p)
 pSym :: Parser Expr
 pSym = (lexeme $ Symbol <$> pSymStr) <|> (try (between (symbol "`") (symbol "`") pSpecial))
   where
-    pSymStr = (:) <$> letterChar <*> many (alphaNumChar <|> char '-')
+    pSymStr = (:) <$> (letterChar <|> char '_') <*> many (alphaNumChar <|> char '-' <|> char '_')
 
 pSpecial :: Parser Expr
 pSpecial = (lexeme $ Symbol <$> pSpecialStr)

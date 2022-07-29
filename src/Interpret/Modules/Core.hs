@@ -77,7 +77,7 @@ with :: Expr -> Expr -> EvalM Expr
 with (Module m1) (Module m2) = 
   pure $ Module (Map.foldrWithKey Map.insert m1 m2)
 with _ _ = lift $ throwError "bad args to with expected types"
-mlsWith = liftFun2 with Undef Undef Undef
+mlsWith = liftFun2 with (MArr Undef (MArr Undef Undef))
 
 upd :: [AST] -> EvalM AST
 upd [mdle, Cons bindlist] = do
@@ -149,23 +149,24 @@ mkFunType :: Expr -> Expr -> EvalM Expr
 mkFunType (Type t1) (Type t2) = 
   pure $ Type (MArr t1 t2)
 mkFunType _ _ = lift $ throwError "bad args to →: expected types"
-mlsFunType = liftFun2 mkFunType (TypeN 1) (TypeN 1) (TypeN 1)
+mlsFunType = liftFun2 mkFunType (MArr (TypeN 1) (MArr (TypeN 1) (TypeN 1)))
 
 mkTupleType :: Expr -> Expr -> EvalM Expr
 mkTupleType (Type t1) (Type t2) = 
   pure $ Type $ Signature (Map.fromList [("_1", t1), ("_2", t2)])
 mkTupleType _ _ = lift $ throwError "bad args to *: expected types"
-mlsMkTupleType = liftFun2 mkTupleType (TypeN 1) (TypeN 1) (TypeN 1)
+mlsMkTupleType = liftFun2 mkTupleType (MArr (TypeN 1) (MArr (TypeN 1) (TypeN 1)))
 
 -- TUPLES
-mkTuple :: Expr -> Expr -> EvalM Expr
-mkTuple e1 e2 = 
+mkTuple :: Expr -> Expr -> Expr -> Expr -> EvalM Expr
+mkTuple _ _ e1 e2 = 
   pure $ Module (Map.fromList [("_1", e1), ("_2", e2)])
-mlsMkTuple = liftFun2
-                 mkTuple
-                 (MVar "a")
-                 (MVar "b")
-                 (Signature (Map.fromList [("_1", MVar "a"), ("_2", MVar "b")]))
+mlsMkTuple = liftFun4 mkTuple (ImplMDep (TypeN 1) "a"
+                                 (ImplMDep (TypeN 1) "b"
+                                  (MArr (MVar "a")
+                                   (MArr (MVar "b")
+                                    (Signature (Map.fromList [("_1", MVar "a"), ("_2", MVar "b")]))))))
+             
 
 -- CONSTRAINTS
 doConstrain :: Expr -> Expr -> EvalM Expr
@@ -182,7 +183,7 @@ doConstrain (Module mod) (Type (Signature sig)) =
         Nothing -> Nothing
     constrain _ [] = Just Map.empty
 doConstrain _ _ = lift $ throwError "bad args to <: expected module and signature"
-mlsConstrain = liftFun2 doConstrain Undef Undef Undef
+mlsConstrain = liftFun2 doConstrain (MArr Undef (MArr Undef Undef))
 
 -- subtype
 -- doSubtype :: Expr -> Expr -> EvalM Expr

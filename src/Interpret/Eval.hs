@@ -6,7 +6,8 @@ module Interpret.Eval (Expr,
 
                        liftFun,
                        liftFun2,
-                       liftFun3) where
+                       liftFun3,
+                       liftFun4) where
 
 import Prelude hiding (lookup)
 
@@ -64,13 +65,6 @@ eval (IApply op arg) = do
             local new_ctx (eval body)
           else 
             pure $ Function vars body new_ctx
-
-    -- CFunction var body fn_ctx ty -> do 
-    --   arg <- eval arg
-    --   let new_ctx = case var of
-    --         "_" -> fn_ctx
-    --         _ -> Ctx.insert var arg fn_ctx
-    --   local new_ctx (Core.eval body)
 
     Constructor nme id var nargs curr -> do 
       arg' <- eval arg
@@ -356,11 +350,11 @@ doHandle obj handler_list =
         (RaiseAction cnt id1 id2 args def) -> 
           let newCnt x =
                 eval (IHandleWith
-                      (IApply (IValue (liftFun cnt Undef Undef)) (IValue x))
+                      (IApply (IValue (liftFun cnt (MArr Undef Undef))) (IValue x))
                       (IValue (Handler handler_list))) in
           case findHandler id1 id2 handler_list of
             Just h ->
-              let res = eval (unfoldArgs h (liftFun newCnt Undef Undef : args)) in
+              let res = eval (unfoldArgs h (liftFun newCnt (MArr Undef Undef) : args)) in
                 (feedEffect innerHandle) res 
             Nothing ->
               ActionMonadT (pure $ RaiseAction newCnt id1 id2 args def)
@@ -377,11 +371,11 @@ doHandle obj handler_list =
         (RaiseAction cnt id1 id2 args def) -> 
           let newCnt x =
                 eval (IHandleWith
-                      (IApply (IValue (liftFun cnt Undef Undef)) (IValue x))
+                      (IApply (IValue (liftFun cnt (MArr Undef Undef))) (IValue x))
                       (IValue (Handler handler_list))) in
           case (findHandler id1 id2 handler_list) of 
             Just h ->
-              let res = eval (unfoldArgs h (liftFun newCnt Undef Undef : args)) in
+              let res = eval (unfoldArgs h (liftFun newCnt (MArr Undef Undef) : args)) in
               (feedEffect innerHandle) res 
             Nothing -> ActionMonadT (pure $ RaiseAction cnt id1 id2 args def)
         (Value x) -> pure x
@@ -496,17 +490,23 @@ evalToIO (ActionMonadT inner_mnd) ctx state =
           return Nothing
 
 
-liftFun :: (Expr -> EvalM Expr) -> ModulusType -> ModulusType -> Expr
-liftFun f t1 t2 = InbuiltFun f (MArr t1 t2)
+liftFun :: (Expr -> EvalM Expr) -> ModulusType -> Expr
+liftFun f ty = InbuiltFun f ty
 
-liftFun2 :: (Expr -> Expr -> EvalM Expr) -> ModulusType -> ModulusType -> ModulusType -> Expr
-liftFun2 f t1 t2 t3 = InbuiltFun (\x -> pure $ liftFun (f x) t1 t2) (MArr t1 (MArr t2 t3)) 
+liftFun2 :: (Expr -> Expr -> EvalM Expr) -> ModulusType -> Expr
+liftFun2 f ty = InbuiltFun (\x -> pure $ liftFun (f x) (getRetTy ty)) ty 
 
-liftFun3 :: (Expr -> Expr -> Expr -> EvalM Expr) ->
-             ModulusType -> ModulusType -> ModulusType -> ModulusType ->Expr 
-liftFun3 f t1 t2 t3 t4 =
-  InbuiltFun (\x -> pure $ liftFun2 (f x) t1 t2 t3)
-   (MArr t1 (MArr t2 (MArr t3 t4))) 
+liftFun3 :: (Expr -> Expr -> Expr -> EvalM Expr) -> ModulusType -> Expr 
+liftFun3 f ty = InbuiltFun (\x -> pure $ liftFun2 (f x) (getRetTy ty)) ty 
+
+liftFun4 :: (Expr -> Expr -> Expr -> Expr -> EvalM Expr) -> ModulusType -> Expr 
+liftFun4 f ty = InbuiltFun (\x -> pure $ liftFun3 (f x) (getRetTy ty)) ty 
+
+getRetTy :: ModulusType -> ModulusType
+getRetTy (MArr _ t) = t
+getRetTy (MDep _ _ t) = t
+getRetTy (ImplMDep _ _ t) = t
+   
 
 
 deAnn :: [Arg] -> [String]

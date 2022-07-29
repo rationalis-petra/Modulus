@@ -17,14 +17,12 @@ fnConcat :: Expr -> Expr -> EvalM Expr
 fnConcat (PrimE (String s1)) (PrimE (String s2)) =
   pure $ PrimE $ String (s1 <> s2)
 fnConcat _ _ = lift $ throwError "append expects strings as arguments"
-mlsConcat = liftFun2 fnConcat (MPrim StringT)
-                              (MPrim StringT)
-                              (MPrim StringT)
+mlsConcat = liftFun2 fnConcat (MArr (MPrim StringT)
+                               (MArr (MPrim StringT) (MPrim StringT)))
 
 mlsElement :: Expr
-mlsElement = liftFun2 element (MPrim StringT)
-                              (MPrim IntT)
-                              (MPrim CharT)
+mlsElement = liftFun2 element (MArr (MPrim StringT)
+                               (MArr (MPrim IntT) (MPrim CharT)))
   where
     element :: Expr -> Expr -> EvalM Expr  
     element (PrimE (String s)) (PrimE (Int i)) =
@@ -33,7 +31,7 @@ mlsElement = liftFun2 element (MPrim StringT)
     
 
 mlsLength :: Expr
-mlsLength = liftFun len (MPrim StringT) (MPrim IntT)
+mlsLength = liftFun len (MArr (MPrim StringT) (MPrim IntT))
   where
     len :: Expr -> EvalM Expr  
     len (PrimE (String s)) =

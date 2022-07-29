@@ -324,7 +324,7 @@ substCore s (CApp t1 t2)       = CApp (substCore s t1) (substCore s t2)
 -- CLetOpen [(Core, SigDefn)] Core
 -- CMatch Core [(Pattern, Core)]
 -- CIF Core Core Core
--- CMod [Definition]
+substCore s (CMod deflist) = CMod (map (substDef s) deflist)
 -- CSig [Definition]
 
 substExpr :: (ModulusType, String) -> Object m -> Object m
@@ -368,6 +368,18 @@ substExpr s (Type ty) = (Type (doSubstMls s ty))
   -- | Effect Int Int
   -- | Action Int Int Int [Object m]
   -- | Handler [(Int, Int, [String], Intermediate)]
+
+substDef :: (ModulusType, String) -> Definition -> Definition
+ 
+  -- substDef TVariantDef String [String] Int [(String, Int, [ty])] ty
+  -- substDef TEffectDef  String [String] Int [(String, Int, [ty])]
+substDef (ty, str) (SingleDef nme val ty') =
+  if str == nme then
+    SingleDef nme val (doSubstMls (ty, str) ty')
+  else
+    SingleDef nme (substCore (ty, str) val) (doSubstMls (ty, str) ty')
+    
+  -- | TOpenDef (TIntermediate ty) (Maybe ty)
 
 
 getDepType :: Object EvalM -> Maybe ModulusType

@@ -178,7 +178,8 @@ toMls (IMVector ty) = MVector (toMls ty)
 doSubstMls :: (ModulusType, String) -> ModulusType -> ModulusType
 doSubstMls _ (TypeN n) = (TypeN n)
 doSubstMls (ty, v) (MVar v') = if v == v' then ty else (MVar v')
--- Signature (Map.Map String ModulusType)
+doSubstMls (ty, v) (Signature sig) =
+  Signature $ Map.mapWithKey (\var t -> if var == v then t else doSubstMls (ty, v) t) sig
 doSubstMls s (MArr t1 t2) = MArr (doSubstMls s t1) (doSubstMls s t2)
 doSubstMls (ty, v) (MDep t1 v' t2) =
   MDep (doSubstMls (ty, v) t1) v' (if v == v' then t2 else doSubstMls (ty, v) t2)
