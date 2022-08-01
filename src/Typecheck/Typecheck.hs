@@ -9,7 +9,8 @@ import Control.Lens
 import Data (EffectType(..),
              PrimType(..),
              ModulusType(..),
-             Object(Type))
+             Value(Type),
+             EvalM)
 import Syntax.TIntermediate
 
 import qualified Typecheck.Environment as Env
@@ -21,7 +22,7 @@ type Subst = ([(InfType, Int)], [(InfType, String)])
 type TypeM = ExceptT String (State Int)
 
 err = throwError  
-runCheckerTop :: TIntTop ModulusType -> Env.CheckEnv
+runCheckerTop :: TIntTop ModulusType -> Env.CheckEnv EvalM
               -> Either String (Either (TIntTop ModulusType, ModulusType) (TIntTop ModulusType))
 runCheckerTop term env = 
   let mnd = do 
@@ -41,7 +42,7 @@ runCheckerTop term env =
       (Right val, _) -> Right val
   
 
-runChecker :: TIntermediate ModulusType -> Env.CheckEnv
+runChecker :: TIntermediate ModulusType -> Env.CheckEnv EvalM
            -> Either String (TIntermediate ModulusType, ModulusType)
 runChecker term env = 
   let mnd :: TypeM (TIntermediate ModulusType, ModulusType)
@@ -59,7 +60,7 @@ runChecker term env =
       (Right val, _) -> Right val
 
 
-typeCheckTop :: TIntTop ModulusType -> Env.CheckEnv
+typeCheckTop :: TIntTop ModulusType -> Env.CheckEnv EvalM
              -> TypeM (Either (TIntTop InfType, InfType) (TIntTop InfType))
 typeCheckTop (TExpr e) env = do
       (expr, ty, (substint, subststr)) <- typeCheck e env
@@ -112,7 +113,7 @@ buildDepFn expr ty = do
         
 
   
-typeCheck :: TIntermediate ModulusType -> Env.CheckEnv -> TypeM (TIntermediate InfType, InfType, Subst)
+typeCheck :: TIntermediate ModulusType -> Env.CheckEnv EvalM -> TypeM (TIntermediate InfType, InfType, Subst)
 typeCheck expr env = case expr of
   (TValue v) -> do
     case runExcept (typeExpr v) of 
@@ -121,7 +122,8 @@ typeCheck expr env = case expr of
 
   (TSymbol s) -> do
     case runExcept (Env.lookup s env) of 
-      Right ty -> pure (TSymbol s, ty, nosubst)
+      Right (Left ty) -> pure (TSymbol s, ty, nosubst)
+      Right (Right (_, ty)) -> pure (TSymbol s, ty, nosubst)
       Left err -> throwError ("couldn't find type of symbol " <> s)
 
   (TApply l r) -> do 
@@ -177,7 +179,11 @@ typeCheck expr env = case expr of
         substlr <- constrain tr t1
         let subst = toSing substlr
         pure ([(False, r)], [], subst, t2)
-      deriveFn t _ _ = throwError ("cannot apply to non-function value of type: " <> show t)
+      deriveFn t tr r = do
+        var' <- freshVar 
+        substlr <- constrain t (IMArr tr var')
+        let subst = toSing substlr
+        pure ([(False, r)], [], subst, var')
 
       mkFnlFn :: [(Bool, TIntermediate InfType)] -> [(InfType, String)] -> TIntermediate InfType -> InfType
               -> (TIntermediate InfType, InfType)
@@ -209,6 +215,7 @@ typeCheck expr env = case expr of
          fnl_ty <- buildFnType fnl_args subst ty
          let fnl_lambda = TLambda fnl_args body' (Just fnl_ty)
          pure (fnl_lambda, fnl_ty, subst)
+       -- TODO: add checking...
 
      where 
        buildFnType :: [(TArg InfType, Bool)] -> Subst -> InfType -> TypeM InfType 
@@ -293,7 +300,8 @@ typeCheck expr env = case expr of
         InfArg str id -> pure (Env.insert str (IMVar (Right id)) env')
 
 
-typeCheckDef :: TDefinition ModulusType -> Env.CheckEnv -> TypeM (TDefinition InfType, String, InfType, Subst)
+typeCheckDef :: TDefinition ModulusType -> Env.CheckEnv EvalM
+             -> TypeM (TDefinition InfType, String, InfType, Subst)
 -- typeCheckDef (TVariantDef name vars id variants ty)
 -- typeCheckDef (TEffectDef  name vars id actions)
 typeCheckDef (TSingleDef name body ty) env = do 
@@ -658,7 +666,7 @@ occurs' _ (IMPrim _) = False
 -- + if application, error! (TODO: evaluate if pure!)
 -- Intended to be used so arguments to 'dependent' functions can be converted
 -- into types, and then substituted in to make sure it all works!
-toDepLiteral :: TIntermediate InfType -> Env.CheckEnv -> TypeM InfType
+toDepLiteral :: TIntermediate InfType -> Env.CheckEnv EvalM -> TypeM InfType
 toDepLiteral (TValue (Type t)) env = pure (toInf t)
 toDepLiteral (TValue v) env = throwError ("non-type value given to toDepLiteral: " <> show v)
 toDepLiteral (TType ty) env = pure ty

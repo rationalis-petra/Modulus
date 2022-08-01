@@ -13,7 +13,7 @@ import Data (AST(..),
              Special(..),
              IPattern(..),
              IDefinition(..),
-             Object(Symbol, Special, Constructor, Action, Keyword),
+             Value(Symbol, Special, Constructor, Action, Keyword),
              Intermediate(..))
 
 import qualified Interpret.Context as Ctx

@@ -5,7 +5,6 @@ import qualified Data.Map as Map
 import qualified Interpret.Context as Context
 import Data
 import Data.Text(pack, unpack)
-import Interpret.Eval
 import Interpret.Transform
 
 mlsGetLine :: [Expr] -> IO (EvalM Expr)

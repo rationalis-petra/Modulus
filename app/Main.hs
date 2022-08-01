@@ -5,7 +5,7 @@ import Control.Monad.Except (runExcept)
 import Parse (parseFile, parseRepl)
 import Data
 import Data.Environments
-import Interpret.Eval
+import Interpret.Eval (evalToIO)
 import Syntax.Macroexpand 
 import Syntax.Intermediate (toIntermediate) 
 import Syntax.Conversions (toTIntermediateTop) 
@@ -130,32 +130,27 @@ runExprs (e : es) ctx state (IOpts {tc=tc}) b = do
   case result of 
     Just (expanded, state') ->
       case toIntermediate expanded ctx of 
-        Right val ->
-          if tc then do
-            -- TODO: eval typechecked 
-            tint <- evalToIO (toTIntermediateTop val (toEnv ctx)) ctx state'
-            case tint of 
-              Just (t, state'') ->
-                case runCheckerTop t (Env.toEnv ctx) of    
-                  Right res -> do
-                    tint <- case res of 
-                      Left (tint, ty) -> do
-                        print ty
-                        pure tint
-                      Right tint -> pure tint
-                    case runExcept (Core.toTopCore tint) of 
-                      Right v -> do
-                        (fctx, fstate, mval) <- evalTopCore v ctx state''
-                        case mval of 
-                          Just v -> print v
-                          Nothing -> pure ()
-                        pure (fctx, fstate)
-                      Left err -> failWith ("toCore err: " <> err)
-                  Left err -> failWith err 
-              Nothing -> failWith "toTintermediate err "
-          else do
-            (ctx', state'') <- evalTopList [val] ctx state' b
-            runExprs es ctx' state'' (IOpts {tc=tc}) b 
+        Right val -> do
+          tint <- evalToIO (toTIntermediateTop val (toEnv ctx)) ctx state'
+          case tint of 
+            Just (t, state'') ->
+              case runCheckerTop t (Env.toEnv ctx) of    
+                Right res -> do
+                  tint <- case res of 
+                    Left (tint, ty) -> do
+                      print ty
+                      pure tint
+                    Right tint -> pure tint
+                  case runExcept (Core.toTopCore tint) of 
+                    Right v -> do
+                      (fctx, fstate, mval) <- evalTopCore v ctx state''
+                      case mval of 
+                        Just v -> print v
+                        Nothing -> pure ()
+                      pure (fctx, fstate)
+                    Left err -> failWith ("toCore err: " <> err)
+                Left err -> failWith err 
+            Nothing -> failWith "toTintermediate err "
         Left err -> do
           print err
           pure (ctx, state)
@@ -174,30 +169,6 @@ evalTopCore core ctx state = do
       Right fnc -> pure (fnc ctx, state', Nothing)
     Nothing -> pure (ctx, state, Nothing)
   
-
-evalTopList :: [Intermediate] -> Context -> ProgState -> Bool
-            -> IO (Context, ProgState)
-evalTopList [] ctx state _ = pure (ctx, state)
-evalTopList (e:es) ctx state b = do
-  result <- evalTopLevel e ctx state
-  case result of 
-    Nothing -> pure (ctx, state)
-
-    -- On a left, some expression was evaluated
-    Just (Left val, state') -> 
-      if b then do
-        print val
-        evalTopList es ctx state' b
-      else 
-        evalTopList es ctx state' b
-
-    -- On a right, some modification was made to the REPL context
-    -- this is a /toplevel/ modification, so we do it to the current module,
-    -- /not/ the local context! 
-    Just (Right bindlist, state') -> do
-      let ctx' =
-            foldl (\ctx (s, x) -> Ctx.insertCurrent s x ctx) ctx bindlist 
-      evalTopList es ctx' state' b
 
 
 toEnv :: Context -> CheckEnv

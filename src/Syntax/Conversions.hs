@@ -2,7 +2,7 @@ module Syntax.Conversions where
 
 import Data(Intermediate(..),
             Expr,
-            Object(Type, Function, CConstructor),
+            Value(Type, Function, CConstructor),
             IDefinition(..),
             IPattern(..),
             EvalM,
@@ -12,10 +12,9 @@ import Data(Intermediate(..),
             ModulusType(..))
 
 import Data.Environments
-import Interpret.Eval (eval)
 import Interpret.EvalM (local, fresh_id, fresh_var, throwError)
 import Control.Monad.State (State, runState)
-import Control.Monad.Except (ExceptT, runExceptT)
+import Control.Monad.Except (ExceptT, runExceptT, runExcept)
 import Interpret.Transform
 import qualified Interpret.Context as Ctx
 import qualified Typecheck.EnvironmentOld as Env 
@@ -68,7 +67,7 @@ toTIntermediateTop (IDefinition def) env =
 
         evalTypes [] = pure []
         evalTypes (i:is) = do
-          ty <- eval i 
+          ty <- evalIntermediate i env
           case ty of 
             (Type t) -> do
               ts <- evalTypes is
@@ -125,7 +124,7 @@ toTIntermediate (ILambda args bdy) env = do
         var <- fresh_var
         pure $ (((InfArg s var), b) : tl, env')
     processArgs ((Annotation s i, b) : xs) env = do
-      ty <- local (Env.toCtx env) (eval i)
+      ty <- local (Env.toCtx env) (evalIntermediate i env)
       case ty of
         Type t ->
           if isLarge t then do
@@ -203,7 +202,7 @@ toTIntermediate (IMatch e1 cases) env = do
       extractPattern pat subPatterns'
 
     extractPattern expr subPatterns = do
-      val <- local (Env.toCtx env) (eval expr)
+      val <- local (Env.toCtx env) (evalIntermediate expr env)
       case val of 
         -- TODO: what to do with params?
         CConstructor name id1 id2 len params [] ty ->
@@ -217,3 +216,13 @@ toTIntermediate (IMatch e1 cases) env = do
 
 
 toTIntermediate x _ = throwError ("toTIntermediate not implemented for: "  <> show x)
+
+
+
+evalIntermediate :: Intermediate -> CheckEnv -> EvalM (Value EvalM)
+evalIntermediate term env = do
+  t_term <- toTIntermediate term env
+  c_term <- case runExcept (Core.toCore t_term) of 
+        Left err -> throwError err
+        Right val -> pure val
+  Core.eval c_term

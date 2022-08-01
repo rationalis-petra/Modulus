@@ -5,7 +5,7 @@ import Control.Monad.Except (throwError, catchError)
 import qualified Data.Map as Map
 
 import Data
-import Interpret.Eval
+import Interpret.Eval (liftFun, liftFun2)
 import Interpret.Transform
 
 int_t = MPrim IntT

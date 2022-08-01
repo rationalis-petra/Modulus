@@ -1,6 +1,6 @@
 module Typecheck.EnvironmentOld where
 
-import Data (Object (Module), Context, ValContext(..), Expr, ModulusType)
+import Data (Value (Module), Context, ValContext(..), Expr, ModulusType)
 import Data.Environments
 import Typecheck.TypeUtils (typeExpr)
 import Control.Monad.Except (Except, throwError, catchError, runExcept)

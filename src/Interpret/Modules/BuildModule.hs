@@ -1,23 +1,27 @@
 module Interpret.Modules.BuildModule where
 
 import Data(Context,
-            Object(Module),
+            Value(Module),
             Expr,
             EvalM,
             IDefinition(..),
             ValContext(..),
             Intermediate(..))
 
-import Control.Monad.Except (throwError)
+import Control.Monad.Except (runExcept)
 import Data.Text (pack, unpack)
 
 import Parse (parseModule)
 import Syntax.Macroexpand
 import Syntax.Intermediate
-import Interpret.Eval (eval)
-import Interpret.EvalM (local)
+import Syntax.Conversions
+import Typecheck.Typecheck(runChecker)
+import Typecheck.Environment(toEnv)
+import Interpret.EvalM (local, throwError)
 import Interpret.Transform (lift)
 import Interpret.Modules.Core
+import qualified Core
+import Data.Environments
 
 import qualified Data.Map as Map
 
@@ -31,14 +35,21 @@ moduleContext = ValContext {
 buildModule :: Map.Map String Expr -> String -> EvalM Expr
 buildModule mp s = 
   case parseModule "internal-module" (pack s) of 
-    Left err -> lift $ throwError (show err)
+    Left err -> throwError (show err)
     Right ast -> do
       expanded <- local moduleContext (macroExpand ast)
       case toIntermediate expanded moduleContext of 
         Left err -> do 
-          lift $ throwError err
-        Right val -> 
-          local moduleContext (eval val)
+          throwError err
+        Right val -> do
+          result <- toTIntermediate val (fromContext moduleContext)
+          (checked, _) <- case runChecker result (toEnv moduleContext) of 
+            Left err -> throwError err
+            Right val -> pure val
+          core <- case runExcept (Core.toCore checked) of 
+            Left err -> throwError err
+            Right val -> pure val
+          local moduleContext (Core.eval core)
         --     (eval (IModule (Map.foldrWithKey
         --                   (\k v m -> (ISingleDef k (IValue v)) : m) m mp)))
         -- Right (ISignature m) -> 

@@ -7,7 +7,7 @@ import Data.Text as Text
 
 import qualified Interpret.Context as Context
 import Data
-import Interpret.Eval
+import Interpret.Eval (liftFun, liftFun2)
 import Interpret.Transform
 
 

@@ -4,7 +4,7 @@ module Syntax.TIntermediate where
 
 import Data(Intermediate(..),
             Expr,
-            Object(Type, Function, CConstructor),
+            Value(Type, Function, CConstructor),
             IDefinition(..),
             IPattern(..),
             EvalM,
@@ -14,7 +14,6 @@ import Data(Intermediate(..),
             ModulusType(..))
 
 import Data.Environments
-import Interpret.Eval(eval)
 import Interpret.EvalM (local, fresh_id, throwError)
 import Control.Monad.State (State, runState)
 import Control.Monad.Except (ExceptT, runExceptT)

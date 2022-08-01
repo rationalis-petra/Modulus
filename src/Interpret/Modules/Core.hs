@@ -6,7 +6,7 @@ import qualified Data.Map as Map
 
 import qualified Interpret.Context as Context
 import Data
-import Interpret.Eval
+import Interpret.Eval (liftFun2, liftFun4)
 import Interpret.Transform
 -- import Typecheck.Typecheck2 (subtype)
 

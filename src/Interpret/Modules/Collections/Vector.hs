@@ -7,7 +7,7 @@ import Data.Vector
 
 import qualified Interpret.Context as Context
 import Data
-import Interpret.Eval
+import Interpret.Eval (liftFun3)
 import Interpret.Transform
 
 

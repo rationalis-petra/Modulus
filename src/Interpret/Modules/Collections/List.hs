@@ -7,7 +7,6 @@ import qualified Data.Map as Map
 import qualified Interpret.Context as Context
 import qualified Data.Map as Map
 import Data
-import Interpret.Eval
 import Interpret.Transform
 import Interpret.Modules.BuildModule
 

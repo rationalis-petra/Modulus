@@ -1,6 +1,6 @@
 module Typecheck.TypeUtils where
 
-import Data (Object(..),
+import Data (Value(..),
              PrimE(..),
              EffectType(..),
              ModulusType(..),
@@ -11,7 +11,7 @@ import Control.Monad.Except (Except, throwError, catchError)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-typeExpr :: (Object m) -> Except String ModulusType
+typeExpr :: (Value m) -> Except String ModulusType
 typeExpr (PrimE e) = pure (MPrim (typePrim e))
 typeExpr (InbuiltFun _ t) = pure t
 typeExpr (Type t) =
@@ -24,11 +24,12 @@ typeExpr (Module m) = do
   -- TODO: is this dodgy?
   lst <- mapM (\(s, v) -> typeExpr v >>= \t -> pure (s, t)) (Map.toList m)
   pure (Signature (Map.fromList lst))
-typeExpr (CFunction _ _ _ ty) = pure ty
+typeExpr (CFunction _ _ ctx ty) = pure ty
 typeExpr (CConstructor _ _ _ _ _ _ ty) = pure ty
 typeExpr (CustomCtor _ _ _ _ ty) = pure ty
 
 typeExpr e = throwError $ "untypable expr: " <> show e
+
 
 
 
@@ -48,7 +49,7 @@ isLarge _ = False
 
 
 
-hasType :: (Object m) -> ModulusType -> Bool
+hasType :: (Value m) -> ModulusType -> Bool
 hasType (PrimE e) (MPrim t) = (typePrim e) == t
 hasType (Type t) (TypeN 1) = not (isLarge t)
 hasType (Module mod) (Signature sig) = 

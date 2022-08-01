@@ -1,9 +1,10 @@
 module Data.Environments where 
 
-import Data (Object(..),
+import Data (Value(..),
              EvalM,
              Expr,
-             ModulusType(..))
+             ModulusType(..),
+             ValContext(..))
 
 import qualified Data.Map as Map
 
@@ -24,3 +25,9 @@ data CheckEnv = CheckEnv {
   tglobalModule  :: Expr
 }
 
+
+
+  -- TODO: is this how we do it??
+fromContext :: ValContext -> CheckEnv   
+fromContext (ValContext {localCtx=l, currentModule=c, globalModule=g}) = 
+  (CheckEnv {tlocalCtx=Map.empty, tcurrentModule=c, tglobalModule=g})

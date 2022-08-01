@@ -2,8 +2,8 @@ module Interpret.Modules.Structures where
 
 import qualified Data.Map as Map
 import Interpret.Modules.BuildModule
-import Interpret.Eval
-import Data(ModulusType(Undef))
+-- import Interpret.Eval
+import Data(ModulusType(Undef), EvalM, Expr)
 
   
 ringSource = "\

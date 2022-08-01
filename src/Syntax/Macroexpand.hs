@@ -1,17 +1,20 @@
 module Syntax.Macroexpand where
 
-import Data(Object(..),
-            Intermediate(..),
+import Data(Value(..),
+            -- Intermediate(..),
             AST (..),
             ModulusType(Undef),
             Context,
             EvalM,
+            Core(CVal, CApp),
             ProgState) 
 
 import Interpret.Transform (lift)
 import qualified Interpret.Context as Ctx
-import Interpret.Eval(Expr, evalToIO, eval) 
+-- import Interpret.Eval(Expr, evalToIO, eval) 
 import Interpret.EvalM(ask, throwError) 
+
+import qualified Core
 
   -- TODO: change macro-expansion to incorporate splicing
 
@@ -33,8 +36,8 @@ macroEval ast = do
         case Ctx.lookup s ctx of 
           Just val -> case val of
             (InbuiltMac f) -> (,) <$> f xs <*> pure True
-            (Macro argnames bdy ctx) -> do
-              applyMacro (Function argnames bdy ctx) xs
+            (CMacro argnames bdy ctx ty) -> do
+              applyMacro (CFunction argnames bdy ctx ty) xs
             _ -> do
               zipped <- mapM (\v -> macroEval v) (x : xs)
               let (xs', bs) = unzip zipped
@@ -44,8 +47,8 @@ macroEval ast = do
             let (xs', bs) = unzip zipped
             return (Cons xs', (foldr (||) False bs))
       (Atom (InbuiltMac f)) -> (,) <$> f xs <*> pure True
-      (Atom (Macro argnames bdy ctx)) -> do
-        applyMacro (Function argnames bdy ctx) xs
+      (Atom (CMacro argnames bdy ctx ty)) -> do
+        applyMacro (CFunction argnames bdy ctx ty) xs
       _ -> do
         zipped <- mapM (\v -> macroEval v) (x : xs)
         let (xs', bs) = unzip zipped
@@ -53,18 +56,18 @@ macroEval ast = do
     _ -> return (ast, False)
 
   where
-    applyMacro :: Expr -> [AST] -> EvalM (AST, Bool)
+    applyMacro ::  Value EvalM -> [AST] -> EvalM (AST, Bool)
     applyMacro macro xs =
           (,)
-          <$> (toAST =<< eval (unfold (IValue macro) (map AST xs)))
+          <$> (toAST =<< Core.eval (unfold (CVal macro) (map AST xs)))
           <*> pure True
 
-    unfold :: Intermediate -> [Expr] -> Intermediate
+    unfold :: Core -> [(Value EvalM)] -> Core
     unfold v [] = v
-    unfold v (x:xs) = unfold (IApply v (IValue x)) xs
+    unfold v (x:xs) = unfold (CApp v (CVal x)) xs
 
-    toAST :: Expr -> EvalM AST
-    toAST (AST a) = return a
+    toAST :: Value EvalM -> EvalM AST
+    toAST (AST a) = pure a
     toAST _ = throwError "expecting macro to return AST or List AST"
   
 

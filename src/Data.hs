@@ -86,28 +86,28 @@ data PrimE
   | String Text
 
 data CollE m
-  = List [(Object m)]
-  | Vector (Vector (Object m))
+  = List [(Value m)]
+  | Vector (Vector (Value m))
 
 -- m is the type of monad inside the object
 -- c is the type of the interpreted "code"
-data Object m
+data Value m
   -- Inbuilt Datatypes 
   = PrimE PrimE
   | Coll (CollE m) 
   | Keyword String
   | Type ModulusType
-  | Variant String Int Int [Object m]
-  | Constructor String Int Int Int [Object m]
-  | CConstructor String Int Int Int [String] [Object m] ModulusType
-  | Module (Map.Map String (Object m))
+  | Variant String Int Int [Value m]
+  | Constructor String Int Int Int [Value m]
+  | CConstructor String Int Int Int [String] [Value m] ModulusType
+  | Module (Map.Map String (Value m))
 
   -- Pattern matching on inbuilt data-types nargs currying
-  | CustomCtor Int [(Object m)]
+  | CustomCtor Int [(Value m)]
     -- constructor
-    ([Object m] -> m (Object m))
+    ([Value m] -> m (Value m))
     -- matcher
-    (Object m -> m (Maybe [(Object m)]))
+    (Value m -> m (Maybe [(Value m)]))
     -- type
     ModulusType
   -- TODO: pattern-matching on structures.
@@ -117,6 +117,8 @@ data Object m
   | Symbol String
   | Special Special
   | Macro [String] Intermediate ValContext
+  -- TODO: change to [String], figure out resultant errors in macroEval  
+  | CMacro String Core ValContext ModulusType
   | InbuiltMac ([AST] -> m AST)
 
 
@@ -124,13 +126,13 @@ data Object m
   | Function [String] Intermediate ValContext
   | CFunction String Core ValContext ModulusType 
   | CDFunction String Core ValContext ModulusType 
-  | InbuiltFun (Object m -> m (Object m)) ModulusType
+  | InbuiltFun (Value m -> m (Value m)) ModulusType
 
   -- ALGEBRAIC EFFECTS
   | IOEffect
-  | IOAction Int Int ([Object m] -> IO (m (Object m))) [Object m]
+  | IOAction Int Int ([Value m] -> IO (m (Value m))) [Value m]
   | Effect Int Int
-  | Action Int Int Int [Object m]
+  | Action Int Int Int [Value m]
   | Handler [(Int, Int, [String], Intermediate)]
 
 
@@ -182,12 +184,12 @@ data AST
   | Cons [AST]
 
 data MaybeEffect m a 
-  = RaiseAction (Object (ActionMonadT m) -> ActionMonadT m a)
+  = RaiseAction (Value (ActionMonadT m) -> ActionMonadT m a)
                 Int
                 Int
-                [Object (ActionMonadT m)]
-                (Maybe ([Object (ActionMonadT m)]
-                        -> IO ((ActionMonadT m) (Object (ActionMonadT m)))))
+                [Value (ActionMonadT m)]
+                (Maybe ([Value (ActionMonadT m)]
+                        -> IO ((ActionMonadT m) (Value (ActionMonadT m)))))
   | Value a
 
 
@@ -208,7 +210,7 @@ data ModulusType
   | MDot ModulusType String
   | MEffect (Set.Set EffectType) ModulusType
   --        id  name   params        instance-types           
-  |  MNamed Int String [ModulusType] [[ModulusType]]
+  | MNamed Int String [ModulusType] [[ModulusType]]
 
   -- "Primitive" / native types
   | MPrim PrimType
@@ -224,7 +226,7 @@ data EffectType
   | CustomEff Int [ModulusType]  
   deriving (Show, Eq, Ord)
 
-type Expr = Object EvalM
+type Expr = Value EvalM
 
 type EvalM = ActionMonadT (ReaderT Context (ExceptT String (State ProgState)))
 
@@ -233,6 +235,13 @@ newtype ActionMonadT m a = ActionMonadT (m (MaybeEffect m a))
 data ProgState = ProgState { _uid_counter :: Int, _var_counter :: Int }  
 
 
+data Neutral m
+  = NVar String
+  | NAp (Neutral m) (Normal m)
+
+data Normal m = Normal (Value m) ModulusType
+
+  
 instance Show PrimType where 
   show BoolT   = "bool"
   show IntT    = "int"
@@ -290,7 +299,7 @@ instance Show (CollE m) where
     Data.List l -> show l
     Data.Vector v -> show v
 
-instance Show (Object a) where  
+instance Show (Value a) where  
   show e = case e of
     PrimE x -> show x
     Keyword str -> "&" <> str

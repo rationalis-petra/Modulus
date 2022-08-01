@@ -1,14 +1,13 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Core where
-import Data (Object (InbuiltFun, Module, Type, CFunction, PrimE, CConstructor,
-                     CustomCtor),
+import Data (Value (InbuiltFun, Module, Type, CFunction, PrimE, CConstructor,
+                    CustomCtor),
              PrimE(Bool),
              TopCore(..),
              Expr,
              Definition(..),
              Core(..),
-             ModulusType(MDot, Signature, MArr, MDep, ImplMDep, TypeN, MVar,
-                         MNamed),
+             ModulusType(..),
              ActionMonadT(ActionMonadT),
              ProgState,
              Context)
@@ -43,7 +42,7 @@ type SigDefn = (Map.Map String ModulusType)
 type EvalM = ActionMonadT (ReaderT Context (ExceptT String (State ProgState)))
 
 -- PValue = Program Value 
-type PValue = Object EvalM
+type PValue = Value EvalM
 
 -- "correctly" lifted monadic operations for eval
 ask = Action.lift $ Reader.ask
@@ -97,6 +96,7 @@ evalTop (TopDef def) = case def of
   
 -- TODO: can we write core as an GADT so as to avoid exceptions?
 eval :: Core -> EvalM Expr
+eval (CVal (Type t)) = Type <$> evalType t
 eval (CVal e) = pure e
 eval (CSym s) = do 
   ctx <- ask 
@@ -129,17 +129,7 @@ eval (CApp e1 e2) = do
       let new_ctx = case var of
             "_" -> fn_ctx
             _ -> Ctx.insert var arg fn_ctx
-      new_bdy <- case ty of
-        ImplMDep _ _ _ -> do
-          case getDepType arg of 
-            Just tyarg -> pure (substCore (tyarg, var) body)
-            Nothing -> throwError "failed to getDepType"
-        MDep _ _ _ -> do
-          case getDepType arg of 
-            Just tyarg -> pure (substCore (tyarg, var) body)
-            Nothing -> throwError "failed to getDepType"
-        _ -> pure body
-      local new_ctx (eval new_bdy)
+      local new_ctx (eval body)
     CConstructor name id1 id2 n (x:xs) vars ty -> do
       arg <- eval e2
       pure (CConstructor name id1 id2 n xs vars ty)
@@ -194,8 +184,35 @@ eval (CSig body) = (Type . Signature) <$> evalDefs body
 
     largeToVar s t = if isLarge t then Type (MVar s) else (Type t)
 
-
-
+evalType :: ModulusType -> EvalM ModulusType
+evalType (MPrim p) = pure (MPrim p)
+evalType (TypeN n) = pure (TypeN n)
+evalType (MVar s) = do 
+  env <- ask
+  case Ctx.lookup s env of 
+    Just v -> case v of 
+      (Type t) -> pure t
+      _ -> throwError "type variable contains non-type value!"
+evalType (MArr t1 t2) = do
+  t1' <- evalType t1
+  t2' <- evalType t2
+  pure (MArr t1' t2')
+evalType (MDep t1 s t2) = do
+  t1' <- evalType t1
+  ctx <- ask
+  t2' <- localF (Ctx.insert s (Type (MVar s))) (evalType t2) 
+  pure (MDep t1' s t2')
+evalType (ImplMDep t1 s t2) = do
+  t1' <- evalType t1
+  ctx <- ask
+  t2' <- localF (Ctx.insert s (Type (MVar s))) (evalType t2) 
+  pure (ImplMDep t1' s t2')
+evalType (MNamed id nme args variants) = do
+  -- TODO: recursion!!
+  args' <- mapM evalType args
+  pure (MNamed id nme args' variants)
+evalType t = throwError ("unimplemented evalType for type" <> show t)
+  
 
   
 
@@ -312,77 +329,8 @@ toCore (TIF cond e1 e2) = do
 -- toCore x = err ("unimplemented" <> show x)
 
 
-substCore :: (ModulusType, String) -> Core -> Core  
-substCore s (CVal expr)        = CVal (substExpr s expr)
-substCore _ (CSym str)         = CSym str
-substCore s (CDot mdle field)  = CDot (substCore s mdle) field
-substCore s (CAbs var body ty) = CAbs var (substCore s body) (doSubstMls s ty)
-substCore s (CApp t1 t2)       = CApp (substCore s t1) (substCore s t2)
--- CMAbs String ModulusType Core
--- CSeq [Core]
--- CLet [(String, Core)] Core
--- CLetOpen [(Core, SigDefn)] Core
--- CMatch Core [(Pattern, Core)]
--- CIF Core Core Core
-substCore s (CMod deflist) = CMod (map (substDef s) deflist)
--- CSig [Definition]
 
-substExpr :: (ModulusType, String) -> Object m -> Object m
-substExpr _ (PrimE e) = (PrimE e)
-
-  -- | Coll (CollE m) 
-  -- | Keyword String
-substExpr s (Type ty) = (Type (doSubstMls s ty))
-  -- | Variant String Int Int [Object m]
-  -- | Constructor String Int Int Int [Object m]
-  -- | CConstructor String Int Int Int [String] [Object m] ModulusType
-  -- | Module (Map.Map String (Object m))
-
-  -- -- Pattern matching on inbuilt data-types nargs currying
-  -- | CustomCtor Int [(Object m)]
-  --   -- constructor
-  --   ([Object m] -> m (Object m))
-  --   -- matcher
-  --   (Object m -> m (Maybe [(Object m)]))
-  --   -- type
-  --   ModulusType
-  -- -- TODO: pattern-matching on structures.
-
-  -- -- Syntax and macros
-  -- | AST AST
-  -- | Symbol String
-  -- | Special Special
-  -- | Macro [String] Intermediate ValContext
-  -- | InbuiltMac ([AST] -> m AST)
-
-
-  -- -- EVALUATION & FUNCTIONS
-  -- | Function [String] Intermediate ValContext
-  -- | CFunction String Core ValContext ModulusType 
-  -- | CDFunction String Core ValContext ModulusType 
-  -- | InbuiltFun (Object m -> m (Object m)) ModulusType
-
-  -- -- ALGEBRAIC EFFECTS
-  -- | IOEffect
-  -- | IOAction Int Int ([Object m] -> IO (m (Object m))) [Object m]
-  -- | Effect Int Int
-  -- | Action Int Int Int [Object m]
-  -- | Handler [(Int, Int, [String], Intermediate)]
-
-substDef :: (ModulusType, String) -> Definition -> Definition
- 
-  -- substDef TVariantDef String [String] Int [(String, Int, [ty])] ty
-  -- substDef TEffectDef  String [String] Int [(String, Int, [ty])]
-substDef (ty, str) (SingleDef nme val ty') =
-  if str == nme then
-    SingleDef nme val (doSubstMls (ty, str) ty')
-  else
-    SingleDef nme (substCore (ty, str) val) (doSubstMls (ty, str) ty')
-    
-  -- | TOpenDef (TIntermediate ty) (Maybe ty)
-
-
-getDepType :: Object EvalM -> Maybe ModulusType
+getDepType :: Value EvalM -> Maybe ModulusType
 getDepType (Type t) = Just t
 getDepType (Module map) =
 
