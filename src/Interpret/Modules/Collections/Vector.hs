@@ -5,7 +5,6 @@ import Control.Monad.Except (throwError, catchError)
 import qualified Data.Map as Map
 import Data.Vector
 
-import qualified Interpret.Context as Context
 import Data
 import Interpret.Eval (liftFun3)
 import Interpret.Transform

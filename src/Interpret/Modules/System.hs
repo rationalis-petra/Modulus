@@ -2,7 +2,6 @@ module Interpret.Modules.System where
 
 import qualified Data.Map as Map
 
-import qualified Interpret.Context as Context
 import Data
 import Data.Text(pack, unpack)
 import Interpret.Transform

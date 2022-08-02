@@ -1,11 +1,10 @@
 module Interpret.Modules.BuildModule where
 
-import Data(Context,
+import Data(Environment(..),
             Value(Module),
             Expr,
             EvalM,
             IDefinition(..),
-            ValContext(..),
             Intermediate(..))
 
 import Control.Monad.Except (runExcept)
@@ -16,17 +15,17 @@ import Syntax.Macroexpand
 import Syntax.Intermediate
 import Syntax.Conversions
 import Typecheck.Typecheck(runChecker)
-import Typecheck.Environment(toEnv)
+import qualified Typecheck.Context as Ctx
+import qualified Typecheck.InfContext as InfCtx
 import Interpret.EvalM (local, throwError)
 import Interpret.Transform (lift)
 import Interpret.Modules.Core
 import qualified Core
-import Data.Environments
 
 import qualified Data.Map as Map
 
 
-moduleContext = ValContext {
+moduleContext = Environment {
   localCtx = Map.empty,
   currentModule = Module coreModule,
   globalModule = Module Map.empty}
@@ -42,8 +41,8 @@ buildModule mp s =
         Left err -> do 
           throwError err
         Right val -> do
-          result <- toTIntermediate val (fromContext moduleContext)
-          (checked, _) <- case runChecker result (toEnv moduleContext) of 
+          result <- toTIntermediate val (Ctx.envToCtx moduleContext)
+          (checked, _) <- case runChecker result (InfCtx.envToCtx moduleContext) of 
             Left err -> throwError err
             Right val -> pure val
           core <- case runExcept (Core.toCore checked) of 

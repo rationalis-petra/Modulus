@@ -4,14 +4,12 @@ import Data(Value(..),
             -- Intermediate(..),
             AST (..),
             ModulusType(Undef),
-            Context,
             EvalM,
             Core(CVal, CApp),
             ProgState) 
 
 import Interpret.Transform (lift)
-import qualified Interpret.Context as Ctx
--- import Interpret.Eval(Expr, evalToIO, eval) 
+import qualified Interpret.Environment as Env
 import Interpret.EvalM(ask, throwError) 
 
 import qualified Core
@@ -29,15 +27,15 @@ macroExpand ast = do
 
 macroEval :: AST -> EvalM (AST, Bool)
 macroEval ast = do
-  ctx <- ask
+  env <- ask
   case ast of
     (Cons (x : xs)) -> case x of
       (Atom (Symbol s)) -> 
-        case Ctx.lookup s ctx of 
+        case Env.lookup s env of 
           Just val -> case val of
             (InbuiltMac f) -> (,) <$> f xs <*> pure True
-            (CMacro argnames bdy ctx ty) -> do
-              applyMacro (CFunction argnames bdy ctx ty) xs
+            (CMacro argnames bdy env ty) -> do
+              applyMacro (CFunction argnames bdy env ty) xs
             _ -> do
               zipped <- mapM (\v -> macroEval v) (x : xs)
               let (xs', bs) = unzip zipped
@@ -47,8 +45,8 @@ macroEval ast = do
             let (xs', bs) = unzip zipped
             return (Cons xs', (foldr (||) False bs))
       (Atom (InbuiltMac f)) -> (,) <$> f xs <*> pure True
-      (Atom (CMacro argnames bdy ctx ty)) -> do
-        applyMacro (CFunction argnames bdy ctx ty) xs
+      (Atom (CMacro argnames bdy env ty)) -> do
+        applyMacro (CFunction argnames bdy env ty) xs
       _ -> do
         zipped <- mapM (\v -> macroEval v) (x : xs)
         let (xs', bs) = unzip zipped

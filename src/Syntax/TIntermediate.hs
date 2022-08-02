@@ -13,13 +13,10 @@ import Data(Intermediate(..),
             Arg(..),
             ModulusType(..))
 
-import Data.Environments
 import Interpret.EvalM (local, fresh_id, throwError)
 import Control.Monad.State (State, runState)
 import Control.Monad.Except (ExceptT, runExceptT)
 import Interpret.Transform
-import qualified Interpret.Context as Ctx
-import qualified Typecheck.Environment as Env 
 import Typecheck.TypeUtils (isLarge)
 
 

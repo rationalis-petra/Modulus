@@ -7,28 +7,28 @@ import Prelude hiding (lookup)
 
 import Control.Monad.Except (Except, runExcept, throwError) 
 import qualified Data.Set as Set
+import qualified Interpret.Environment as Env
 import Data (AST(..),
              Arg(..),
-             Context,
+             Environment,
              Special(..),
              IPattern(..),
              IDefinition(..),
              Value(Symbol, Special, Constructor, Action, Keyword),
              Intermediate(..))
 
-import qualified Interpret.Context as Ctx
 
-newtype GlobCtx = GlobCtx (Context, (Set.Set String))
+newtype GlobCtx = GlobCtx (Environment, (Set.Set String))
 
 lookup s (GlobCtx (ctx, shadowed)) = 
   if Set.member s shadowed then
     Nothing
   else
-    Ctx.lookup s ctx
+    Env.lookup s ctx
 shadow (s) (GlobCtx (ctx, shadowed)) = 
   GlobCtx (ctx, Set.insert s shadowed)
 
-toIntermediate :: AST -> Context -> Either String Intermediate
+toIntermediate :: AST -> Environment -> Either String Intermediate
 toIntermediate val ctx =
   runExcept (toIntermediateM val (GlobCtx (ctx, Set.empty)))
 

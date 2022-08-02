@@ -4,7 +4,6 @@ import Control.Monad.Except (runExcept)
 
 import Parse (parseFile, parseRepl)
 import Data
-import Data.Environments
 import Interpret.Eval (evalToIO)
 import Syntax.Macroexpand 
 import Syntax.Intermediate (toIntermediate) 
@@ -12,14 +11,15 @@ import Syntax.Conversions (toTIntermediateTop)
 -- import Typecheck.Typecheck
 
 import Typecheck.Typecheck
-import qualified Typecheck.Environment as Env
+import qualified Typecheck.Context as Ctx
+import qualified Typecheck.InfContext as InfCtx
 import qualified Core
 
 
 import System.IO
 
 import Interpret.Modules (defaultModule)
-import qualified Interpret.Context as Ctx
+import qualified Interpret.Environment as Env
 import qualified Data.Map as Map
 
 
@@ -60,16 +60,16 @@ main =
       process (Args {file=f, interactive=i}) =
          -- If we are in interpret mode: 
          if i then do
-           dfc <- evalToIO defaultContext (Ctx.empty) defaultState
+           dfc <- evalToIO defaultContext (Env.empty) defaultState
            case dfc of 
-             Just (ctx, state) ->
+             Just (env, state) ->
                if null f then
-                 repl ctx state (IOpts {tc=True})
+                 repl env state (IOpts {tc=True})
                else  do
                  handle <- openFile f ReadMode
                  contents <- hGetContents handle
-                 (ctx', state') <- runInteractively contents ctx state (IOpts {tc=False})
-                 repl ctx' state' (IOpts {tc=True})
+                 (env', state') <- runInteractively contents env state (IOpts {tc=False})
+                 repl env' state' (IOpts {tc=True})
              Nothing -> 
                putStrLn "error in initialisation"
 
@@ -83,10 +83,10 @@ main =
 
 -- The REPL
   
-defaultContext :: EvalM Context 
+defaultContext :: EvalM Environment 
 defaultContext = do
   dfm <- defaultModule
-  pure $ ValContext {
+  pure $ Environment {
   localCtx = Map.empty,
   currentModule = Module dfm,
   globalModule = Module Map.empty }
@@ -94,47 +94,47 @@ defaultContext = do
 data IOpts = IOpts { tc :: Bool }
   
 
-repl :: Context -> ProgState -> IOpts -> IO ()
-repl ctx state opts = do
+repl :: Environment -> ProgState -> IOpts -> IO ()
+repl env state opts = do
   putStr "> "
   hFlush stdout
   lne <- getLine
   case lne of 
     ":q" -> pure ()
-    ":t" -> repl ctx state (IOpts {tc = not (tc opts)})
+    ":t" -> repl env state (IOpts {tc = not (tc opts)})
     _ -> do
       case parseRepl "stdin" (pack lne) of
         Left err -> do
           -- print err
           print "parse error"
-          repl ctx state opts
+          repl env state opts
         Right val -> do
-          (ctx', state') <- runExprs [val] ctx state opts True
-          repl ctx' state' opts
+          (env', state') <- runExprs [val] env state opts True
+          repl env' state' opts
           
 
 
-runInteractively :: String -> Context -> ProgState -> IOpts
-                 -> IO (Context, ProgState)
-runInteractively str ctx state opts =
+runInteractively :: String -> Environment -> ProgState -> IOpts
+                 -> IO (Environment, ProgState)
+runInteractively str env state opts =
   case parseFile "file" (pack str) of
-      Left err -> print err >> pure (ctx, state)
-      Right vals -> runExprs vals ctx state opts False
+      Left err -> print err >> pure (env, state)
+      Right vals -> runExprs vals env state opts False
 
 -- runExprs takes in an AST list, a context
-runExprs :: [AST] -> Context -> ProgState -> IOpts -> Bool
-              -> IO (Context, ProgState)
-runExprs [] ctx state _ _ = pure (ctx, state)
-runExprs (e : es) ctx state (IOpts {tc=tc}) b = do
-  result <- evalToIO (macroExpand e) ctx state
+runExprs :: [AST] -> Environment -> ProgState -> IOpts -> Bool
+              -> IO (Environment, ProgState)
+runExprs [] env state _ _ = pure (env, state)
+runExprs (e : es) env state (IOpts {tc=tc}) b = do
+  result <- evalToIO (macroExpand e) env state
   case result of 
     Just (expanded, state') ->
-      case toIntermediate expanded ctx of 
+      case toIntermediate expanded env of 
         Right val -> do
-          tint <- evalToIO (toTIntermediateTop val (toEnv ctx)) ctx state'
+          tint <- evalToIO (toTIntermediateTop val (Ctx.envToCtx env)) env state'
           case tint of 
             Just (t, state'') ->
-              case runCheckerTop t (Env.toEnv ctx) of    
+              case runCheckerTop t (InfCtx.envToCtx env) of
                 Right res -> do
                   tint <- case res of 
                     Left (tint, ty) -> do
@@ -143,36 +143,29 @@ runExprs (e : es) ctx state (IOpts {tc=tc}) b = do
                     Right tint -> pure tint
                   case runExcept (Core.toTopCore tint) of 
                     Right v -> do
-                      (fctx, fstate, mval) <- evalTopCore v ctx state''
+                      (fenv, fstate, mval) <- evalTopCore v env state''
                       case mval of 
                         Just v -> print v
                         Nothing -> pure ()
-                      pure (fctx, fstate)
+                      pure (fenv, fstate)
                     Left err -> failWith ("toCore err: " <> err)
                 Left err -> failWith err 
             Nothing -> failWith "toTintermediate err "
         Left err -> do
           print err
-          pure (ctx, state)
+          pure (env, state)
     Nothing -> do
       print "macro-expansion err"
-      pure (ctx, state)
+      pure (env, state)
   where
-    failWith err = (putStrLn err) >> (pure (ctx, state))
+    failWith err = (putStrLn err) >> (pure (env, state))
 
-evalTopCore :: TopCore -> Context -> ProgState -> IO (Context, ProgState, Maybe Expr)   
-evalTopCore core ctx state = do
-  out <- evalToIO (Core.evalTop core) ctx state
+evalTopCore :: TopCore -> Environment -> ProgState -> IO (Environment, ProgState, Maybe Expr)   
+evalTopCore core env state = do
+  out <- evalToIO (Core.evalTop core) env state
   case out of 
     Just (result, state') -> case result of
-      Left val -> pure (ctx, state', Just val)
-      Right fnc -> pure (fnc ctx, state', Nothing)
-    Nothing -> pure (ctx, state, Nothing)
+      Left val -> pure (env, state', Just val)
+      Right fnc -> pure (fnc env, state', Nothing)
+    Nothing -> pure (env, state, Nothing)
   
-
-
-toEnv :: Context -> CheckEnv
-toEnv (ValContext {currentModule=curr, globalModule=glbl}) = 
-  CheckEnv {tlocalCtx = Map.empty,
-            tcurrentModule = curr,
-            tglobalModule = glbl}

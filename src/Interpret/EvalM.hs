@@ -9,16 +9,16 @@ import qualified Control.Monad.State as State
 import qualified Interpret.Transform as Action
 
 import qualified Control.Lens as Lens -- ((+=), use)
-import Data(EvalM, ActionMonadT(..), Context, ProgState, uid_counter, var_counter)
+import Data(EvalM, ActionMonadT(..), Environment, ProgState, uid_counter, var_counter)
 
 
-ask :: EvalM Context
+ask :: EvalM Environment
 ask = Action.lift $ Reader.ask
 
-local :: Context -> EvalM a -> EvalM a
+local :: Environment -> EvalM a -> EvalM a
 local ctx m = localF (\_ -> ctx) m
 
-localF :: (Context -> Context) -> EvalM a -> EvalM a
+localF :: (Environment -> Environment) -> EvalM a -> EvalM a
 localF f (ActionMonadT mnd) =
   ActionMonadT (Reader.local f mnd)
 

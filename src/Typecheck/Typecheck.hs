@@ -13,7 +13,7 @@ import Data (EffectType(..),
              EvalM)
 import Syntax.TIntermediate
 
-import qualified Typecheck.Environment as Env
+import qualified Typecheck.InfContext as Ctx
 import Typecheck.InfType
 import Typecheck.TypeUtils (typeExpr, toInf, toMls, infGetFree)
 
@@ -22,7 +22,7 @@ type Subst = ([(InfType, Int)], [(InfType, String)])
 type TypeM = ExceptT String (State Int)
 
 err = throwError  
-runCheckerTop :: TIntTop ModulusType -> Env.CheckEnv EvalM
+runCheckerTop :: TIntTop ModulusType -> Ctx.Context
               -> Either String (Either (TIntTop ModulusType, ModulusType) (TIntTop ModulusType))
 runCheckerTop term env = 
   let mnd = do 
@@ -42,7 +42,7 @@ runCheckerTop term env =
       (Right val, _) -> Right val
   
 
-runChecker :: TIntermediate ModulusType -> Env.CheckEnv EvalM
+runChecker :: TIntermediate ModulusType -> Ctx.Context
            -> Either String (TIntermediate ModulusType, ModulusType)
 runChecker term env = 
   let mnd :: TypeM (TIntermediate ModulusType, ModulusType)
@@ -60,7 +60,7 @@ runChecker term env =
       (Right val, _) -> Right val
 
 
-typeCheckTop :: TIntTop ModulusType -> Env.CheckEnv EvalM
+typeCheckTop :: TIntTop ModulusType -> Ctx.Context
              -> TypeM (Either (TIntTop InfType, InfType) (TIntTop InfType))
 typeCheckTop (TExpr e) env = do
       (expr, ty, (substint, subststr)) <- typeCheck e env
@@ -113,7 +113,7 @@ buildDepFn expr ty = do
         
 
   
-typeCheck :: TIntermediate ModulusType -> Env.CheckEnv EvalM -> TypeM (TIntermediate InfType, InfType, Subst)
+typeCheck :: TIntermediate ModulusType -> Ctx.Context -> TypeM (TIntermediate InfType, InfType, Subst)
 typeCheck expr env = case expr of
   (TValue v) -> do
     case runExcept (typeExpr v) of 
@@ -121,7 +121,7 @@ typeCheck expr env = case expr of
       Left err -> throwError err
 
   (TSymbol s) -> do
-    case runExcept (Env.lookup s env) of 
+    case runExcept (Ctx.lookup s env) of 
       Right (Left ty) -> pure (TSymbol s, ty, nosubst)
       Right (Right (_, ty)) -> pure (TSymbol s, ty, nosubst)
       Left err -> throwError ("couldn't find type of symbol " <> s)
@@ -295,12 +295,12 @@ typeCheck expr env = case expr of
     updateFromArgs env ((arg, _) : args) = do 
       env' <- updateFromArgs env args
       case arg of
-        BoundArg str ty -> pure (Env.insert str (toInf ty) env')
-        ValArg str ty -> pure (Env.insert str (toInf ty) env')
-        InfArg str id -> pure (Env.insert str (IMVar (Right id)) env')
+        BoundArg str ty -> pure (Ctx.insert str (toInf ty) env')
+        ValArg str ty -> pure (Ctx.insert str (toInf ty) env')
+        InfArg str id -> pure (Ctx.insert str (IMVar (Right id)) env')
 
 
-typeCheckDef :: TDefinition ModulusType -> Env.CheckEnv EvalM
+typeCheckDef :: TDefinition ModulusType -> Ctx.Context
              -> TypeM (TDefinition InfType, String, InfType, Subst)
 -- typeCheckDef (TVariantDef name vars id variants ty)
 -- typeCheckDef (TEffectDef  name vars id actions)
@@ -308,7 +308,7 @@ typeCheckDef (TSingleDef name body ty) env = do
   bnd <- case ty of 
     Nothing -> freshVar
     Just ty -> pure (toInf ty)
-  (body', ty', subst) <- typeCheck body (Env.insert name bnd env)
+  (body', ty', subst) <- typeCheck body (Ctx.insert name bnd env)
   pure (TSingleDef name body' (Just ty'), name, ty', subst)
 
 
@@ -666,7 +666,7 @@ occurs' _ (IMPrim _) = False
 -- + if application, error! (TODO: evaluate if pure!)
 -- Intended to be used so arguments to 'dependent' functions can be converted
 -- into types, and then substituted in to make sure it all works!
-toDepLiteral :: TIntermediate InfType -> Env.CheckEnv EvalM -> TypeM InfType
+toDepLiteral :: TIntermediate InfType -> Ctx.Context -> TypeM InfType
 toDepLiteral (TValue (Type t)) env = pure (toInf t)
 toDepLiteral (TValue v) env = throwError ("non-type value given to toDepLiteral: " <> show v)
 toDepLiteral (TType ty) env = pure ty

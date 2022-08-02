@@ -7,10 +7,11 @@ import Data (Value (InbuiltFun, Module, Type, CFunction, PrimE, CConstructor,
              Expr,
              Definition(..),
              Core(..),
+             EvalM,
              ModulusType(..),
              ActionMonadT(ActionMonadT),
              ProgState,
-             Context)
+             Environment)
 
 import Data.Text (Text, pack, unpack)
 import Data.Vector (Vector)
@@ -27,7 +28,7 @@ import Interpret.Transform
 import qualified Data.Map as Map
 import Syntax.TIntermediate
 
-import qualified Interpret.Context as Ctx
+import qualified Interpret.Environment as Env
 import qualified Control.Monad.Except as Except
 import qualified Control.Monad.Reader as Reader
 import qualified Control.Monad.State as State
@@ -37,55 +38,51 @@ import qualified Interpret.Transform as Action
 type SigDefn = (Map.Map String ModulusType)
 
 
-
--- EvalM = Evaluation Monad
-type EvalM = ActionMonadT (ReaderT Context (ExceptT String (State ProgState)))
-
 -- PValue = Program Value 
 type PValue = Value EvalM
 
 -- "correctly" lifted monadic operations for eval
 ask = Action.lift $ Reader.ask
-local :: Context -> EvalM a -> EvalM a
-local ctx m = localF (\_ -> ctx) m
+local :: Environment -> EvalM a -> EvalM a
+local env m = localF (\_ -> env) m
 
-localF :: (Context -> Context) -> EvalM a -> EvalM a
+localF :: (Environment -> Environment) -> EvalM a -> EvalM a
 localF f (ActionMonadT mnd) =
   ActionMonadT (Reader.local f mnd)
 throwError err = Action.lift $ Reader.lift $ Except.throwError err
 
-evalTop :: TopCore -> EvalM (Either Expr (Context -> Context))
+evalTop :: TopCore -> EvalM (Either Expr (Environment -> Environment))
 evalTop (TopExpr e) = eval e >>= (\val -> pure (Left val))
 evalTop (TopDef def) = case def of
   SingleDef name body ty -> do
     val <- eval body
-    pure (Right (Ctx.insertCurrent name val))
+    pure (Right (Env.insertCurrent name val))
   OpenDef body sig -> do
     mdle <- eval body
     case mdle of 
       Module m ->
-        pure (Right (\ctx ->
-                       Map.foldrWithKey (\k _ ctx ->
+        pure (Right (\env ->
+                       Map.foldrWithKey (\k _ env ->
                                            let Just val = Map.lookup k m in
-                                             Ctx.insertCurrent k val ctx)
-                       ctx sig))
+                                             Env.insertCurrent k val env)
+                       env sig))
       _ -> throwError "cannot open non-module"
   VariantDef name params id variants ty ->
-    let addVarType :: Context -> Context
-        addVarType = Ctx.insert name (varFn params)
+    let addVarType :: Environment -> Environment
+        addVarType = Env.insert name (varFn params)
 
         varFn [] = Type ty
-        varFn (p:ps) = (CFunction p (CVal $ varFn ps) Ctx.empty (vartype (p : ps)))
+        varFn (p:ps) = (CFunction p (CVal $ varFn ps) Env.empty (vartype (p : ps)))
 
         vartype [] = (TypeN 1)
         vartype (x:xs) = MArr (TypeN 1) (vartype xs)
 
-        addAlternatives :: [(String, Int, [ModulusType])] -> Context -> Context
-        addAlternatives ((nme, vid, types) : vs) ctx =
+        addAlternatives :: [(String, Int, [ModulusType])] -> Environment -> Environment
+        addAlternatives ((nme, vid, types) : vs) env =
           let ty = mktype params types
-              ctx' = Ctx.insert nme (CConstructor nme id vid (length variants) params [] ty) ctx
-          in addAlternatives vs ctx'
-        addAlternatives [] ctx = ctx
+              env' = Env.insert nme (CConstructor nme id vid (length variants) params [] ty) env
+          in addAlternatives vs env'
+        addAlternatives [] env = env
 
         mktype :: [String] -> [ModulusType] -> ModulusType
         mktype (p:ps) ts = ImplMDep (TypeN 1) p (mktype ps ts)
@@ -99,8 +96,8 @@ eval :: Core -> EvalM Expr
 eval (CVal (Type t)) = Type <$> evalType t
 eval (CVal e) = pure e
 eval (CSym s) = do 
-  ctx <- ask 
-  case Ctx.lookup s ctx of 
+  env <- ask 
+  case Env.lookup s env of 
     Just val -> pure val
     Nothing -> throwError ("could not find symbol " <> s)
 eval (CDot e field) = do 
@@ -124,12 +121,12 @@ eval (CApp e1 e2) = do
     InbuiltFun f _ -> do 
       arg <- eval e2
       f arg
-    CFunction var body fn_ctx ty ->  do
+    CFunction var body fn_env ty ->  do
       arg <- eval e2
-      let new_ctx = case var of
-            "_" -> fn_ctx
-            _ -> Ctx.insert var arg fn_ctx
-      local new_ctx (eval body)
+      let new_env = case var of
+            "_" -> fn_env
+            _ -> Env.insert var arg fn_env
+      local new_env (eval body)
     CConstructor name id1 id2 n (x:xs) vars ty -> do
       arg <- eval e2
       pure (CConstructor name id1 id2 n xs vars ty)
@@ -140,15 +137,15 @@ eval (CApp e1 e2) = do
       pure (CConstructor name id1 id2 (n - 1) [] (arg : l) ty)
     n -> throwError ("non-function called " <> show n)
 eval (CAbs var body ty) = do
-  ctx <- ask
-  pure $ CFunction var body ctx ty
+  env <- ask
+  pure $ CFunction var body env ty
 
 eval (CMod body) = Module <$> evalDefs body
   where
     evalDefs [] = pure Map.empty
     evalDefs ((SingleDef nme body ty) : tl) = do
       val <- eval body
-      mdle <- localF (Ctx.insert nme val) (evalDefs tl)
+      mdle <- localF (Env.insert nme val) (evalDefs tl)
       pure (Map.insert nme val mdle)
 
     evalDefs ((OpenDef body sig) : tl) = do 
@@ -156,9 +153,9 @@ eval (CMod body) = Module <$> evalDefs body
       mdleMap <- case mdle of 
         (Module m) -> pure m
         _ -> throwError "non-module used in open!"
-      let newCtx ctx = Map.foldrWithKey (\k v ctx -> case Map.lookup k mdleMap of  
-                                            Just x -> Ctx.insert k x ctx) ctx sig
-      localF newCtx (evalDefs tl)
+      let newEnv env = Map.foldrWithKey (\k v env -> case Map.lookup k mdleMap of  
+                                            Just x -> Env.insert k x env) env sig
+      localF newEnv (evalDefs tl)
 
 eval (CSig body) = (Type . Signature) <$> evalDefs body
   where
@@ -169,7 +166,7 @@ eval (CSig body) = (Type . Signature) <$> evalDefs body
         (Type t) -> pure t
         _ -> throwError "signatures can only contain types!"
       let var = largeToVar nme ty
-      mdle <- localF (Ctx.insert nme var) (evalDefs tl)
+      mdle <- localF (Env.insert nme var) (evalDefs tl)
   
       pure (Map.insert nme ty mdle)
 
@@ -178,9 +175,9 @@ eval (CSig body) = (Type . Signature) <$> evalDefs body
       mdleMap <- case mdle of 
         (Module m) -> pure m
         _ -> throwError "non-module used in open!"
-      let newCtx ctx = Map.foldrWithKey (\k v ctx -> case Map.lookup k mdleMap of  
-                                            Just x -> Ctx.insert k x ctx) ctx sig
-      localF newCtx (evalDefs tl)
+      let newEnv env = Map.foldrWithKey (\k v env -> case Map.lookup k mdleMap of  
+                                            Just x -> Env.insert k x env) env sig
+      localF newEnv (evalDefs tl)
 
     largeToVar s t = if isLarge t then Type (MVar s) else (Type t)
 
@@ -189,7 +186,7 @@ evalType (MPrim p) = pure (MPrim p)
 evalType (TypeN n) = pure (TypeN n)
 evalType (MVar s) = do 
   env <- ask
-  case Ctx.lookup s env of 
+  case Env.lookup s env of 
     Just v -> case v of 
       (Type t) -> pure t
       _ -> throwError "type variable contains non-type value!"
@@ -199,13 +196,13 @@ evalType (MArr t1 t2) = do
   pure (MArr t1' t2')
 evalType (MDep t1 s t2) = do
   t1' <- evalType t1
-  ctx <- ask
-  t2' <- localF (Ctx.insert s (Type (MVar s))) (evalType t2) 
+  env <- ask
+  t2' <- localF (Env.insert s (Type (MVar s))) (evalType t2) 
   pure (MDep t1' s t2')
 evalType (ImplMDep t1 s t2) = do
   t1' <- evalType t1
-  ctx <- ask
-  t2' <- localF (Ctx.insert s (Type (MVar s))) (evalType t2) 
+  env <- ask
+  t2' <- localF (Env.insert s (Type (MVar s))) (evalType t2) 
   pure (ImplMDep t1' s t2')
 evalType (MNamed id nme args variants) = do
   -- TODO: recursion!!
@@ -215,7 +212,6 @@ evalType t = throwError ("unimplemented evalType for type" <> show t)
   
 
   
-
 err = Except.throwError
 
 toTopCore :: TIntTop ModulusType -> Except String TopCore  

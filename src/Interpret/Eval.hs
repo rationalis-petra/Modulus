@@ -16,7 +16,6 @@ import qualified Control.Lens as Lens -- ((+=), use)
 import qualified Control.Monad.Except as Except
 import qualified Control.Monad.Reader as Reader
 import qualified Control.Monad.State as State
-import qualified Interpret.Context as Context
 import qualified Interpret.Transform as Action
 import Typecheck.TypeUtils(isLarge)
 
@@ -29,7 +28,7 @@ import Interpret.Transform hiding (lift)
 
 
 
-evalToIO :: EvalM a -> Context -> ProgState -> IO (Maybe (a, ProgState))
+evalToIO :: EvalM a -> Environment -> ProgState -> IO (Maybe (a, ProgState))
 evalToIO (ActionMonadT inner_mnd) ctx state =
   case runState (runExceptT (runReaderT inner_mnd ctx)) state of
     (Right (Value obj), state') -> do

@@ -17,12 +17,11 @@ import qualified Data.Set as Set
 
 -- type TypeContext' = TypeContext ProgMonad
 
-data ValContext = ValContext {
-  localCtx      :: Map.Map String Expr,
+data Environment = Environment {
+  localCtx      :: Map.Map String (Value EvalM),
   currentModule :: Expr,
   globalModule  :: Expr
 }
-type Context = ValContext
 
 type SigDefn = Map.Map String ModulusType
 data Definition
@@ -116,16 +115,14 @@ data Value m
   | AST AST
   | Symbol String
   | Special Special
-  | Macro [String] Intermediate ValContext
+  | Macro [String] Intermediate Environment
   -- TODO: change to [String], figure out resultant errors in macroEval  
-  | CMacro String Core ValContext ModulusType
+  | CMacro String Core Environment ModulusType
   | InbuiltMac ([AST] -> m AST)
 
-
   -- EVALUATION & FUNCTIONS
-  | Function [String] Intermediate ValContext
-  | CFunction String Core ValContext ModulusType 
-  | CDFunction String Core ValContext ModulusType 
+  | Function [String] Intermediate Environment
+  | CFunction String Core Environment ModulusType 
   | InbuiltFun (Value m -> m (Value m)) ModulusType
 
   -- ALGEBRAIC EFFECTS
@@ -200,6 +197,12 @@ data PrimType = BoolT | CharT | IntT | FloatT | UnitT | StringT
 
 data Kind = K | To Kind Kind
 
+
+-- data TypeExpr  
+--   = TyVal ModulusType
+--   | TyApp TypeExpr TypeExpr 
+--   | MDep String ModulusType TypeExpr
+
 data ModulusType
   = TypeN Int
   | MVar String
@@ -228,7 +231,7 @@ data EffectType
 
 type Expr = Value EvalM
 
-type EvalM = ActionMonadT (ReaderT Context (ExceptT String (State ProgState)))
+type EvalM = ActionMonadT (ReaderT Environment (ExceptT String (State ProgState)))
 
 newtype ActionMonadT m a = ActionMonadT (m (MaybeEffect m a))
 

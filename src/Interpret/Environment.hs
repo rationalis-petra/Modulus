@@ -1,4 +1,4 @@
-module Interpret.Context where
+module Interpret.Environment where
 
 import Prelude hiding (lookup)
 
@@ -8,10 +8,10 @@ import Interpret.Transform
 import qualified Data.Map as Map
 
 
-lookup :: String -> Context -> Maybe Expr
-lookup key (ValContext {localCtx = lcl,
-                        currentModule = curr,
-                        globalModule = glbl}) = 
+lookup :: String -> Environment -> Maybe Expr
+lookup key (Environment {localCtx = lcl,
+                         currentModule = curr,
+                         globalModule = glbl}) = 
   case Map.lookup key lcl of 
     Just x -> Just x
     Nothing ->
@@ -21,23 +21,23 @@ lookup key (ValContext {localCtx = lcl,
       Nothing -> Nothing
 
 
-insert :: String -> Expr -> Context -> Context
+insert :: String -> Expr -> Environment -> Environment
 insert key val context = context{localCtx = newCtx}
   where
     newCtx = Map.insert key val (localCtx context)
 
-insertAll :: [(String, Expr)] -> Context -> Context
+insertAll :: [(String, Expr)] -> Environment -> Environment
 insertAll lst context = context{localCtx = newCtx}
   where
     newCtx = foldr (uncurry Map.insert) (localCtx context) lst
 
-insertCurrent :: String -> Expr -> Context -> Context
+insertCurrent :: String -> Expr -> Environment -> Environment
 insertCurrent key val context = context{currentModule = newModule}
   where
     (Module oldModule) = currentModule context
     newModule = Module $ Map.insert key val oldModule
 
-empty :: Context
-empty = ValContext {localCtx = Map.empty,
-                    currentModule = Module Map.empty,
-                    globalModule = Module Map.empty}
+empty :: Environment
+empty = Environment {localCtx = Map.empty,
+                     currentModule = Module Map.empty,
+                     globalModule = Module Map.empty}

@@ -4,7 +4,6 @@ import Control.Monad.Except (throwError, catchError)
 
 import qualified Data.Map as Map
 
-import qualified Interpret.Context as Context
 import qualified Data.Map as Map
 import Data
 import Interpret.Transform
