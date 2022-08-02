@@ -9,16 +9,61 @@ import Control.Monad.Except (Except, runExcept, throwError)
 import qualified Data.Set as Set
 import qualified Interpret.Environment as Env
 import Data (AST(..),
-             Arg(..),
              Environment,
              Special(..),
-             IPattern(..),
-             IDefinition(..),
-             Value(Symbol, Special, Constructor, Action, Keyword),
-             Intermediate(..))
+             Expr,
+             Value(Symbol, Special, Constructor, Action, Keyword))
 
 
 newtype GlobCtx = GlobCtx (Environment, (Set.Set String))
+
+
+
+-- arguments to functions may have optional type annotations
+data IArg = Sym String | Annotation String Intermediate
+  deriving Show
+
+
+data IDefinition
+  = ISingleDef String Intermediate
+  | IVariantDef String [String] [(String, [Intermediate])] 
+  | IEffectDef  String [String] [(String, [Intermediate])]
+  | IOpenDef Intermediate
+  deriving (Show)
+
+-- Untyped (typed) intermediate
+data Intermediate
+  = IValue Expr
+  | IDefinition IDefinition
+  | IApply Intermediate Intermediate
+  | IImplApply Intermediate Intermediate
+  | IQuote AST
+  | IAccess Intermediate String
+  | IDo [Intermediate]
+  | IProgn [Intermediate]
+  | IIF Intermediate Intermediate Intermediate
+  | ISymbol String
+  | ILet [(String, Intermediate)] Intermediate
+  | ILetOpen [Intermediate] Intermediate
+  | ILambda [(IArg, Bool)] Intermediate
+  | IMacro [IArg] Intermediate
+  | IModule [IDefinition] 
+  | ISignature [IDefinition] 
+  | IHandle Intermediate [(String, [String], Intermediate)]
+  | IMkHandler [(String, [String], Intermediate)]
+  | IHandleWith Intermediate Intermediate
+  | IMatch Intermediate [(IPattern, Intermediate)]
+  deriving Show
+
+data IPattern
+  = ISingPattern String
+  | IWildCard
+  | ICheckPattern Intermediate [IPattern]
+  deriving Show
+
+
+
+  
 
 lookup s (GlobCtx (ctx, shadowed)) = 
   if Set.member s shadowed then
@@ -386,10 +431,10 @@ mkSeq es globctx = do
 
 
 
-getAnnSymList :: AST -> GlobCtx -> Except String [Arg]
+getAnnSymList :: AST -> GlobCtx -> Except String [IArg]
 getAnnSymList (Cons l) ctx = getSymListR l
   where
-  getSymListR :: [AST] -> Except String [Arg]
+  getSymListR :: [AST] -> Except String [IArg]
   getSymListR [] = pure [] 
   getSymListR (Atom (Symbol s) : syms) = fmap ((:) (Sym s)) (getSymListR syms)
   getSymListR (Cons [Atom (Special Annotate), Atom (Symbol s), x] : syms) = do

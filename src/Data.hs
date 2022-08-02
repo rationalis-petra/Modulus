@@ -115,13 +115,11 @@ data Value m
   | AST AST
   | Symbol String
   | Special Special
-  | Macro [String] Intermediate Environment
   -- TODO: change to [String], figure out resultant errors in macroEval  
   | CMacro String Core Environment ModulusType
   | InbuiltMac ([AST] -> m AST)
 
   -- EVALUATION & FUNCTIONS
-  | Function [String] Intermediate Environment
   | CFunction String Core Environment ModulusType 
   | InbuiltFun (Value m -> m (Value m)) ModulusType
 
@@ -130,50 +128,9 @@ data Value m
   | IOAction Int Int ([Value m] -> IO (m (Value m))) [Value m]
   | Effect Int Int
   | Action Int Int Int [Value m]
-  | Handler [(Int, Int, [String], Intermediate)]
+  | CHandler [(Int, Int, [String], Core)]
 
 
--- arguments to functions may have optional type annotations
-data Arg = Sym String | Annotation String Intermediate
-  deriving Show
-
-
-data IDefinition
-  = ISingleDef String Intermediate
-  | IVariantDef String [String] [(String, [Intermediate])] 
-  | IEffectDef  String [String] [(String, [Intermediate])]
-  | IOpenDef Intermediate
-  deriving (Show)
-
--- Untyped (typed) intermediate
-data Intermediate
-  = IValue Expr
-  | IDefinition IDefinition
-  | IApply Intermediate Intermediate
-  | IImplApply Intermediate Intermediate
-  | IQuote AST
-  | IAccess Intermediate String
-  | IDo [Intermediate]
-  | IProgn [Intermediate]
-  | IIF Intermediate Intermediate Intermediate
-  | ISymbol String
-  | ILet [(String, Intermediate)] Intermediate
-  | ILetOpen [Intermediate] Intermediate
-  | ILambda [(Arg, Bool)] Intermediate
-  | IMacro [Arg] Intermediate
-  | IModule [IDefinition] 
-  | ISignature [IDefinition] 
-  | IHandle Intermediate [(String, [String], Intermediate)]
-  | IMkHandler [(String, [String], Intermediate)]
-  | IHandleWith Intermediate Intermediate
-  | IMatch Intermediate [(IPattern, Intermediate)]
-  deriving Show
-
-data IPattern
-  = ISingPattern String
-  | IWildCard
-  | ICheckPattern Intermediate [IPattern]
-  deriving Show
 
 -- data AST = Atom Expr | Cons AST 
 data AST
@@ -324,12 +281,10 @@ instance Show (Value a) where
 
     CustomCtor _ _ _ _ _ -> "Custom Ctor"
 
-    Function args bdy _ -> "<λ " <> show args ++ " -> " ++ show bdy ++ ">"
     CFunction _ _ _ t -> "<fnc> :: " <> show t
     InbuiltFun _ t -> "<fnc> :: " <> show t
 
     InbuiltMac _ -> "<mac> :: "
-    Macro args bdy _ -> "<mac " <> show  args <> " -> " <> show bdy <> ">"
   
     Type t -> show t
 

@@ -87,6 +87,7 @@ listModuleSource = "\
 
 
 listModule :: EvalM Expr
-listModule = buildModule
-               Map.empty
-               listModuleSource
+listModule = pure (Module Map.empty)
+-- listModule = buildModule
+--                Map.empty
+--                listModuleSource

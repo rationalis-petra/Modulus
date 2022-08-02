@@ -1,15 +1,15 @@
 module Syntax.Conversions where
 
-import Data(Intermediate(..),
-            Expr,
-            Value(Type, Function, CConstructor),
-            IDefinition(..),
-            IPattern(..),
+import Data(Expr,
+            Value(Type, CConstructor, CFunction),
             EvalM,
-            Core (CVal),
+            Core (CVal, CAbs),
             Definition(..),
-            Arg(..),
             ModulusType(..))
+import Syntax.Intermediate(Intermediate(..),
+                           IDefinition(..),
+                           IPattern(..),
+                           IArg(..))
 
 import Interpret.EvalM (local, fresh_id, fresh_var, throwError)
 import Control.Monad.State (State, runState)
@@ -43,12 +43,18 @@ toTIntermediateTop (IDefinition def) ctx =
     IVariantDef nme params alternatives -> do
       id <- fresh_id
       let
-        -- TODO: how to add the variants in recursively...??
-        -- Idea: perform a recursive substitution, hmm?
-        -- Idea: use Haskell's laziness??
-        varVal = Function params (IValue $ Type $ MNamed id nme (map MVar params) []) Env.empty
+        -- varVal: the variant type itself, defined as a type-constructor
+        -- (i.e. a function from a type to a type)
+        varVal = mkVFun params 
+        -- CFunction params (CVal $ Type $ MNamed id nme (map MVar params) []) Env.empty
+        mkVFun [] = Type $ MNamed id nme (map MVar params) []
+        mkVFun (p:ps) = CFunction p (mkBdy ps) Env.empty (mkTFun (p:ps))
+          where
+            mkBdy [] = CVal $ Type $ MNamed id nme (map MVar params) []
+            mkBdy (p:ps) = CAbs p (mkBdy ps) (mkTFun (p:ps))
+
+        -- varType: the type of the variant type constructor (i.e. type -> type -> ...)
         varType = mkTFun params
-      
         mkTFun (p : ps) = MArr (TypeN 1) (mkTFun ps)
         mkTFun [] = TypeN 1
       
@@ -114,7 +120,7 @@ toTIntermediate (ILambda args bdy) ctx = do
   bdy' <- toTIntermediate bdy ctx'
   pure $ TLambda args' bdy' Nothing
   where
-    processArgs :: [(Arg, Bool)] -> Ctx.Context -> EvalM ([(TArg MT, Bool)], Ctx.Context)
+    processArgs :: [(IArg, Bool)] -> Ctx.Context -> EvalM ([(TArg MT, Bool)], Ctx.Context)
     processArgs [] ctx = pure ([], ctx)
     processArgs ((Sym s, b) : xs) ctx =
       if b then  do

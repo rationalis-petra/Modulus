@@ -61,9 +61,10 @@ ringSig = do
 
 
 structModule :: EvalM (Map.Map String Expr)
-structModule = do
-  sfield <- fieldSig
-  sring <- ringSig
-  pure $ Map.fromList [("Ring",  sring),
-                       ("Field", sfield)]
+-- structModule = do
+--   sfield <- fieldSig
+--   sring <- ringSig
+--   pure $ Map.fromList [("Ring",  sring),
+--                        ("Field", sfield)]
 
+structModule = pure (Map.empty)

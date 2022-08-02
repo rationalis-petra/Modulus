@@ -2,16 +2,16 @@ module Syntax.TIntermediate where
 -- After the intermediate representation
 -- we have... the 
 
-import Data(Intermediate(..),
-            Expr,
-            Value(Type, Function, CConstructor),
-            IDefinition(..),
-            IPattern(..),
+import Data(Expr,
+            Value(Type, CConstructor),
             EvalM,
             Core (CVal),
             Definition(..),
-            Arg(..),
             ModulusType(..))
+import Syntax.Intermediate(Intermediate(..),
+                           IDefinition(..),
+                           IPattern(..),
+                           IArg(..))
 
 import Interpret.EvalM (local, fresh_id, throwError)
 import Control.Monad.State (State, runState)

@@ -3,16 +3,16 @@ module Interpret.Modules.BuildModule where
 import Data(Environment(..),
             Value(Module),
             Expr,
-            EvalM,
-            IDefinition(..),
-            Intermediate(..))
+            EvalM)
 
 import Control.Monad.Except (runExcept)
 import Data.Text (pack, unpack)
 
 import Parse (parseModule)
 import Syntax.Macroexpand
-import Syntax.Intermediate
+import Syntax.Intermediate(Intermediate(..),
+                           IDefinition(..),
+                           toIntermediate)
 import Syntax.Conversions
 import Typecheck.Typecheck(runChecker)
 import qualified Typecheck.Context as Ctx

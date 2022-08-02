@@ -75,13 +75,3 @@ getRetTy :: ModulusType -> ModulusType
 getRetTy (MArr _ t) = t
 getRetTy (MDep _ _ t) = t
 getRetTy (ImplMDep _ _ t) = t
-   
-
-
-deAnn :: [Arg] -> [String]
-deAnn ((Sym s) : ss) = s : (deAnn ss)
-deAnn ((Annotation s _) : ss) = s : (deAnn ss)
-deAnn [] = []
-reAnn :: [String] -> [Arg]
-reAnn (s : ss) = (Sym s) : (reAnn ss)
-reAnn [] = []
