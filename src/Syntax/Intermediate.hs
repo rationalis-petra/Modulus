@@ -101,7 +101,7 @@ toIntermediateM (Cons (e : es)) ctx = do
     (IValue (Special Let)) -> mkLet es ctx
     (IValue (Special If)) -> mkIf es ctx
     (IValue (Special Access)) -> mkAccess es ctx
-    (IValue (Special MkModule)) -> mkModule es ctx
+    (IValue (Special MkStructure)) -> mkModule es ctx
     (IValue (Special MkSig)) -> mkSig es ctx
     (IValue (Special Open)) -> (mkOpen es ctx) >>= (pure . IDefinition)
     (IValue (Special LetOpen)) -> (mkLetOpen es ctx)

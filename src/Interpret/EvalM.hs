@@ -39,3 +39,8 @@ fresh_var = do
   id <- use var_counter
   var_counter += 1
   pure id
+
+liftExcept :: Except.Except String a -> EvalM a
+liftExcept e = case Except.runExcept e of 
+  Right val -> pure val
+  Left err -> throwError err

@@ -7,7 +7,7 @@ import Data(Expr,
             EvalM,
             Core (CVal),
             Definition(..),
-            ModulusType(..))
+            TypeExpr(..))
 import Syntax.Intermediate(Intermediate(..),
                            IDefinition(..),
                            IPattern(..),
@@ -17,7 +17,6 @@ import Interpret.EvalM (local, fresh_id, throwError)
 import Control.Monad.State (State, runState)
 import Control.Monad.Except (ExceptT, runExceptT)
 import Interpret.Transform
-import Typecheck.TypeUtils (isLarge)
 
 
 -- Typed Intermediate Module  
@@ -34,8 +33,7 @@ data IType ty
     bindings. Binding a type means it is available and in scope for subsequent
     types within the body to use, i.e. a ∀a.a --}
 data TArg ty
-  = BoundArg String ty 
-  | ValArg String ty
+  = BoundArg String ty  -- TODO: merge InfArg/BoundArg 
   | InfArg String Int
   deriving Show
 
@@ -79,6 +77,3 @@ data TIntermediate ty
   | TAccess (TIntermediate ty) String
   | TMatch (TIntermediate ty) [(TPattern ty, TIntermediate ty)]
   deriving Show
-
-
-

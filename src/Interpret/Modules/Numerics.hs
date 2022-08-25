@@ -8,13 +8,13 @@ import Data
 import Interpret.Eval (liftFun, liftFun2)
 import Interpret.Transform
 
-int_t = MPrim IntT
-bool_t = MPrim BoolT
-float_t = MPrim FloatT
+int_t = NormPrim IntT
+bool_t = NormPrim BoolT
+float_t = NormPrim FloatT
 
 mkFloatUni :: (Float -> Float) -> Expr
 mkFloatUni f = 
-  liftFun newf (MArr float_t float_t)
+  liftFun newf unifloat
   where
     newf :: Expr -> EvalM Expr
     newf (PrimE (Float f1)) =
@@ -25,7 +25,7 @@ mkFloatUni f =
 
 mkFloatOp :: (Float -> Float -> Float) -> Expr
 mkFloatOp f = 
-  liftFun2 newf (MArr float_t (MArr float_t float_t))
+  liftFun2 newf binfloat
   where
     newf :: Expr -> Expr -> EvalM Expr
     newf (PrimE (Float f1)) (PrimE (Float f2)) =
@@ -36,7 +36,7 @@ mkFloatOp f =
 
 mkFltCmp :: (Float -> Float -> Bool) -> Expr
 mkFltCmp f = 
-  liftFun2 newf (MArr float_t (MArr float_t bool_t))
+  liftFun2 newf floatCompare
   where
     newf :: Expr -> Expr -> EvalM Expr
     newf (PrimE (Float n1)) (PrimE (Float n2)) =
@@ -48,7 +48,7 @@ mkFltCmp f =
   
 mkIntUni :: (Integer -> Integer) -> Expr
 mkIntUni f = 
-  liftFun newf (MArr int_t int_t)
+  liftFun newf uniint
   where
     newf :: Expr -> EvalM Expr
     newf (PrimE (Int n1)) =
@@ -58,7 +58,7 @@ mkIntUni f =
 
 mkIntOp :: (Integer -> Integer -> Integer) -> Expr
 mkIntOp f = 
-  liftFun2 newf (MArr int_t (MArr int_t int_t))
+  liftFun2 newf binint
   where
     newf :: Expr -> Expr -> EvalM Expr
     newf (PrimE (Int n1)) (PrimE (Int n2)) =
@@ -69,7 +69,7 @@ mkIntOp f =
 
 mkCmpOp :: (Integer -> Integer -> Bool) -> Expr
 mkCmpOp f = 
-  liftFun2 newf (MArr int_t (MArr int_t bool_t))
+  liftFun2 newf intcompare
   where
     newf :: Expr -> Expr -> EvalM Expr
     newf (PrimE (Int n1)) (PrimE (Int n2)) =
@@ -80,7 +80,7 @@ mkCmpOp f =
 
 mkBoolOp :: (Bool -> Bool -> Bool) -> Expr
 mkBoolOp f = 
-  liftFun2 newf (MArr bool_t (MArr bool_t bool_t))
+  liftFun2 newf binbool
   where
     newf :: Expr -> Expr -> EvalM Expr
     newf (PrimE (Bool b1)) (PrimE (Bool b2)) =
@@ -91,7 +91,7 @@ mkBoolOp f =
 
 mkBoolSing :: (Bool -> Bool) -> Expr
 mkBoolSing f = 
-  liftFun newf (MArr bool_t bool_t)
+  liftFun newf (NormArr bool_t bool_t)
   where
     newf :: Expr -> EvalM Expr
     newf (PrimE (Bool b)) =
@@ -162,11 +162,13 @@ numModule = Map.fromList
    ("not", mkBoolSing not)
    ]
 
-binfloat = MArr float_t (MArr float_t float_t)
-unifloat = MArr float_t float_t
+binfloat = NormArr float_t (NormArr float_t float_t)
+unifloat = NormArr float_t float_t
+floatCompare = NormArr float_t (NormArr float_t bool_t)
   
-binint = MArr int_t (MArr int_t int_t)
-uniint = MArr int_t int_t
-intcompare = MArr int_t (MArr int_t bool_t)
-floatCompare = MArr float_t (MArr float_t bool_t)
-binbool = MArr bool_t (MArr bool_t bool_t)
+binint = NormArr int_t (NormArr int_t int_t)
+uniint = NormArr int_t int_t
+intcompare = NormArr int_t (NormArr int_t bool_t)
+
+unibool = NormArr bool_t bool_t
+binbool = NormArr bool_t (NormArr bool_t bool_t)

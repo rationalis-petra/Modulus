@@ -12,7 +12,6 @@ import Syntax.Conversions (toTIntermediateTop)
 
 import Typecheck.Typecheck
 import qualified Typecheck.Context as Ctx
-import qualified Typecheck.InfContext as InfCtx
 import qualified Core
 
 
@@ -65,7 +64,7 @@ main =
              Just (env, state) ->
                if null f then
                  repl env state (IOpts {tc=True})
-               else  do
+               else do
                  handle <- openFile f ReadMode
                  contents <- hGetContents handle
                  (env', state') <- runInteractively contents env state (IOpts {tc=False})
@@ -131,17 +130,16 @@ runExprs (e : es) env state (IOpts {tc=tc}) b = do
     Just (expanded, state') ->
       case toIntermediate expanded env of 
         Right val -> do
-          tint <- evalToIO (toTIntermediateTop val (Ctx.envToCtx env)) env state'
-          case tint of 
-            Just (t, state'') ->
-              case runCheckerTop t (InfCtx.envToCtx env) of
-                Right res -> do
-                  tint <- case res of 
-                    Left (tint, ty) -> do
-                      print ty
-                      pure tint
-                    Right tint -> pure tint
-                  case runExcept (Core.toTopCore tint) of 
+          result <- evalToIO (toTIntermediateTop val (Ctx.envToCtx env)) env state'
+          case result of 
+            Just (tint, state'') -> do
+              result <- evalToIO (typeCheckTop tint (Ctx.envToCtx env)) env state''
+              case result of 
+                Just (cint, state''') -> do
+                  cint' <- case cint of 
+                        Left (t, ty) -> (print ty) >> pure t
+                        Right t -> pure t
+                  case runExcept (Core.toTopCore cint') of 
                     Right v -> do
                       (fenv, fstate, mval) <- evalTopCore v env state''
                       case mval of 
@@ -149,8 +147,27 @@ runExprs (e : es) env state (IOpts {tc=tc}) b = do
                         Nothing -> pure ()
                       pure (fenv, fstate)
                     Left err -> failWith ("toCore err: " <> err)
-                Left err -> failWith err 
-            Nothing -> failWith "toTintermediate err "
+                Nothing -> pure (env, state)
+            Nothing -> pure (env, state)
+          -- case runCheckerTop (toTIntermediateTop val (Ctx.envToCtx env)) env state' of 
+          --   Just (t, state'') ->
+          --     case runCheckerTop t (Ctx.envToCtx env) of
+          --       Right res -> do
+          --         tint <- case res of 
+          --           Left (tint, ty) -> do
+          --             print ty
+          --             pure tint
+          --           Right tint -> pure tint
+          --         case runExcept (Core.toTopCore tint) of 
+          --           Right v -> do
+          --             (fenv, fstate, mval) <- evalTopCore v env state''
+          --             case mval of 
+          --               Just v -> print v
+          --               Nothing -> pure ()
+          --             pure (fenv, fstate)
+          --           Left err -> failWith ("toCore err: " <> err)
+          --       Left err -> failWith err 
+          --   Nothing -> failWith "toTintermediate err "
         Left err -> do
           print err
           pure (env, state)

@@ -17,7 +17,8 @@ import qualified Control.Monad.Except as Except
 import qualified Control.Monad.Reader as Reader
 import qualified Control.Monad.State as State
 import qualified Interpret.Transform as Action
-import Typecheck.TypeUtils(isLarge)
+import qualified Interpret.Environment as Env
+import qualified Interpret.Type as Type
 
 import Interpret.EvalM
   
@@ -59,19 +60,30 @@ evalToIO (ActionMonadT inner_mnd) ctx state =
           return Nothing
 
 
-liftFun :: (Expr -> EvalM Expr) -> ModulusType -> Expr
+liftFun :: (Expr -> EvalM Expr) -> TypeNormal -> Expr
 liftFun f ty = InbuiltFun f ty
 
-liftFun2 :: (Expr -> Expr -> EvalM Expr) -> ModulusType -> Expr
-liftFun2 f ty = InbuiltFun (\x -> pure $ liftFun (f x) (getRetTy ty)) ty 
+liftFun2 :: (Expr -> Expr -> EvalM Expr) -> TypeNormal -> Expr
+liftFun2 f ty = InbuiltFun (\val ->
+                              case ty of
+                                (NormArr _ r) -> pure $ liftFun (f val) r
+                                (NormDep var _ body) -> pure $ liftFun (f val) body
+                                (NormImplDep var _ body) -> pure $ liftFun (f val) body)
+                ty
 
-liftFun3 :: (Expr -> Expr -> Expr -> EvalM Expr) -> ModulusType -> Expr 
-liftFun3 f ty = InbuiltFun (\x -> pure $ liftFun2 (f x) (getRetTy ty)) ty 
+liftFun3 :: (Expr -> Expr -> Expr -> EvalM Expr) -> TypeNormal -> Expr 
+liftFun3 f ty = InbuiltFun (\val ->
+                              case ty of
+                                (NormArr _ r) -> pure $ liftFun2 (f val) r
+                                (NormDep var _ body) -> pure $ liftFun2 (f val) body
+                                (NormImplDep var _ body) -> do pure $ liftFun2 (f val) body)
+                ty
 
-liftFun4 :: (Expr -> Expr -> Expr -> Expr -> EvalM Expr) -> ModulusType -> Expr 
-liftFun4 f ty = InbuiltFun (\x -> pure $ liftFun3 (f x) (getRetTy ty)) ty 
+liftFun4 :: (Expr -> Expr -> Expr -> Expr -> EvalM Expr) -> TypeNormal -> Expr 
+liftFun4 f ty = InbuiltFun (\val ->
+                              case ty of
+                                (NormArr _ r) -> pure $ liftFun3 (f val) r
+                                (NormDep var _ body) -> pure $ liftFun3 (f val) body
+                                (NormImplDep var _ body) -> pure $ liftFun3 (f val) body)
+                ty
 
-getRetTy :: ModulusType -> ModulusType
-getRetTy (MArr _ t) = t
-getRetTy (MDep _ _ t) = t
-getRetTy (ImplMDep _ _ t) = t

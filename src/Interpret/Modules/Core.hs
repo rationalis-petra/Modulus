@@ -1,4 +1,4 @@
-module Interpret.Modules.Core (coreModule) where
+module Interpret.Modules.Core (coreStructure) where
 
 import Control.Monad.Except (throwError, catchError)
 
@@ -7,7 +7,10 @@ import qualified Data.Map as Map
 import Data
 import Interpret.Eval (liftFun2, liftFun4)
 import Interpret.Transform
+import qualified Interpret.Environment as Env
+
 -- import Typecheck.Typecheck2 (subtype)
+
 
 -- helper functions
 get_symlist [] = Just []
@@ -40,11 +43,11 @@ opDot [(Cons (op : xs)), rhs] =
 opDot args =  lift $ (throwError $ "bad args to macro: dot " ++ show args)
 mlsDot = InbuiltMac opDot
 
-defModule :: [AST] -> EvalM AST
-defModule (sym : bdy) = 
-  pure $ Cons ([Atom (Special Def), sym, Cons (Atom (Special MkModule) : bdy)])
-defModule _ = lift $ throwError "Bad Number of to macro: module" 
-mlsDefModule = InbuiltMac defModule
+defStructure :: [AST] -> EvalM AST
+defStructure (sym : bdy) = 
+  pure $ Cons ([Atom (Special Def), sym, Cons (Atom (Special MkStructure) : bdy)])
+defStructure _ = lift $ throwError "Bad Number of to macro: module" 
+mlsDefStructure = InbuiltMac defStructure
 
 defStruct :: [AST] -> EvalM AST
 defStruct (sym : bdy) = 
@@ -76,19 +79,19 @@ with :: Expr -> Expr -> EvalM Expr
 with (Module m1) (Module m2) = 
   pure $ Module (Map.foldrWithKey Map.insert m1 m2)
 with _ _ = lift $ throwError "bad args to with expected types"
-mlsWith = liftFun2 with (MArr Undef (MArr Undef Undef))
+mlsWith = liftFun2 with (NormArr Undef (NormArr Undef Undef))
 
 upd :: [AST] -> EvalM AST
 upd [mdle, Cons bindlist] = do
   mldebdy <- toDefs bindlist 
-  pure $ Cons [(Atom mlsWith), mdle, Cons (Atom (Special MkModule) : mldebdy)]
+  pure $ Cons [(Atom mlsWith), mdle, Cons (Atom (Special MkStructure) : mldebdy)]
 upd _ = lift $ throwError "bad args to macro: | "
 mlsUpd = InbuiltMac upd
 
 struct :: [AST] -> EvalM AST
 struct bindlist = do
   mldebdy <- toDefs bindlist 
-  pure $ Cons (Atom (Special MkModule) : mldebdy)
+  pure $ Cons (Atom (Special MkStructure) : mldebdy)
 mlsStruct = InbuiltMac struct
 
 sig :: [AST] -> EvalM AST
@@ -98,7 +101,6 @@ sig bindlist = do
 mlsSig = InbuiltMac struct
 
 mlsNode = CustomCtor 1 [] nodeCtor nodeDtor Undef
-  
   where
     nodeCtor :: [Expr] -> EvalM Expr
     nodeCtor [e] = 
@@ -146,33 +148,33 @@ mlsAtom = CustomCtor 1 [] atomCtor atomDtor Undef
 
 mkFunType :: Expr -> Expr -> EvalM Expr
 mkFunType (Type t1) (Type t2) = 
-  pure $ Type (MArr t1 t2)
+  pure $ Type (NormArr t1 t2)
 mkFunType _ _ = lift $ throwError "bad args to →: expected types"
-mlsFunType = liftFun2 mkFunType (MArr (TypeN 1) (MArr (TypeN 1) (TypeN 1)))
+mlsFunType = liftFun2 mkFunType (NormArr (NormUniv 0) (NormArr (NormUniv 0) (NormUniv 0)))
 
 mkTupleType :: Expr -> Expr -> EvalM Expr
 mkTupleType (Type t1) (Type t2) = 
-  pure $ Type $ Signature (Map.fromList [("_1", t1), ("_2", t2)])
+  pure $ Type $ NormSig [("_1", t1), ("_2", t2)]
 mkTupleType _ _ = lift $ throwError "bad args to *: expected types"
-mlsMkTupleType = liftFun2 mkTupleType (MArr (TypeN 1) (MArr (TypeN 1) (TypeN 1)))
+mlsMkTupleType = liftFun2 mkTupleType (NormArr (NormUniv 0) (NormArr (NormUniv 0) (NormUniv 0)))
 
 -- TUPLES
 mkTuple :: Expr -> Expr -> Expr -> Expr -> EvalM Expr
 mkTuple _ _ e1 e2 = 
   pure $ Module (Map.fromList [("_1", e1), ("_2", e2)])
-mlsMkTuple = liftFun4 mkTuple (ImplMDep (TypeN 1) "a"
-                                 (ImplMDep (TypeN 1) "b"
-                                  (MArr (MVar "a")
-                                   (MArr (MVar "b")
-                                    (Signature (Map.fromList [("_1", MVar "a"), ("_2", MVar "b")]))))))
+mlsMkTuple = liftFun4 mkTuple (NormImplDep "a" (NormUniv 0)
+                                 (NormImplDep "b" (NormUniv 0)
+                                  (NormArr (Neu (NeuVar "a"))
+                                   (NormArr (Neu (NeuVar "b"))
+                                    (NormSig [("_1", Neu (NeuVar "a")), ("_2", Neu (NeuVar "b"))])))))
              
 
 -- CONSTRAINTS
 doConstrain :: Expr -> Expr -> EvalM Expr
-doConstrain (Module mod) (Type (Signature sig)) = 
-  case constrain mod (Map.toList sig) of 
+doConstrain (Module mod) (Type (NormSig sig)) = 
+  case constrain mod sig of 
     Just x -> pure $ Module x
-    Nothing -> lift $ throwError ("could not constrain module " <> show mod <> " with signature " <> show sig)
+    Nothing -> lift $ throwError ("could not constrain structure " <> show mod <> " with signature " <> show sig)
   where
     constrain m ((l, _) : xs) = 
       case Map.lookup l m of 
@@ -181,8 +183,8 @@ doConstrain (Module mod) (Type (Signature sig)) =
           Nothing -> Nothing
         Nothing -> Nothing
     constrain _ [] = Just Map.empty
-doConstrain _ _ = lift $ throwError "bad args to <: expected module and signature"
-mlsConstrain = liftFun2 doConstrain (MArr Undef (MArr Undef Undef))
+doConstrain _ _ = lift $ throwError "bad args to <: expected structure and signature"
+mlsConstrain = liftFun2 doConstrain (NormArr Undef (NormArr Undef Undef))
 
 -- subtype
 -- doSubtype :: Expr -> Expr -> EvalM Expr
@@ -194,13 +196,13 @@ mlsConstrain = liftFun2 doConstrain (MArr Undef (MArr Undef Undef))
 
 
   
-coreModule :: Map.Map String Expr
-coreModule = Map.fromList [
+coreStructure :: Map.Map String Expr
+coreStructure = Map.fromList [
   -- Types
-  ("int",  Type (MPrim IntT )),
-  ("bool", Type (MPrim BoolT)),
-  ("unit", Type (MPrim UnitT)),
-  ("type", Type (TypeN 1)),
+  ("int",  Type (NormPrim IntT)),
+  ("bool", Type (NormPrim BoolT)),
+  ("unit", Type (NormPrim UnitT)),
+  ("type", Type (NormUniv 0)),
   ("→", mlsFunType),
   ("sig", Special MkSig),
   ("×", mlsMkTupleType),
@@ -231,7 +233,7 @@ coreModule = Map.fromList [
   ("handle",      Special Handle),
   ("handler",     Special MkHandler),
   ("handle-with", Special HandleWith),
-  ("module",      Special MkModule),
+  ("structure",   Special MkStructure),
   ("signature",   Special MkSig),
   ("struct",      mlsStruct),
   ("sig",         mlsSig),
@@ -239,15 +241,15 @@ coreModule = Map.fromList [
   ("open",        Special Open),
   ("let-open",    Special LetOpen),
 
-  ("def",         Special Def),
-  ("≜",           Special Def),
-  ("defn",        mlsDefun) ,
-  ("defsyntax",   mlsDefmac),
-  ("defmodule",   mlsDefModule),
-  ("defstruct",   mlsDefStruct),
-  ("defsignature",mlsDefSig),
-  ("effect",      Special MkEffect),
-  ("variant",     Special DefVariant)
+  ("def",          Special Def),
+  ("≜",            Special Def),
+  ("defn",         mlsDefun) ,
+  ("defsyntax",    mlsDefmac),
+  ("defstructure", mlsDefStructure),
+  ("defstruct",    mlsDefStruct),
+  ("defsignature", mlsDefSig),
+  ("effect",       Special MkEffect),
+  ("variant",      Special DefVariant)
   -- ("signature", (mlsDefSignature, Undef))
   ]
 

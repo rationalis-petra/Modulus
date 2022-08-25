@@ -1,6 +1,8 @@
 {-# LANGUAGE TemplateHaskell #-}
-module Data where
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 
+module Data where
 
 import Data.Text (Text, pack, unpack)
 import Data.Vector (Vector)
@@ -13,8 +15,6 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 -- type Context = Map.Map String Expr
-
-
 -- type TypeContext' = TypeContext ProgMonad
 
 data Environment = Environment {
@@ -23,18 +23,17 @@ data Environment = Environment {
   globalModule  :: Expr
 }
 
-type SigDefn = Map.Map String ModulusType
+type SigDefn = Map.Map String TypeExpr
 data Definition
-  = SingleDef String Core ModulusType
-  | VariantDef String [String] Int [(String, Int, [ModulusType])] ModulusType
+  = SingleDef String Core TypeExpr
+  | VariantDef String [String] Int [(String, Int, [TypeNormal])] TypeNormal
   | EffectDef  String [String] [(String, [Core])]
   | OpenDef Core SigDefn
-  deriving (Show)
+  deriving Show
 
 data Pattern
   = WildCard
   | VarBind String 
-  --             id  n   sub-patterns
   | MatchVariant Int Int [Pattern]
   | MatchModule [(String, Pattern)]
   deriving Show
@@ -43,9 +42,9 @@ data Core
   = CVal Expr                            -- A value
   | CSym String                          -- Symbols
   | CDot Core String                     -- Access a field from a struct/signature
-  | CAbs String Core ModulusType         -- Function abstraction
+  | CAbs String Core TypeNormal          -- Function abstraction
   | CApp Core Core                       -- Function application 
-  | CMAbs String ModulusType Core        -- Macro abstraction
+  | CMAbs String TypeNormal Core         -- Macro abstraction
   | CSeq [Core]                          -- Sequence Effects
   | CLet [(String, Core)] Core           -- Local binding
   | CLetOpen [(Core, SigDefn)] Core      -- Local opens
@@ -58,9 +57,9 @@ data Core
   | CSig [Definition]                -- Signature Definition
   deriving Show
 
+
 data TopCore = TopDef Definition | TopExpr Core
 
-  
 
 -- Contexts:   
 -- globCtx: global context -- used to store modules etc.
@@ -68,13 +67,15 @@ data TopCore = TopDef Definition | TopExpr Core
 --          e.f. from let-bindings
 -- typeCtx: context used for the coalescence/type-checking phase
 
+
 data Special
   -- Forms which define new values 
   = Def | DefVariant | If | Let | Lambda | Mac | MkHandler
-  | Handle | HandleAsync | HandleWith | MkModule
+  | Handle | HandleAsync | HandleWith | MkStructure
   | MkQuote | MkMatch | MkEffect | Open | LetOpen
   | Do | Seq | Access | MkSig | Annotate
   deriving Show
+
 
 data PrimE
   = Unit
@@ -84,9 +85,11 @@ data PrimE
   | Char Char
   | String Text
 
+
 data CollE m
   = List [(Value m)]
   | Vector (Vector (Value m))
+
 
 -- m is the type of monad inside the object
 -- c is the type of the interpreted "code"
@@ -95,10 +98,10 @@ data Value m
   = PrimE PrimE
   | Coll (CollE m) 
   | Keyword String
-  | Type ModulusType
+  | Type TypeNormal
   | Variant String Int Int [Value m]
   | Constructor String Int Int Int [Value m]
-  | CConstructor String Int Int Int [String] [Value m] ModulusType
+  | CConstructor String Int Int Int [String] [Value m] TypeNormal
   | Module (Map.Map String (Value m))
 
   -- Pattern matching on inbuilt data-types nargs currying
@@ -108,7 +111,7 @@ data Value m
     -- matcher
     (Value m -> m (Maybe [(Value m)]))
     -- type
-    ModulusType
+    TypeNormal
   -- TODO: pattern-matching on structures.
 
   -- Syntax and macros
@@ -116,12 +119,12 @@ data Value m
   | Symbol String
   | Special Special
   -- TODO: change to [String], figure out resultant errors in macroEval  
-  | CMacro String Core Environment ModulusType
+  | CMacro String Core Environment TypeNormal
   | InbuiltMac ([AST] -> m AST)
 
   -- EVALUATION & FUNCTIONS
-  | CFunction String Core Environment ModulusType 
-  | InbuiltFun (Value m -> m (Value m)) ModulusType
+  | CFunction String Core Environment TypeNormal 
+  | InbuiltFun (Value m -> m (Value m)) TypeNormal
 
   -- ALGEBRAIC EFFECTS
   | IOEffect
@@ -131,11 +134,11 @@ data Value m
   | CHandler [(Int, Int, [String], Core)]
 
 
-
 -- data AST = Atom Expr | Cons AST 
 data AST
   = Atom Expr
   | Cons [AST]
+
 
 data MaybeEffect m a 
   = RaiseAction (Value (ActionMonadT m) -> ActionMonadT m a)
@@ -147,59 +150,67 @@ data MaybeEffect m a
   | Value a
 
 
-  
-  
-data PrimType = BoolT | CharT | IntT | FloatT | UnitT | StringT 
-  deriving (Eq, Ord)
 
-data Kind = K | To Kind Kind
+data TypeExpr
+  = TyNorm TypeNormal
+  | TyVar String
+  | TyArr TypeExpr TypeExpr
+  | TyDep String TypeExpr TypeExpr
+  | TyImplDep String TypeExpr TypeExpr
+  | TyApp TypeExpr TypeExpr
+  | TySig [(String, TypeExpr)]
+  | TyDot TypeExpr String
 
+-- Normal: expressions
+data TypeNormal
+  = Neu TypeNeutral
+  | NormPrim PrimType 
+  | NormVector TypeNormal
+  | NormUniv Int
+  | NormDep String TypeNormal TypeNormal
+  | NormImplDep String TypeNormal TypeNormal
+  | NormArr TypeNormal TypeNormal
+  | NormSig [(String, TypeNormal)]
 
--- data TypeExpr  
---   = TyVal ModulusType
---   | TyApp TypeExpr TypeExpr 
---   | MDep String ModulusType TypeExpr
-
-data ModulusType
-  = TypeN Int
-  | MVar String
-  | Signature (Map.Map String ModulusType)
-  | MArr ModulusType ModulusType
-  | MDep ModulusType String ModulusType
-  | ImplMDep ModulusType String ModulusType
-  | MDot ModulusType String
-  | MEffect (Set.Set EffectType) ModulusType
-  --        id  name   params        instance-types           
-  | MNamed Int String [ModulusType] [[ModulusType]]
-
-  -- "Primitive" / native types
-  | MPrim PrimType
-  | MVector ModulusType
-
-  -- BAD -> we want him gone!
   | Undef
-  | Large
-  deriving (Eq, Ord)
+  deriving Show
 
-data EffectType
-  = IOEff
-  | CustomEff Int [ModulusType]  
-  deriving (Show, Eq, Ord)
+-- Neutral: a subset of normal expressions, these expressions cannot be
+-- evaluated further due to missing a variable application (i.e. normalisation
+-- within the body of a function). They include no introduction forms, only
+-- elimination forms.
+data TypeNeutral  
+  = NeuVar String
+  | NeuApp TypeNeutral TypeNormal
+  | NeuImplApp TypeNeutral TypeNormal
+  | NeuDot TypeNeutral String
+  deriving Show
+  
+
+-- TODO: effect type
+
+class Variable a where   
+  fromString :: String -> a
+  toString :: a -> String
+
+instance Variable String where
+  fromString = id
+  toString = id
+  
+data PrimType = BoolT | CharT | IntT | FloatT | UnitT | StringT | AbsurdT
+  deriving (Eq, Ord)
+  
 
 type Expr = Value EvalM
 
-type EvalM = ActionMonadT (ReaderT Environment (ExceptT String (State ProgState)))
+type EvalEnvM env = ActionMonadT (ReaderT env (ExceptT String (State ProgState)))
+type EvalM = EvalEnvM Environment
+  
 
 newtype ActionMonadT m a = ActionMonadT (m (MaybeEffect m a))
 
 data ProgState = ProgState { _uid_counter :: Int, _var_counter :: Int }  
 
-
-data Neutral m
-  = NVar String
-  | NAp (Neutral m) (Normal m)
-
-data Normal m = Normal (Value m) ModulusType
 
   
 instance Show PrimType where 
@@ -209,40 +220,30 @@ instance Show PrimType where
   show FloatT  = "float"
   show CharT   = "char"
   show StringT = "string"
+  show AbsurdT = "absurd"
 
-instance Show ModulusType where
-  show (MPrim p) = show p
-  show (Undef) = "undefined"
-  show (Large) = "large"
-  show (MVar s) = s
 
-  show (MArr (MArr t1 t2) t3) =
-    "(" <>  show (MArr t1 t2) <> ") → " <> show t3
-  -- show (MArr (MDep t1 s t2) t3) =
-  --   show (MDep t1 s t2) <> " → " <> show t3
-  show (MArr t1 t2) = show t1 <> " → " <> show t2  
+instance Show TypeExpr where
+  show (TyNorm n) = "Normal: " <> show n
+  show (TyVar var) = var
+
+  show (TyArr (TyArr t1 t2) t3) =
+    "(" <>  show (TyArr t1 t2) <> ") → " <> show t3
+  show (TyArr t1 t2) = show t1 <> " → " <> show t2  
 
   -- show (MDep (MDep t1 s t2) s2 t3) =
   --   "(" <>  s <> ":" <> show (MDep t1 s t2) <> ") → " <> show t3
-  show (MDep t1 s t2) = "(" <> s <> ":" <> show t1 <> ") → " <> show t2 
-  show (ImplMDep (TypeN 1) s t2) = "{" <> s <> "} → " <> show t2
-  show (ImplMDep t1 s t2) = "{" <> s <> ":" <> show t1 <> "} → " <> show t2
-  show (MDot t s) = show t <> "." <> s 
+  show (TyDep var t1 t2) = "(" <> var <> ":" <> show t1 <> ") → " <> show t2 
+  show (TyImplDep var t1 t2) = "{" <> var <> ":" <> show t1 <> "} → " <> show t2
+  show (TyDot t s) = show t <> "." <> s 
 
-  show (TypeN n) = case n of 
-    0 -> "type"
-    1 -> "type₁"
-    2 -> "type₂"
-    n -> "type" ++ show n
   -- TODO branch on isLarge!
-  show (Signature map) =
-    "(sig " <> drop 2 (Map.foldrWithKey show_sig "" map) <> ")"
-    where show_sig key t str = 
-            str <> ", " <> key <> " : " <> show t
-  show (MNamed id name types _) = 
-    name <> foldr (\t str -> " " <> show t <> str) "" types
+  show (TySig map) =
+    "(sig " <> drop 2 (foldr show_sig "" map) <> ")"
+    where show_sig (key, t) str = 
+            str <> ", " <> show key <> " : " <> show t
 
-  show (MVector t) = "Vector " ++ show t
+
 
 instance Show PrimE where   
   show e = case e of  
@@ -300,5 +301,3 @@ instance Show AST where
   
 
 $(makeLenses ''ProgState)
-
-  

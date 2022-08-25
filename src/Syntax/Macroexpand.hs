@@ -3,7 +3,7 @@ module Syntax.Macroexpand where
 import Data(Value(..),
             -- Intermediate(..),
             AST (..),
-            ModulusType(Undef),
+            TypeNormal(Undef),
             EvalM,
             Core(CVal, CApp),
             ProgState) 

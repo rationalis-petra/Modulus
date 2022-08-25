@@ -1,17 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Core where
-import Data (Value (InbuiltFun, Module, Type, CFunction, PrimE, CConstructor,
-                    CustomCtor),
-             PrimE(Bool),
-             TopCore(..),
-             Expr,
-             Definition(..),
-             Core(..),
-             EvalM,
-             ModulusType(..),
-             ActionMonadT(ActionMonadT),
-             ProgState,
-             Environment)
+import Data
 
 import Data.Text (Text, pack, unpack)
 import Data.Vector (Vector)
@@ -20,22 +9,24 @@ import Control.Lens hiding (Context)
 import Control.Monad.State (State) 
 import Control.Monad.Except (ExceptT, Except) 
 import Control.Monad.Reader (ReaderT) 
+
+import qualified Data.Map as Map
 import qualified Control.Monad.Except as Except 
 import qualified Control.Monad.Reader as Reader
-import Typecheck.TypeUtils
-
-import Interpret.Transform
-import qualified Data.Map as Map
-import Syntax.TIntermediate
-
-import qualified Interpret.Environment as Env
 import qualified Control.Monad.Except as Except
 import qualified Control.Monad.Reader as Reader
 import qualified Control.Monad.State as State
+
+import Typecheck.TypeUtils
+import Interpret.Transform
+import Syntax.TIntermediate
+
+import qualified Interpret.Environment as Env
+import qualified Interpret.Type as Type
 import qualified Interpret.Transform as Action
 
 
-type SigDefn = (Map.Map String ModulusType)
+type SigDefn = (Map.Map String TypeNormal)
 
 
 -- PValue = Program Value 
@@ -67,33 +58,33 @@ evalTop (TopDef def) = case def of
                                              Env.insertCurrent k val env)
                        env sig))
       _ -> throwError "cannot open non-module"
-  VariantDef name params id variants ty ->
-    let addVarType :: Environment -> Environment
-        addVarType = Env.insert name (varFn params)
+  -- VariantDef name params id variants ty ->
+  --   let addVarType :: Environment -> Environment
+  --       addVarType = Env.insert name (varFn params)
 
-        varFn [] = Type ty
-        varFn (p:ps) = (CFunction p (CVal $ varFn ps) Env.empty (vartype (p : ps)))
+  --       varFn :: [String] -> (Value EvalM)
+  --       varFn [] = Type ty
+  --       varFn (p:ps) = (CFunction p (CVal $ varFn ps) Env.empty (vartype (p : ps)))
 
-        vartype [] = (TypeN 1)
-        vartype (x:xs) = MArr (TypeN 1) (vartype xs)
+  --       vartype [] = (NormUniv 0)
+  --       vartype (x:xs) = MArr (NormUniv 0) (vartype xs)
 
-        addAlternatives :: [(String, Int, [ModulusType])] -> Environment -> Environment
-        addAlternatives ((nme, vid, types) : vs) env =
-          let ty = mktype params types
-              env' = Env.insert nme (CConstructor nme id vid (length variants) params [] ty) env
-          in addAlternatives vs env'
-        addAlternatives [] env = env
+  --       addAlternatives :: [(String, Int, [TypeNormal])] -> Environment -> Environment
+  --       addAlternatives ((nme, vid, types) : vs) env =
+  --         let ty = mktype params types
+  --             env' = Env.insert nme (CConstructor nme id vid (length variants) params [] ty) env
+  --         in addAlternatives vs env'
+  --       addAlternatives [] env = env
 
-        mktype :: [String] -> [ModulusType] -> ModulusType
-        mktype (p:ps) ts = ImplMDep (TypeN 1) p (mktype ps ts)
-        mktype [] (t:ts) = MArr t (mktype [] ts)
-        mktype [] [] = ty 
-    in
-      pure (Right (addVarType . addAlternatives variants))
+  --       mktype :: [String] -> [TypeNormal] -> TypeNormal
+  --       mktype (p:ps) ts = ImplMDep (NormUniv 0) p (mktype ps ts)
+  --       mktype [] (t:ts) = MArr t (mktype [] ts)
+  --       mktype [] [] = ty 
+  --   in
+  --     pure (Right (addVarType . addAlternatives variants))
   
 -- TODO: can we write core as an GADT so as to avoid exceptions?
 eval :: Core -> EvalM Expr
-eval (CVal (Type t)) = Type <$> evalType t
 eval (CVal e) = pure e
 eval (CSym s) = do 
   env <- ask 
@@ -106,7 +97,7 @@ eval (CDot e field) = do
     Module m -> case Map.lookup field m of
       Just x -> pure x
       Nothing -> throwError ("couldn't find field" <> field)
-    Type t -> pure (Type (MDot t field))
+    Type norm -> Type <$> Type.eval (TyDot (TyNorm norm) field)
     _ -> throwError ("tried to get field" <> field <> "from non-module or struct")
 eval (CIF cond e1 e2) = do
   b <- eval cond
@@ -157,18 +148,18 @@ eval (CMod body) = Module <$> evalDefs body
                                             Just x -> Env.insert k x env) env sig
       localF newEnv (evalDefs tl)
 
-eval (CSig body) = (Type . Signature) <$> evalDefs body
+eval (CSig body) = (Type . NormSig) <$> evalDefs body
   where
-    evalDefs [] = pure Map.empty
+    evalDefs :: [Definition] -> EvalM [(String, TypeNormal)]
+    evalDefs [] = pure []
     evalDefs ((SingleDef nme body ty) : tl) = do
       val <- eval body
       ty <- case val of 
         (Type t) -> pure t
         _ -> throwError "signatures can only contain types!"
-      let var = largeToVar nme ty
-      mdle <- localF (Env.insert nme var) (evalDefs tl)
+      mdle <- localF (Env.insert nme (Type ty)) (evalDefs tl)
   
-      pure (Map.insert nme ty mdle)
+      pure ((nme, ty) : mdle)
 
     evalDefs ((OpenDef body sig) : tl) = do 
       mdle <- eval body
@@ -179,60 +170,29 @@ eval (CSig body) = (Type . Signature) <$> evalDefs body
                                             Just x -> Env.insert k x env) env sig
       localF newEnv (evalDefs tl)
 
-    largeToVar s t = if isLarge t then Type (MVar s) else (Type t)
-
-evalType :: ModulusType -> EvalM ModulusType
-evalType (MPrim p) = pure (MPrim p)
-evalType (TypeN n) = pure (TypeN n)
-evalType (MVar s) = do 
-  env <- ask
-  case Env.lookup s env of 
-    Just v -> case v of 
-      (Type t) -> pure t
-      _ -> throwError "type variable contains non-type value!"
-evalType (MArr t1 t2) = do
-  t1' <- evalType t1
-  t2' <- evalType t2
-  pure (MArr t1' t2')
-evalType (MDep t1 s t2) = do
-  t1' <- evalType t1
-  env <- ask
-  t2' <- localF (Env.insert s (Type (MVar s))) (evalType t2) 
-  pure (MDep t1' s t2')
-evalType (ImplMDep t1 s t2) = do
-  t1' <- evalType t1
-  env <- ask
-  t2' <- localF (Env.insert s (Type (MVar s))) (evalType t2) 
-  pure (ImplMDep t1' s t2')
-evalType (MNamed id nme args variants) = do
-  -- TODO: recursion!!
-  args' <- mapM evalType args
-  pure (MNamed id nme args' variants)
-evalType t = throwError ("unimplemented evalType for type" <> show t)
-  
 
   
 err = Except.throwError
 
-toTopCore :: TIntTop ModulusType -> Except String TopCore  
+toTopCore :: TIntTop TypeNormal -> Except String TopCore  
 toTopCore (TDefinition def) = TopDef <$> fromDef def
   where
     fromDef (TSingleDef name body (Just ty)) = do
       coreBody <- toCore body
-      pure (SingleDef name coreBody ty)
+      pure (SingleDef name coreBody (TyNorm ty))
     fromDef (TSingleDef name body Nothing) = err "definitions must be typed"
 
     fromDef (TOpenDef body (Just ty)) = do
       coreBody <- toCore body
-      let (Signature sig) = ty
-      pure (OpenDef coreBody sig)
+      let (NormSig sig) = ty
+      pure (OpenDef coreBody (Map.fromList (map (\(var, val) -> (var, TyNorm val)) sig)))
     fromDef (TOpenDef body Nothing) = err "definitions must be typed"
 
-    fromDef (TVariantDef nme params id alts ty) = pure (VariantDef nme params id alts ty)
+    -- fromDef (TVariantDef nme params id alts ty) = pure (VariantDef nme params id alts ty)
 toTopCore (TExpr v) = TopExpr <$> toCore v
 
 
-toCore :: TIntermediate ModulusType -> Except String Core  
+toCore :: TIntermediate TypeNormal -> Except String Core  
 toCore (TType ty) = pure (CVal (Type ty))
 toCore (TValue v) = pure (CVal v)
 toCore (TSymbol s) = pure (CSym s)
@@ -247,54 +207,78 @@ toCore (TImplApply t1 t2) = do
   c1 <- toCore t1
   c2 <- toCore t2
   pure $ CApp c1 c2
-toCore (TLambda ((arg, b) : xs) body ty) = do
-  sty <- case ty of 
-    Just x -> pure x
-    Nothing -> err "cannot convert untyped lambda"
-  bodyty <- case sty of
-        (MArr _ t2) -> pure t2
-        (MDep _ _ t2) -> pure t2
-        (ImplMDep _ _ t2) -> pure t2
-        _ -> err "cannot convert badly-typed lambda"
-  coreBody <- toCore (TLambda xs body (Just bodyty))
-  case (b, arg) of 
-    (_, BoundArg nme _) -> 
-      pure (CAbs nme coreBody sty)
-    (_, ValArg nme _) -> 
-      pure (CAbs nme coreBody sty)
-    (_, InfArg _ _) -> err "cannot convert inferred arguments!"
+toCore (TLambda args body lty) = do
+  ty <- case lty of 
+    Just ty -> pure ty
+    Nothing -> err "cannot convert untyped lambda to core!"
+  mkLambdaTyVal args body ty
 
-toCore (TLambda [] body _) = toCore body
+  where
+    mkLambdaTyVal :: [(TArg TypeNormal, Bool)] -> TIntermediate TypeNormal -> TypeNormal -> Except String Core
+    mkLambdaTyVal [] body _ = toCore body
+    mkLambdaTyVal (arg : args) body (NormArr l r) = do
+      let arg' = getVar arg
+      body' <- mkLambdaTyVal args body r
+      pure $ CAbs arg' body' (NormArr l r)
+    mkLambdaTyVal (arg : args) body (NormDep var l r) = do
+      let arg' = getVar arg
+      body' <- mkLambdaTyExpr args body r
+      pure $ CAbs arg' body' (NormDep var l r)
+    mkLambdaTyVal (arg : args) body (NormImplDep var l r) = do
+      let arg' = getVar arg
+      body' <- mkLambdaTyExpr args body r
+      pure $ CAbs arg' body' (NormImplDep var l r)
+
+
+    mkLambdaTyExpr :: [(TArg TypeNormal, Bool)] -> TIntermediate TypeNormal -> TypeNormal -> Except String Core
+    mkLambdaTyExpr [] body _ = toCore body
+    mkLambdaTyExpr (arg : args) body (NormArr l r) = do
+      let arg' = getVar arg
+      body' <- mkLambdaTyExpr args body r
+      pure $ CAbs arg' body' (NormArr l r)
+    mkLambdaTyExpr (arg : args) body (NormDep var l r) = do
+      let arg' = getVar arg
+      body' <- mkLambdaTyExpr args body r
+      pure $ CAbs arg' body' (NormDep var l r)
+    mkLambdaTyExpr (arg : args) body (NormImplDep var l r) = do
+      let arg' = getVar arg
+      body' <- mkLambdaTyExpr args body r
+      pure $ CAbs arg' body' (NormImplDep var l r)
+
+    getVar :: (TArg ty, Bool) -> String
+    getVar (BoundArg var _, _)  = var
+    getVar (InfArg var _  , _)  = var
+
 toCore (TModule map) = do
   coreDefs <- mapM defToCore map
   pure (CMod coreDefs)
   where
     defToCore (TSingleDef nme bdy (Just ty)) = do
       bdy' <- toCore bdy
-      pure (SingleDef nme bdy' ty)
+      pure (SingleDef nme bdy' (TyNorm ty))
     defToCore (TSingleDef nme bdy Nothing) = err "definition not typed"
     defToCore (TOpenDef bdy (Just ty)) = do
       sig <- case ty of 
-        Signature sm -> pure sm
+        NormSig sm -> pure sm
         _ -> err "open provided with non-module!"
       bdy' <- toCore bdy
-      pure (OpenDef bdy' sig)
+      pure (OpenDef bdy' (Map.map TyNorm (Map.fromList sig)))
       
     defToCore (TOpenDef bdy Nothing) = err "open not typed"
-    -- defToCore (TVariantDef nme [String] Int [(String, Int, [ModulusType])]
-    -- defToCore (TEffectDef  nme [String] Int [(String, Int, [ModulusType])]
+    -- defToCore (TVariantDef nme [String] Int [(String, Int, [TypeNormal])]
+    -- defToCore (TEffectDef  nme [String] Int [(String, Int, [TypeNormal])]
 
   
-  -- = SingleDef String Core ModulusType
+  -- = SingleDef String Core TypeNormal
   -- | VariantDef String [String] [(String, [Core])] 
   -- | EffectDef  String [String] [(String, [Core])]
   -- | OpenDef Core SigDefn
 
   
-  -- = TVariantDef String [String] Int [(String, Int, [ModulusType])]
-  -- | TEffectDef  String [String] Int [(String, Int, [ModulusType])]
-  -- | TSingleDef  String TIntermediate (Maybe ModulusType)
-  -- | TOpenDef TIntermediate (Maybe ModulusType)
+  -- = TVariantDef String [String] Int [(String, Int, [TypeNormal])]
+  -- | TEffectDef  String [String] Int [(String, Int, [TypeNormal])]
+  -- | TSingleDef  String TIntermediate (Maybe TypeNormal)
+  -- | TOpenDef TIntermediate (Maybe TypeNormal)
 
   
 toCore (TSignature map) = do
@@ -303,18 +287,20 @@ toCore (TSignature map) = do
   where
     defToCore (TSingleDef nme bdy t) = do
       bdy' <- toCore bdy
-  -- TODO: this is bad, make sure to properly check signatures for well-formedness
-      pure (SingleDef nme bdy' (TypeN 1))
+      -- TODO: this is bad, make sure to properly check signatures for well-formedness
+      --  or, is this done during typechecking??
+      -- TypeN is the type of signatures??
+      pure (SingleDef nme bdy' (TyNorm (NormUniv 0)))
     defToCore (TOpenDef bdy (Just ty)) = do
       sig <- case ty of 
-        Signature sm -> pure sm
+        NormSig sm -> pure sm
         _ -> err "open provided with non-module!"
       bdy' <- toCore bdy
-      pure (OpenDef bdy' sig)
+      pure (OpenDef bdy' (Map.map TyNorm (Map.fromList sig)))
       
     defToCore (TOpenDef bdy Nothing) = err "open not typed"
-    -- defToCore (TVariantDef nme [String] Int [(String, Int, [ModulusType])]
-    -- defToCore (TEffectDef  nme [String] Int [(String, Int, [ModulusType])]
+    -- defToCore (TVariantDef nme [String] Int [(String, Int, [TypeNormal])]
+    -- defToCore (TEffectDef  nme [String] Int [(String, Int, [TypeNormal])]
 
 toCore (TIF cond e1 e2) = do
   cond' <- toCore cond
@@ -323,19 +309,3 @@ toCore (TIF cond e1 e2) = do
   pure (CIF cond' e1' e2')
 
 -- toCore x = err ("unimplemented" <> show x)
-
-
-
-getDepType :: Value EvalM -> Maybe ModulusType
-getDepType (Type t) = Just t
-getDepType (Module map) =
-
-  let map' :: Map.Map String ModulusType
-      map' = Map.foldrWithKey (\k v m -> case v of
-                                  Just v' -> Map.insert k v' m
-                                  Nothing -> m)
-                                  Map.empty (Map.map getDepType map) 
-  in
-    if Map.null map' then Nothing else Just (Signature map')
-    
-getDepType _ = Nothing

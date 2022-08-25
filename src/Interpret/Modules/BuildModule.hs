@@ -14,9 +14,8 @@ import Syntax.Intermediate(Intermediate(..),
                            IDefinition(..),
                            toIntermediate)
 import Syntax.Conversions
-import Typecheck.Typecheck(runChecker)
+import Typecheck.Typecheck (typeCheck)
 import qualified Typecheck.Context as Ctx
-import qualified Typecheck.InfContext as InfCtx
 import Interpret.EvalM (local, throwError)
 import Interpret.Transform (lift)
 import Interpret.Modules.Core
@@ -27,7 +26,7 @@ import qualified Data.Map as Map
 
 moduleContext = Environment {
   localCtx = Map.empty,
-  currentModule = Module coreModule,
+  currentModule = Module coreStructure,
   globalModule = Module Map.empty}
 
   
@@ -42,9 +41,7 @@ buildModule mp s =
           throwError err
         Right val -> do
           result <- toTIntermediate val (Ctx.envToCtx moduleContext)
-          (checked, _) <- case runChecker result (InfCtx.envToCtx moduleContext) of 
-            Left err -> throwError err
-            Right val -> pure val
+          (checked, _, _) <- typeCheck result (Ctx.envToCtx moduleContext) 
           core <- case runExcept (Core.toCore checked) of 
             Left err -> throwError err
             Right val -> pure val

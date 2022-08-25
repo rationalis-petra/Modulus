@@ -2,81 +2,87 @@ module Typecheck.Typecheck where
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Control.Monad.Except 
+import Control.Monad.Except (runExcept)
 import Control.Monad.State 
-import Control.Lens
+-- import Control.Lens 
 
-import Data (EffectType(..),
-             PrimType(..),
-             ModulusType(..),
+import Data (PrimType(..),
+             TypeNormal(..),
+             TypeExpr(..),
+             TypeNormal(..),
+             TypeNeutral(..),
              Value(Type),
+             var_counter,
              EvalM)
 import Syntax.TIntermediate
 
-import qualified Typecheck.InfContext as Ctx
-import Typecheck.InfType
-import Typecheck.TypeUtils (typeExpr, toInf, toMls, infGetFree)
+import qualified Typecheck.Context as Ctx
+import qualified Interpret.Type as Type
+import qualified Interpret.Environment as Env
+import Interpret.EvalM
+import Typecheck.TypeUtils (typeVal, free, getField)
 
-type LRSubst = ([(InfType, Int)], [(InfType, String)], [(InfType, String)])
-type Subst = ([(InfType, Int)], [(InfType, String)])
-type TypeM = ExceptT String (State Int)
+ -- TODO: check - types are expressions, or values ?!?
+
+
+--   
+type LRSubst = ([(TypeNormal, String)], [(TypeNormal, String)], [(TypeNormal, String)])
+type Subst = [(TypeNormal, String)]
+-- type TypeM = ExceptT String (State Int)
 
 err = throwError  
-runCheckerTop :: TIntTop ModulusType -> Ctx.Context
-              -> Either String (Either (TIntTop ModulusType, ModulusType) (TIntTop ModulusType))
-runCheckerTop term env = 
-  let mnd = do 
-        res <- typeCheckTop term env
-        case res of 
-          Left (infterm, inftype) -> do
-            let term' = coalesceTop infterm
-                ty' = toMls inftype
-            pure (Left (term', ty'))
-          Right infterm -> do
-            let term' = coalesceTop infterm
-            pure (Right term')
+-- runCheckerTop :: TIntTop TypeNormal -> Ctx.Context
+--               -> Either String (Either (TIntTop TypeNormal, TypeNormal) (TIntTop TypeNormal))
+-- runCheckerTop term env = 
+--   let mnd = do 
+--         res <- typeCheckTop term env
+--         case res of 
+--           Left (infterm, inftype) -> do
+--             let term' = coalesceTop infterm
+--                 ty' = toMls inftype
+--             pure (Left (term', ty'))
+--           Right infterm -> do
+--             let term' = coalesceTop infterm
+--             pure (Right term')
 
-  in 
-    case runState (runExceptT mnd) 0 of 
-      (Left err, _) -> Left err
-      (Right val, _) -> Right val
+--   in 
+--     case runState (runExceptT mnd) 0 of 
+--       (Left err, _) -> Left err
+--       (Right val, _) -> Right val
   
 
-runChecker :: TIntermediate ModulusType -> Ctx.Context
-           -> Either String (TIntermediate ModulusType, ModulusType)
-runChecker term env = 
-  let mnd :: TypeM (TIntermediate ModulusType, ModulusType)
-      mnd  = do 
-        (infterm, ty, subst) <- typeCheck term env
-        if subst /= nosubst then
-          throwError "substitution not empty at conclusion of type-checking!!"
-          else pure ()
-        let ty' = toMls ty
-        let term' = coalesce infterm
-        pure (term', ty')
-  in 
-    case runState (runExceptT mnd) 0 of 
-      (Left err, _) -> Left err
-      (Right val, _) -> Right val
+-- runChecker :: TIntermediate TypeExpr -> Ctx.Context -> Either String (TIntermediate TypeNormal, TypeNormal)
+-- runChecker term env = 
+--   let mnd :: EvalM (TIntermediate TypeNormal, TypeNormal)
+--       mnd  = do 
+--         (infterm, ty, subst) <- typeCheck term env
+--         if subst /= nosubst then
+--           throwError "substitution not empty at conclusion of type-checking!!"
+--         else
+--           pure (term, ty)
+--   in 
+--     case runState (runExceptT mnd) 0 of 
+--       (Left err, _) -> Left err
+--       (Right val, _) -> Right val
 
 
-typeCheckTop :: TIntTop ModulusType -> Ctx.Context
-             -> TypeM (Either (TIntTop InfType, InfType) (TIntTop InfType))
+typeCheckTop :: TIntTop TypeExpr -> Ctx.Context
+             -> EvalM (Either (TIntTop TypeNormal, TypeNormal) (TIntTop TypeNormal))
 typeCheckTop (TExpr e) env = do
-      (expr, ty, (substint, subststr)) <- typeCheck e env
-      (expr', ty') <- buildDepFn expr ty
-      pure $ Left $ (TExpr expr', ty')
+      (expr, ty, subst) <- typeCheck e env
+      -- (expr', ty') <- buildDepFn expr ty
+      pure $ Left $ (TExpr expr, ty)
 
 typeCheckTop (TDefinition def) env = 
   case def of 
     TSingleDef name expr Nothing -> do
-      (expr', ty, (substint, subststr)) <- typeCheck expr env
-      if subststr /= []
+      (expr', ty, subst) <- typeCheck expr env
+      if subst == []
         then 
-          throwError "subst strings non-empty at toplevel!"
+          throwError "subst strings empty at toplevel!"
         else do
-          (expr'', ty') <- buildDepFn expr' ty
-          pure $ Right $ TDefinition $ TSingleDef name expr'' (Just ty')
+          -- (expr'', ty') <- buildDepFn expr' ty
+          pure $ Right $ TDefinition $ TSingleDef name expr' (Just ty)
 
     TSingleDef name expr (Just mty) -> do
       throwError "cannot check type-annotated single definitions"
@@ -89,59 +95,64 @@ typeCheckTop (TDefinition def) env =
         else
           pure $ Right $ TDefinition $ TOpenDef expr' (Just ty)
 
-    TVariantDef nme params id alrs ty -> 
-      -- TODO: check for well-formedness!! (maybe?)
-      pure $ Right $ TDefinition $ TVariantDef nme params id (map (\(n, i, ts) -> (n, i, map toInf ts)) alrs)
-                     (toInf ty)
+--     TVariantDef nme params id alrs ty -> 
+--       -- TODO: check for well-formedness!! (maybe?)
+--       pure $ Right $ TDefinition $ TVariantDef nme params id (map (\(n, i, ts) -> (n, i, map toInf ts)) alrs)
+--                      (toInf ty)
 
-    -- TEffectDef  String [String] Int [(String, Int, [ModulusType])]
+--     -- TEffectDef  String [String] Int [(String, Int, [TypeNormal])]
 
-buildDepFn :: (TIntermediate InfType) -> InfType -> TypeM (TIntermediate InfType, InfType)
-buildDepFn expr ty = do
-  let bothFree = Set.toList (infGetFree ty Set.empty)
-  free <- mapM (\x -> case x of
-                   Right n -> pure n
-                   Left str ->
-                     throwError ("non-inference type variable free when building Dependent Fn " <> str <> " in type " <> show ty <> " for val " <> show expr))
-          bothFree
-  let mkFunTy [] ty = ty
-      mkFunTy (id : ids) ty = IMImplDep (ITypeN 1) ("#" <> show id) (mkFunTy ids ty)
-      mkFun [] bdy = bdy
-      mkFun vars bdy =
-        TLambda (map (\id -> (BoundArg ("#" <> show id) (ITypeN 1), True)) vars) bdy (Just (mkFunTy free ty))
-  pure (mkFun free expr, mkFunTy free ty)
+-- buildDepFn :: (TIntermediate TypeNormal) -> TypeNormal -> EvalM (TIntermediate TypeNormal, TypeNormal)
+-- buildDepFn expr ty = do
+--   let bothFree = Set.toList (free ty)
+--   freeVars <- mapM (\str -> throwError ("non-inference type variable free when building Dependent Fn "
+--                                     <> str <> " in type " <> show ty <> " for val " <> show expr)) 
+--           bothFree
+--   let --mkFunTy :: []
+--       mkFunTy [] ty = ty
+--       mkFunTy (id : ids) ty = NormImplDep ("#" <> show id) (NormUniv 0) (mkFunTy ids ty)
+--       mkFun [] bdy = bdy
+--       mkFun vars bdy =
+--         TLambda (map (\id -> (BoundArg ("#" <> show id) (NormUniv 0), True)) vars)
+--                 bdy
+--                 (Just (mkFunTy freeVars ty))
+--   pure (mkFun freeVars expr, mkFunTy freeVars ty)
         
 
-  
-typeCheck :: TIntermediate ModulusType -> Ctx.Context -> TypeM (TIntermediate InfType, InfType, Subst)
-typeCheck expr env = case expr of
+typeCheck :: TIntermediate TypeExpr -> Ctx.Context -> EvalM (TIntermediate TypeNormal, TypeNormal, Subst)
+typeCheck expr ctx = case expr of
   (TValue v) -> do
-    case runExcept (typeExpr v) of 
-      Right t -> pure (TValue v, toInf t, nosubst)
-      Left err -> throwError err
+    t <- liftExcept (typeVal v)
+    pure (TValue v, t, nosubst)
 
   (TSymbol s) -> do
-    case runExcept (Ctx.lookup s env) of 
+    case runExcept (Ctx.lookup s ctx) of 
       Right (Left ty) -> pure (TSymbol s, ty, nosubst)
       Right (Right (_, ty)) -> pure (TSymbol s, ty, nosubst)
       Left err -> throwError ("couldn't find type of symbol " <> s)
 
   (TApply l r) -> do 
-    (l', tl, substl) <- typeCheck l env
-    (r', tr, substr) <- typeCheck r env
+    (l', tl, substl) <- typeCheck l ctx
+    (r', tr, substr) <- typeCheck r ctx
     substboth <- compose substl substr
     case tl of  
-      IMArr t1 t2 -> do 
+      NormArr t1 t2 -> do 
         substcomb <- constrain tr t1 
         let substsing = toSing substcomb
         subst <- compose substsing substboth
         pure (TApply l' r', t2, subst)
-      IMDep t1 s t2 -> do 
+      NormDep var t1 t2 -> do 
         substcomb <- constrain tr t1 
         let substsing = toSing substcomb
         subst <- compose substsing substboth
-        ty <- toDepLiteral r' env
-        pure (TApply l' r', dosubst ([], [(ty, s)]) t2, subst)
+
+        -- convert r' to a literal type (int/int → int etc.), then apply it to
+        -- the (dependent) closure. 
+        -- in the future, r' should also be able to be a context variable, not
+        -- just a literal value! 
+        appTy <- toDepLiteral r' ctx
+        retTy <- Type.normSubst (appTy, var) t2
+        pure (TApply l' r', retTy, subst)
       _ -> do
         (args, unbound, subst, rettype) <- deriveFn tl tr r'
         let (fnl_expr, fnl_ty) = mkFnlFn (reverse args) unbound l' rettype
@@ -149,8 +160,8 @@ typeCheck expr env = case expr of
         pure (fnl_expr, fnl_ty, subst_fnl)
         
     where
-      -- deriveFn will take the LHS of the apply, it's type and the RHS of the
-      -- apply and it's type, and deduce a list of arguments (and unbount types)
+      -- deriveFn will take the type of the LHS of the apply, and the RHS of the
+      -- apply and it's type, and deduce a list of arguments (and unbound types)
       -- from which a new term can be constructed that contains the necessary
       -- implicit application/function abstractions
       -- for example, if we had a function f : {a} -> {b} -> a -> b -> (a × b) in
@@ -164,31 +175,34 @@ typeCheck expr env = case expr of
 
 
                   -- lhs/ty  rhs/ty     rhs
-      deriveFn :: InfType -> InfType -> TIntermediate InfType
-               -> TypeM ([(Bool, TIntermediate InfType)], [(InfType, String)], Subst, InfType)
-      deriveFn (IMImplDep (ITypeN 1) s t2) tr r = do
+      deriveFn :: TypeNormal -> TypeNormal -> TIntermediate TypeNormal
+               -> EvalM ([(Bool, TIntermediate TypeNormal)], [(TypeNormal, String)], Subst, TypeNormal)
+      deriveFn (NormImplDep var (NormUniv 0) t2) tr r = do
         (args, unbnd, subst, rettype) <- deriveFn t2 tr r
-        case findStrSubst s subst of 
-          Just ty -> pure (((True, (TType ty)) : args),
+        case findStrSubst var subst of 
+          Just ty -> do
+            retTy <- Type.normSubst (ty, var) rettype
+            pure (((True, (TType ty)) : args),
                            unbnd,
-                           rmStrSubst s subst,
-                           dosubst ([], [(ty, s)]) rettype)
-          Nothing -> pure ((True, TType (IMVar (Left s))) : args, ((ITypeN 1, s):unbnd),
-                           rmStrSubst s subst, rettype)
-      deriveFn (IMArr t1 t2) tr r = do
+                           rmSubst var subst,
+                           retTy)
+          Nothing -> pure ((True, TType (Neu $ NeuVar var)) : args, ((NormUniv 0, var):unbnd),
+                           rmSubst var subst, rettype)
+      deriveFn (NormArr t1 t2) tr r = do
         substlr <- constrain tr t1
         let subst = toSing substlr
         pure ([(False, r)], [], subst, t2)
       deriveFn t tr r = do
         var' <- freshVar 
-        substlr <- constrain t (IMArr tr var')
+        substlr <- constrain t (NormArr tr var')
         let subst = toSing substlr
         pure ([(False, r)], [], subst, var')
 
-      mkFnlFn :: [(Bool, TIntermediate InfType)] -> [(InfType, String)] -> TIntermediate InfType -> InfType
-              -> (TIntermediate InfType, InfType)
+      mkFnlFn :: [(Bool, TIntermediate TypeNormal)] -> [(TypeNormal, String)] -> TIntermediate TypeNormal -> TypeNormal
+              -> (TIntermediate TypeNormal, TypeNormal)
       mkFnlFn args unbound bdy bodyty = (fnlfn, fnlty)
         where
+          fnlfn :: TIntermediate TypeNormal
           fnlfn = if (null args)
             then
               (mkbdy [] bdy)
@@ -201,63 +215,68 @@ typeCheck expr env = case expr of
             else
               TApply (mkbdy xs bdy) term
 
-          fnlty = mkfnlty unbound bodyty 
-          mkfnlty [] ret = ret
-          mkfnlty ((ty, s):xs) ret = IMImplDep ty s (mkfnlty xs ret)
+          -- justification for empty environment: the "inner" (bodyty) should be
+          -- an application of the term to all unbound type variables, *and* 
+          fnlty :: TypeNormal
+          fnlty =
+            case unbound of 
+              [] -> bodyty -- TODO: eval bodyty if empty
+              ((ty, var) : xs) -> NormImplDep var ty (mkFnlBdy xs bodyty)
+          mkFnlBdy :: [(TypeNormal, String)] -> TypeNormal -> TypeNormal
+          mkFnlBdy [] ret = ret
+          mkFnlBdy ((ty, var) : xs) ret = NormImplDep var ty (mkFnlBdy xs ret) 
           
 
   (TLambda args body mty) -> do 
-     env' <- updateFromArgs env args
-     (body', ty, subst) <- typeCheck body env'
+     (ctx', args') <- updateFromArgs ctx args
+     (body', ty, subst) <- typeCheck body ctx'
      case mty of 
        Nothing -> do
-         let fnl_args = fixArgs args subst
-         fnl_ty <- buildFnType fnl_args subst ty
-         let fnl_lambda = TLambda fnl_args body' (Just fnl_ty)
-         pure (fnl_lambda, fnl_ty, subst)
-       -- TODO: add checking...
+         let fnlArgs = fixArgs args' subst
+         fnlTy <- buildFnType fnlArgs subst ty
+         let fnl_lambda = TLambda fnlArgs body' (Just fnlTy)
+         pure (fnl_lambda, fnlTy, subst)
+       -- TODO: add checking if lambda type already there...
 
      where 
-       buildFnType :: [(TArg InfType, Bool)] -> Subst -> InfType -> TypeM InfType 
+       buildFnType :: [(TArg TypeNormal, Bool)] -> Subst -> TypeNormal -> EvalM TypeNormal 
        buildFnType [] _ bodyty = pure bodyty
        -- TODO: consider substitutions!
        buildFnType ((ty, bl):tys) subst bodyty = do
          ret_ty <- buildFnType tys subst bodyty
          case ty of 
            BoundArg str t -> if bl then  
-             pure (IMImplDep t str ret_ty )
-             else pure (IMDep t str ret_ty)
-           ValArg str t -> if bl then 
-             throwError "non-dependent arg cannot be implicit!"
-             else pure (IMArr t ret_ty)
+             pure (NormImplDep str t ret_ty)
+             else pure (NormDep str t ret_ty)
            InfArg _ _ -> 
              throwError "buildFnType not expecting inference!"
 
-       -- TODO: consider adding implicit type parameters!!
-       fixArgs :: [(TArg ModulusType, Bool)] -> Subst -> [(TArg InfType, Bool)]
+       -- fixArgs will take a list of Typed arguments, and convert any
+       -- inference arguments to string arguments
+       fixArgs :: [(TArg TypeNormal, Bool)] -> Subst -> [(TArg TypeNormal, Bool)]
        fixArgs [] subst = []  
        fixArgs ((arg, impl) : args) subst = case arg of  
-         BoundArg str ty -> (BoundArg str (toInf ty), impl) : fixArgs args subst
-         ValArg str ty -> (ValArg str (toInf ty), impl) : fixArgs args subst
-         InfArg nme id ->
-           let ty = dosubst subst (IMVar (Right id))
-           in (ValArg nme ty, impl) : fixArgs args subst
+         BoundArg str ty -> (BoundArg str ty, impl) : fixArgs args subst
+         -- TOOD: come up with a better solution to new names...
+         InfArg nme id -> case findStrSubst ("#" <> show id) subst of 
+           Just ty -> (BoundArg nme ty, impl) : fixArgs args subst
+           Nothing -> (BoundArg nme (NormUniv 0), impl) : fixArgs args subst
 
   (TAccess term field) -> do
-    (term', ty, subst) <- typeCheck term env
+    (term', ty, subst) <- typeCheck term ctx
     -- TODO: what if there is a substituion 
     case ty of 
-      (IMSig map) -> case Map.lookup field map of 
+      (NormSig map) -> case getField field map of 
         Just ty -> pure (TAccess term' field, ty, subst)
         Nothing -> throwError ("cannot find field " <> field)
       t -> throwError ("expected signature, got " <> show t)
          
        
   (TIF cond e1 e2) -> do 
-    (cond', tcond, substcond) <- typeCheck cond env
-    (e1', te1, subste1) <- typeCheck e1 env
-    (e2', te2, subste2) <- typeCheck e2 env
-    substcnd' <- constrain tcond (IMPrim BoolT)
+    (cond', tcond, substcond) <- typeCheck cond ctx
+    (e1', te1, subste1) <- typeCheck e1 ctx
+    (e2', te2, subste2) <- typeCheck e2 ctx
+    substcnd' <- constrain tcond (NormPrim BoolT)
     substterms <- constrain te1 te2
     let substcnd'' = toSing substcnd'
         substterms' = toSing substterms
@@ -266,14 +285,15 @@ typeCheck expr env = case expr of
     s2 <- compose s1 subste2 
     s3 <- compose s2 substcnd''
     s4 <- compose s3 substterms'
-    pure (TIF cond' e1' e2', dosubst s4 te1, s4)
+    fnlTy <- dosubst s4 te1
+    pure (TIF cond' e1' e2', fnlTy, s4)
 
   -- TODO: mutually recursive definitions...
   (TModule defs) -> do  
-    result <- mapM (\int -> typeCheckDef int env) defs
+    result <- mapM (\int -> typeCheckDef int ctx) defs
     -- extract different values from the result   
     let defs' = map (\(def, _, _, _) -> def) result
-        sig = foldr (\(_, str, ty, _) m -> Map.insert str ty m) Map.empty result
+        sig = map (\(_, str, ty, _) -> (str, ty)) result
 
         foldCmp mnd [] = mnd
         foldCmp mnd (s:ss) = do
@@ -282,7 +302,7 @@ typeCheck expr env = case expr of
 
     subst <- foldCmp (pure nosubst) (map (\(_, _, _, subst) -> subst) result)
 
-    pure (TModule defs', IMSig sig, subst)
+    pure (TModule defs', NormSig sig, subst)
 
     
 
@@ -291,24 +311,27 @@ typeCheck expr env = case expr of
     throwError ("typecheck unimplemented for intermediate term " <> show other)
 
   where
-    updateFromArgs env [] = pure env
-    updateFromArgs env ((arg, _) : args) = do 
-      env' <- updateFromArgs env args
+    updateFromArgs :: Ctx.Context -> [(TArg TypeExpr, Bool)] -> EvalM (Ctx.Context, [(TArg TypeNormal, Bool)])
+    updateFromArgs ctx [] = pure (ctx, [])
+    updateFromArgs ctx ((arg, bl) : args) = do 
+      (ctx', args') <- updateFromArgs ctx args
       case arg of
-        BoundArg str ty -> pure (Ctx.insert str (toInf ty) env')
-        ValArg str ty -> pure (Ctx.insert str (toInf ty) env')
-        InfArg str id -> pure (Ctx.insert str (IMVar (Right id)) env')
+        BoundArg str ty -> do
+          ty' <- local (Ctx.ctxToEnv ctx) (Type.eval ty)
+          pure (Ctx.insert str ty' ctx', ((BoundArg str ty', bl) : args'))
+        InfArg str id -> pure (Ctx.insert str (Neu $ NeuVar ("#" <> show id)) ctx',
+                               (InfArg str id, bl) : args')
 
 
-typeCheckDef :: TDefinition ModulusType -> Ctx.Context
-             -> TypeM (TDefinition InfType, String, InfType, Subst)
+typeCheckDef :: TDefinition TypeExpr -> Ctx.Context
+             -> EvalM (TDefinition TypeNormal, String, TypeNormal, Subst)
 -- typeCheckDef (TVariantDef name vars id variants ty)
 -- typeCheckDef (TEffectDef  name vars id actions)
-typeCheckDef (TSingleDef name body ty) env = do 
+typeCheckDef (TSingleDef name body ty) ctx = do 
   bnd <- case ty of 
     Nothing -> freshVar
-    Just ty -> pure (toInf ty)
-  (body', ty', subst) <- typeCheck body (Ctx.insert name bnd env)
+    Just ty -> local (Ctx.ctxToEnv ctx) (Type.eval ty)
+  (body', ty', subst) <- typeCheck body (Ctx.insert name bnd ctx)
   pure (TSingleDef name body' (Just ty'), name, ty', subst)
 
 
@@ -325,43 +348,35 @@ typeCheckDef (TSingleDef name body ty) env = do
 -- TODO: break down constrain so that we have a "top" constrain that can
 -- instantiate either left or right implicit dependent products?  
 -- TODO: perhaps this needs to be done at any level (not just the top?)
-constrain :: InfType -> InfType -> TypeM LRSubst
-constrain (IMVar v1) (IMVar v2) = case (v1, v2) of 
--- TODO: unioning variables: prioritise inference variable substitution, as is
--- outermost variable? outermost variable in general?
-  (Right _, Left s) -> pure (rightsubst (IMVar v1) (Left s))
-  (Left _, Right n) -> pure (rightsubst (IMVar v1) (Right n))
-  (Left  s1, Left s2) ->
-    if s1 == s2 then pure lrnosubst
-    else pure (rightsubst (IMVar v1) (Left s2))
-  (Right n1, Right n2) ->
-    if n1 == n2 then pure lrnosubst
-    else pure (rightsubst (IMVar v1) (Right n2))
-constrain (IMVar v) ty =
+constrain :: TypeNormal -> TypeNormal -> EvalM LRSubst
+constrain (Neu (NeuVar v1)) (Neu (NeuVar v2)) =
+    if v1 == v2 then pure lrnosubst
+    else pure (rightsubst (Neu $ NeuVar v1) v2)
+constrain (Neu (NeuVar v)) ty =
   if occurs v ty then 
     err "occurs check failed"
   else
     pure (leftsubst ty v)
-constrain ty (IMVar v) =
+constrain ty (Neu (NeuVar v)) =
   if occurs v ty then 
     err "occurs check failed"
   else
     pure (rightsubst ty v)
-constrain (IMPrim t1) (IMPrim t2) =
-  if t1 == t2 then pure lrnosubst else err ("non-equal primitives in constrain: "
-                                            <> show t1 <> " and " <> show t2)
-constrain (ITypeN n1) (ITypeN n2) =
+constrain (NormPrim p1) (NormPrim p2) =
+  if p1 == p2 then pure lrnosubst else err ("non-equal primitives in constrain: "
+                                            <> show p1 <> " and " <> show p2)
+constrain (NormUniv n1) (NormUniv n2) =
   if n1 == n2 then pure lrnosubst else err ("non-equal primitives in constrain"
-                                            <> show (ITypeN n1) <> " and " <> show (ITypeN n2))
+                                            <> show (NormUniv n1) <> " and " <> show (NormUniv n2))
 
-constrain (IMArr l1 r1) (IMArr l2 r2) = do
+constrain (NormArr l1 r1) (NormArr l2 r2) = do
   -- remember: function subtyping is contravaraiant in the argument and
   -- covariant in the return type
   s1 <- constrain l2 l1
   s2 <- constrain r1 r2
   composelr s1 s2
 
-constrain (IMDep l1 str r1) (IMDep l2 str' r2) =
+constrain (NormDep str l1 r1) (NormDep str' l2 r2) =
   -- TODO: is dependent subtyping is contravaraiant in the argument and
   -- covariant in the return type
   if str == str' then do
@@ -372,7 +387,7 @@ constrain (IMDep l1 str r1) (IMDep l2 str' r2) =
   else
     err "cannot constrain dependent types with unequal arg"
 
-constrain (IMImplDep l1 str r1) (IMImplDep l2 str' r2) =
+constrain (NormImplDep str l1 r1) (NormImplDep str' l2 r2) =
   -- TODO: same as above (dependent)
   if str == str' then do
     s1 <- constrain l2 l1
@@ -382,10 +397,10 @@ constrain (IMImplDep l1 str r1) (IMImplDep l2 str' r2) =
   else
     err "cannot constrain dependent types with unequal arg"
 
-constrain (IMSig m1) (IMSig m2) = 
+constrain (NormSig m1) (NormSig m2) = 
   -- TODO: look out for binding of field-names to strings!!
-  Map.foldrWithKey (\k ty1 mnd ->
-                      case Map.lookup k m2 of 
+  foldr (\(k, ty1) mnd ->
+                      case getField k m2 of
                         Just ty2 -> do
                           s1 <- mnd
                           s2 <- constrain ty1 ty2
@@ -394,11 +409,11 @@ constrain (IMSig m1) (IMSig m2) =
     (pure lrnosubst) m1
 
 -- TODO: what if the type in field is transparent? is it evaluated away?
-constrain (IMDot t1 field1) (IMDot t2 field2) = 
-  if field1 == field2 then 
-    constrain t1 t2
-  else 
-    err ("cannot constrain type" <> show t1 <> " and " <> show t2 <> " as they access different fields")
+-- constrain (NormDot t1 field1) (TyDot t2 field2) = 
+--   if field1 == field2 then 
+--     constrain t1 t2
+--   else 
+--     err ("cannot constrain type" <> show t1 <> " and " <> show t2 <> " as they access different fields")
 
 
 -- TOOD: IMNamed/IMEffect 
@@ -423,70 +438,68 @@ constrain (IMDot t1 field1) (IMDot t2 field2) =
 --                      )
 
 
-constrain (IMVector ty1) (IMVector ty2) = constrain ty1 ty2
+constrain (NormVector ty1) (NormVector ty2) = constrain ty1 ty2
 
 constrain t1 t2 =   
   err ("cannot constrain types" <> show t1 <> " and " <> show t2 <> " as they have different forms")
 
--- toInfType :: ModulusType -> InfType 
+-- toTypeNormal :: TypeNormal -> TypeNormal 
 
 
 
 -- Implicit argument inference  
-deriveLeft :: TIntermediate InfType -> InfType -> LRSubst -> TypeM (TIntermediate InfType, InfType, LRSubst)
-deriveLeft tinf ty (i, l, r) = do
-  (tinf', ty, (i', l')) <- derive tinf ty (i, l)
-  pure (tinf', ty, (i', l', r))
-deriveRight :: TIntermediate InfType -> InfType -> LRSubst -> TypeM (TIntermediate InfType, InfType, LRSubst)
-deriveRight tinf ty (i, l, r) = do
-  (tinf', ty, (i', r')) <- derive tinf ty (i, r)
-  pure (tinf', ty, (i', l, r'))
+deriveLeft :: TIntermediate TypeNormal -> TypeNormal -> LRSubst -> EvalM (TIntermediate TypeNormal, TypeNormal, LRSubst)
+deriveLeft tinf ty (s, l, r) = do
+  (tinf', ty,  l') <- derive tinf ty l
+  pure (tinf', ty, (s, l', r))
+deriveRight :: TIntermediate TypeNormal -> TypeNormal -> LRSubst -> EvalM (TIntermediate TypeNormal, TypeNormal, LRSubst)
+deriveRight tinf ty (s, l, r) = do
+  (tinf', ty, r') <- derive tinf ty r
+  pure (tinf', ty, (s, l, r'))
 
-derive :: TIntermediate InfType -> InfType -> Subst -> TypeM (TIntermediate InfType, InfType, Subst)
-derive tint (IMImplDep t1 s t2) subst = 
+derive :: TIntermediate TypeNormal -> TypeNormal -> Subst -> EvalM (TIntermediate TypeNormal, TypeNormal, Subst)
+derive tint (NormImplDep s t1 t2) subst = 
   case t1 of 
-    (ITypeN 1) -> case findStrSubst s subst of 
+    (NormUniv 0) -> case findStrSubst s subst of 
       -- TODO: the toMls feels dodgy...
-      Just ty -> pure (TImplApply tint (TType ty), dosubst ([], [(ty, s)]) t2, rmStrSubst s subst)
-      Nothing -> throwError ("unable to find type substitution in type: " <> show (IMImplDep t1 s t2))
-    (IMSig sig) -> 
+      Just ty -> do
+        fnlTy <- Type.normSubst (ty, s) t2
+        pure (TImplApply tint (TType ty), fnlTy, rmSubst s subst)
+      Nothing -> throwError ("unable to find type substitution in type: " <> show (NormImplDep s t1 t2))
+    (NormSig sig) -> 
       throwError "inference for signatures not implemented yet!"
     _ -> throwError ("implicit argument only supported for type Type and Signature, not for " <> show t1)
 -- if not implicit application, ignore!
 derive tint ty subst = pure (tint, ty, subst)
 
-findStrSubst :: String -> Subst -> Maybe InfType
-findStrSubst str (i, (ty, str') : ss) =
-  if str == str' then
-    Just ty
-  else findStrSubst str (i, ss)
-findStrSubst _ (_, []) = Nothing
+findStrSubst :: String -> Subst -> Maybe TypeNormal
+findStrSubst str ((ty, str') : ss) =
+  if str == str' then Just ty
+  else findStrSubst str ss
+findStrSubst _ [] = Nothing
 
-rmStrSubst :: String -> Subst -> Subst
-rmStrSubst str (f, (ty, str'):ss)=
-  if str == str' then rmStrSubst str (f, ss)
-  else let (f', ss') = rmStrSubst str (f, ss) in (f', ((ty, str') : ss'))
-rmStrSubst str (f,[]) = (f,[])
+rmSubst :: String -> Subst -> Subst
+rmSubst str ((ty, str') : ss)=
+  if str == str' then rmSubst str ss
+  else let ss' = rmSubst str ss in ((ty, str') : ss')
+rmSubst str [] = []
 
 
 -- Substitution Utilities  
 -- recall 
--- Subst = (Map.Map Int InfType, Map.Map String InfType)
+-- Subst = (Map.Map Int TypeNormal, Map.Map String TypeNormal)
 -- we need to be able to join and query these substitutions
 
 nosubst :: Subst
-nosubst = ([], [])
+nosubst = []
 
 lrnosubst :: LRSubst
 lrnosubst = ([], [], [])
-leftsubst :: InfType -> Either String Int -> LRSubst
-leftsubst ty s = case s of
-  Left str -> ([], [(ty, str)], [])
-  Right n -> ([(ty, n)], [], [])
-rightsubst :: InfType -> Either String Int -> LRSubst
-rightsubst ty s = case s of
-  Left str -> ([], [], [(ty, str)])
-  Right n -> ([(ty, n)], [], [])
+leftsubst :: TypeNormal -> String -> LRSubst
+leftsubst ty s = ([], [(ty, s)], [])
+rightsubst :: TypeNormal -> String -> LRSubst
+rightsubst ty s =  ([], [], [(ty, s)])
+
 
 
 
@@ -496,100 +509,54 @@ rightsubst ty s = case s of
 -- thus, to compose s1 with s2
 -- 1: we apply all of s1's HM substitutions to s2
 -- 2: we append  of s1's string substitutions to s2's string substitutions
-compose :: Subst -> Subst -> TypeM Subst
-compose ([], str1) (s2, str2) = pure (s2, str1 <> str2)
-compose (s : ss, str1) (s2, str2) =
-  let iter :: (InfType, Either String Int) -> [(InfType, a)] -> [(InfType, a)]
-      iter s [] = []
-      iter s ((ty, vr) : ss) = (substvar s ty, vr) : iter s ss
+compose :: Subst -> Subst -> EvalM Subst
+  -- TODO SEEMS DODGY!!
+compose str1 str2 = pure $ str1 <> str2
+-- compose (s : ss, str1) (s2, str2) =
+--   let iter :: (TypeNormal, String) -> [(TypeNormal, a)] -> EvalM [(TypeNormal, a)]
+--       iter s [] = pure []
+--       iter s ((ty, vr) : ss) = do
+--         ty' <- Type.normSubst s ty
+--         tl <- iter s ss
+--         pure $ (ty', vr) : tl
+--   in do
+--     -- perform substitution s within s2 
+--     tl <- iter s s2 
+--     compose (ss, str1) (s : tl)
 
-      s' = ((_2 %~ Right) s)
-  in
-    -- perform substitution s within s2 
 
-    compose (ss, str1) (s : iter s' s2, iter s' str2)
-
-
-composelr :: LRSubst -> LRSubst -> TypeM LRSubst
+composelr :: LRSubst -> LRSubst -> EvalM LRSubst
 composelr ([], l1, r1) (s2, l2, r2) = pure (s2, l1 <> l2, r1 <> r2)
 composelr (s : ss, l1, r1) (s2, l2, r2) =
-  let iter :: (InfType, Either String Int) -> [(InfType, a)] -> [(InfType, a)]
-      iter s [] = []
-      iter s ((ty, vr) : ss) = (substvar s ty, vr) : iter s ss
-
-      s' = ((_2 %~ Right) s)
-  in
+  let iter :: (TypeNormal, String) -> [(TypeNormal, a)] -> EvalM [(TypeNormal, a)]
+      iter s [] = pure []
+      iter s ((ty, vr) : ss) = do
+        hd <- Type.normSubst s ty
+        tl <- iter s ss
+        pure $ (hd, vr) : tl
+  in do
+    s2' <- iter s s2
+    l2' <- iter s l2
+    r2' <- iter s r2
     -- perform substitution s within s2 
-
-    composelr (ss, l1, r1) (s : iter s' s2, iter s' l2, iter s' r2)
+    composelr (ss, l1, r1) (s : s2', l2', r2)
 
 -- convert a lr substitution to a single substitution
 -- TODO: this is BAD - we need to check for redundancy!
 toSing  :: LRSubst -> Subst
-toSing (id, left, right) = (id, left <> right)
+toSing (s, left, right) = (s <> left <> right)
 
 -- Perform substitution
 -- TODO: do what about order of string substitution? rearranging??
-dosubst :: Subst -> InfType  -> InfType 
+dosubst :: Subst -> TypeNormal  -> EvalM TypeNormal 
 dosubst subst ty = case subst of 
-  ([], []) -> ty 
-  ([], ((sty, s) : ss)) -> dosubst ([], ss) (substvar (sty, Left s) ty)
-  (((sty, i) : ss), strs) -> dosubst (ss, strs) (substvar (sty, Right i) ty)
-
--- Perform substitution
-lrdosubst :: LRSubst -> InfType  -> InfType 
-lrdosubst subst ty = case subst of 
-  ([], _, _) -> ty 
-  (((sty, i) : ss), l, r) -> lrdosubst (ss, l, r) (substvar (sty, Right i) ty)
-  
-substvar :: (InfType, Either String Int) -> InfType -> InfType
-substvar (ty, var) term = 
-  case term of 
-    IMVar var' -> if var == var' then ty else term
-    IMArr t1 t2 -> 
-      IMArr (substvar (ty, var) t1) (substvar (ty, var) t2)
-    IMDep t1 s t2 -> case var of 
-      Left str ->
-        if str == s then 
-          IMDep (substvar (ty, var) t1) s t2
-        else
-          IMDep (substvar (ty, var) t1) s (substvar (ty, var) t2)
-      _ ->
-        IMDep (substvar (ty, var) t1) s (substvar (ty, var) t2)
-    IMImplDep t1 s t2 -> case var of 
-      Left str ->
-        if str == s then 
-          IMImplDep (substvar (ty, var) t1) s t2
-        else
-          IMImplDep (substvar (ty, var) t1) s (substvar (ty, var) t2)
-      _ ->
-        IMImplDep (substvar (ty, var) t1) s (substvar (ty, var) t2)
-    IMSig sig -> IMSig (Map.map (substvar (ty, var)) sig)
-    IMDot ty' field -> IMDot (substvar (ty, var) ty') field
-    -- TODO
-    IMNamed id nme params instances -> 
-      case var of  
-        Left str -> 
-          if str == nme then term else noShadow
-        Right _ -> noShadow
-      where
-        noShadow = IMNamed id nme
-                    (map (substvar (ty, var)) params)
-                    (map (map (substvar (ty, var))) instances)
-
-    IMEffect effs rettype -> 
-      IMEffect (Set.map (substeff (ty, var)) effs) (substvar (ty, var) rettype)
-      where
-        substeff _ IEffIO = IEffIO
-        substeff s (ICustomEff id tys) = ICustomEff id (map (substvar s) tys)
-
-    IMVector ty' -> IMVector (substvar (ty, var) ty')
-
-    ITypeN _ -> term
-    IMPrim _ -> term
+  [] -> pure ty 
+  ((sty, s) : ss) -> do
+    ty' <- Type.normSubst (sty, s) ty
+    dosubst ss ty'
 
 -- Throw an error if a variable (string) is contained in a substitution
-checkSubst :: String -> String -> LRSubst -> TypeM ()
+checkSubst :: String -> String -> LRSubst -> EvalM ()
 checkSubst msg str (_, l, r) = checkSubst' str (l <> r)
   where
     checkSubst' _ [] = pure ()
@@ -603,116 +570,51 @@ checkSubst msg str (_, l, r) = checkSubst' str (l <> r)
   
 -- Occurs Check: given a variable x and a type t, x occurs in t 
 -- if some subterm of t is equal to x and x is not equal to t
-occurs :: Either String Int -> InfType -> Bool
-occurs _ (IMVar _) = False
+occurs :: String -> TypeNormal -> Bool
+occurs _ (Neu (NeuVar _)) = False
 occurs v t = occurs' v t
 
 -- OccursCheck': Subtly different from occurs, this algorithm is recursive:
 -- occurs' is true for variable v and type t if v = t or occurs' is
--- true for v and all subterms in t
-occurs' :: Either String Int -> InfType -> Bool
-occurs' v1 (IMVar v2) = v1 == v2
-occurs' v (IMSig sig) = Map.foldr (\ty b -> b || occurs' v ty) False sig
-occurs' v (IMArr t1 t2) = occurs' v t1 || occurs' v t2
-occurs' v (IMDep t1 str t2) = -- remember: dependent type binding can shadow!
-  case v of
-    Left str' ->
-      if str' == str then
-        occurs' v t1
-      else
-        noShadow
-    Right _ -> noShadow
-  where noShadow =  occurs' v t1 || occurs' v t2
-occurs' v (IMImplDep t1 str t2) = -- remember: dependent type binding can shadow!
-  case v of
-    Left str' ->
-      if str' == str then
-        occurs' v t1
-      else
-        noShadow
-    Right _ -> noShadow
-  where 
-    noShadow = occurs' v t1 || occurs' v t2
-occurs' v (IMDot ty _) = occurs' v ty
-occurs' v (IMNamed _ name ps instances) = 
-  case v of 
-    Left str ->
-      if str == name then False else noShadow
-    Right _ -> noShadow
-  where
-    noShadow =
-      (foldr (||) False (map (occurs' v) ps)) 
-      ||
-      (foldr (\l b -> foldr (||) False l || b) False (map (map (occurs' v)) instances))
-occurs' v (IMEffect effects rettype) = 
-  occurs' v rettype
-  ||
-  Set.foldr (||) False (Set.map (effOccurs v) effects) 
-  where
-    effOccurs v IEffIO = False
-    effOccurs v (ICustomEff id tys) = (foldr (||) False (map (occurs' v) tys))
-occurs' v (IMVector ty) = occurs' v ty
+-- true for v any subterms in t
+occurs' :: String -> TypeNormal -> Bool
+occurs' _ (NormUniv _) = False
+occurs' _ (NormPrim _) = False
+occurs' v1 (Neu (NeuVar v2)) = v1 == v2
+occurs' v (NormSig sig) = foldr (\(_, ty) b -> b || occurs' v ty) False sig
+occurs' v (NormArr t1 t2) = occurs' v t1 || occurs' v t2
+occurs' v (NormDep str t1 t2) = -- remember: dependent type binding can shadow!
+  if v == str then
+    occurs' v t1
+  else
+    occurs' v t1 || occurs' v t2
+occurs' v (NormImplDep str t1 t2) = -- remember: dependent type binding can
+  -- shadow!
+  if v == str then
+    occurs' v t1
+  else
+    occurs' v t1 || occurs' v t2
+occurs' v (NormVector ty) = occurs' v ty
 
-occurs' _ (ITypeN _) = False
-occurs' _ (IMPrim _) = False
   
 
 -- MISC TYPE UTILS
 -- toDepLiteral: given a value, convert to literal
 -- + if it is a type return that type
 -- + if it is a module, return the (literal) value of that module
--- + if it is a symbol (string: s) and has type Type type, return (IMVar a)
+-- + if it is a symbol (string: s) and has type Type type, return (Neu $ NeuVar a)
 -- + if it is a non-type value, error!
 -- + if application, error! (TODO: evaluate if pure!)
 -- Intended to be used so arguments to 'dependent' functions can be converted
 -- into types, and then substituted in to make sure it all works!
-toDepLiteral :: TIntermediate InfType -> Ctx.Context -> TypeM InfType
-toDepLiteral (TValue (Type t)) env = pure (toInf t)
-toDepLiteral (TValue v) env = throwError ("non-type value given to toDepLiteral: " <> show v)
+toDepLiteral :: TIntermediate TypeNormal -> Ctx.Context -> EvalM TypeNormal
+toDepLiteral (TValue (Type t)) env = pure t
 toDepLiteral (TType ty) env = pure ty
+toDepLiteral e env = throwError ("non-type expression given to toDepLiteral: " <> show e)
 -- toDepLiteral (TSymbol str)
 
-
--- Second Phase: post-check
--- The coalesce function takes a Typed Intermediate whose type is an InfType,
--- and replaces it with a typed intermediate whose type is a ModulusType 
-coalesce :: TIntermediate InfType -> TIntermediate ModulusType
-coalesce term = case term of 
-  (TValue v)        -> TValue v
-  (TType ty)        -> TType (toMls ty)
-  (TSymbol s)       -> TSymbol s
-  (TApply l r)      -> TApply (coalesce l) (coalesce r) 
-  (TImplApply l r)  -> TImplApply (coalesce l) (coalesce r)
-  (TModule defs)    -> TModule (map coalesceDef defs)
-  (TSignature defs) -> TSignature (map coalesceDef defs)
-  (TLambda args body rettype) -> TLambda (map coalesceArg args) (coalesce body) (fmap toMls rettype)
-  (TIF cond e1 e2)  -> TIF (coalesce cond) (coalesce e1) (coalesce e2)
-  (TAccess e str)   -> TAccess (coalesce e) str 
-
-
-  where 
-    coalesceArg :: (TArg InfType, Bool) -> (TArg ModulusType, Bool)
-    coalesceArg (BoundArg str ty, bl) = (BoundArg str (toMls ty), bl)
-    coalesceArg (ValArg str ty, bl) = (ValArg str (toMls ty), bl)
-        -- TODO: change to exception monad!
-
-coalesceDef :: TDefinition InfType -> TDefinition ModulusType
-coalesceDef (TVariantDef name args id defs ty) = 
-  TVariantDef name args id (map (\(nme, id, ts) -> (name, id, (map toMls ts))) defs) (toMls ty)
-coalesceDef (TEffectDef name args id defs) = 
-  TEffectDef name args id (map (\(nme, id, ts) -> (name, id, (map toMls ts))) defs)  
-coalesceDef (TSingleDef name e ty) = 
-  TSingleDef name (coalesce e) (fmap toMls ty)
-coalesceDef (TOpenDef e ty) = TOpenDef (coalesce e) (fmap toMls ty)
- 
-
-coalesceTop :: TIntTop InfType -> TIntTop ModulusType 
-coalesceTop (TExpr term) = TExpr (coalesce term)
-coalesceTop (TDefinition def) = TDefinition (coalesceDef def)
-  
-
-freshVar :: TypeM InfType  
+freshVar :: EvalM TypeNormal  
 freshVar = do
-  id <- get 
-  put (id + 1)
-  pure (IMVar (Right id))
+  id <- use var_counter 
+  var_counter += 1
+  pure (Neu $ NeuVar ("#" <> show id))

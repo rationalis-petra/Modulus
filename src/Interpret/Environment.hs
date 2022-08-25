@@ -16,9 +16,9 @@ lookup key (Environment {localCtx = lcl,
     Just x -> Just x
     Nothing ->
       let (Module m) = curr in
-      case Map.lookup key m of 
-      Just v -> Just v
-      Nothing -> Nothing
+      case Map.lookup key m of
+        Just v -> Just v
+        Nothing -> Nothing
 
 
 insert :: String -> Expr -> Environment -> Environment

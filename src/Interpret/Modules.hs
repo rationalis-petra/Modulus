@@ -9,10 +9,10 @@ import qualified Interpret.Modules.System as Sys
 import qualified Interpret.Modules.Collections as Coll
 import qualified Interpret.Modules.Structures as Sct
 
-import Data (Expr, ModulusType, EvalM)
+import Data (Expr, TypeNormal, EvalM)
 import qualified Data.Map as Map
 
-coreModule = Core.coreModule
+coreModule = Core.coreStructure
 numModule  = Num.numModule
 systemModule  = Sys.systemModule
 collModule  = Coll.collModule
