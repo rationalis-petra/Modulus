@@ -9,12 +9,12 @@ import Interpret.Transform
 mlsGetLine :: [Expr] -> IO (EvalM Expr)
 mlsGetLine [x] = do
   line <- getLine
-  pure $ pure $ PrimE $ String (pack line)
+  pure $ pure $ PrimVal $ String (pack line)
 
 mlsPutLine :: [Expr] -> IO (EvalM Expr)
-mlsPutLine [(PrimE (String str))] = do
+mlsPutLine [(PrimVal (String str))] = do
   putStrLn (unpack str)
-  pure $ pure $ PrimE Unit
+  pure $ pure $ PrimVal Unit
 
 systemModule :: Map.Map String Expr
 systemModule = Map.fromList [

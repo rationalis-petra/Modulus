@@ -7,9 +7,9 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 typeVal :: (Value m) -> Except String TypeNormal
-typeVal (PrimE e) = pure (NormPrim (typePrim e))
+typeVal (PrimVal e) = pure (NormPrim (typePrim e))
   where
-    typePrim :: PrimE -> PrimType 
+    typePrim :: PrimVal -> PrimType 
     typePrim e = case e of 
       Unit -> UnitT
       Bool _ -> BoolT

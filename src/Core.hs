@@ -102,8 +102,8 @@ eval (CDot e field) = do
 eval (CIF cond e1 e2) = do
   b <- eval cond
   case b of 
-    (PrimE (Bool True)) -> eval e2
-    (PrimE (Bool False)) -> eval e2
+    (PrimVal (Bool True)) -> eval e2
+    (PrimVal (Bool False)) -> eval e2
 
 eval (CApp e1 e2) = do
   -- TODO: how to handle dependent types??
@@ -131,7 +131,7 @@ eval (CAbs var body ty) = do
   env <- ask
   pure $ CFunction var body env ty
 
-eval (CMod body) = Module <$> evalDefs body
+eval (CSct body) = Module <$> evalDefs body
   where
     evalDefs [] = pure Map.empty
     evalDefs ((SingleDef nme body ty) : tl) = do
@@ -251,7 +251,7 @@ toCore (TLambda args body lty) = do
 
 toCore (TModule map) = do
   coreDefs <- mapM defToCore map
-  pure (CMod coreDefs)
+  pure (CSct coreDefs)
   where
     defToCore (TSingleDef nme bdy (Just ty)) = do
       bdy' <- toCore bdy

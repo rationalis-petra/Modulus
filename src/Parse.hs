@@ -56,7 +56,7 @@ pRightSym = lexeme $ Symbol . unpack <$> (try (choice [symbol "→", symbol ":"]
 
 
 pLiteral :: Parser Expr
-pLiteral = (PrimE <$> choice [pUnit, pBool, pFloat, pInteger, pString])
+pLiteral = (PrimVal <$> choice [pUnit, pBool, pFloat, pInteger, pString])
            <|> pSym
   where
     pBool = Bool <$> (pTrue <|> pFalse) 

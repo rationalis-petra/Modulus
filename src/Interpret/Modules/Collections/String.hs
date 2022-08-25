@@ -13,8 +13,8 @@ import Interpret.Transform
   
 
 fnConcat :: Expr -> Expr -> EvalM Expr  
-fnConcat (PrimE (String s1)) (PrimE (String s2)) =
-  pure $ PrimE $ String (s1 <> s2)
+fnConcat (PrimVal (String s1)) (PrimVal (String s2)) =
+  pure $ PrimVal $ String (s1 <> s2)
 fnConcat _ _ = lift $ throwError "append expects strings as arguments"
 mlsConcat = liftFun2 fnConcat (NormArr (NormPrim StringT)
                                (NormArr (NormPrim StringT) (NormPrim StringT)))
@@ -24,8 +24,8 @@ mlsElement = liftFun2 element (NormArr (NormPrim StringT)
                                (NormArr (NormPrim IntT) (NormPrim CharT)))
   where
     element :: Expr -> Expr -> EvalM Expr  
-    element (PrimE (String s)) (PrimE (Int i)) =
-      pure $ PrimE $ Char (index s (fromEnum i))
+    element (PrimVal (String s)) (PrimVal (Int i)) =
+      pure $ PrimVal $ Char (index s (fromEnum i))
     element _ _ = lift $ throwError "element expects string/idx as arguments"
     
 
@@ -33,8 +33,8 @@ mlsLength :: Expr
 mlsLength = liftFun len (NormArr (NormPrim StringT) (NormPrim IntT))
   where
     len :: Expr -> EvalM Expr  
-    len (PrimE (String s)) =
-      pure $ PrimE $ Int (toInteger (Text.length s))
+    len (PrimVal (String s)) =
+      pure $ PrimVal $ Int (toInteger (Text.length s))
     len _ = lift $ throwError "length expects string as an argument"
                                   
 

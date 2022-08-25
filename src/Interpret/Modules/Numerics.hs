@@ -17,8 +17,8 @@ mkFloatUni f =
   liftFun newf unifloat
   where
     newf :: Expr -> EvalM Expr
-    newf (PrimE (Float f1)) =
-      pure $ PrimE $ Float $ f f1
+    newf (PrimVal (Float f1)) =
+      pure $ PrimVal $ Float $ f f1
     newf x =
       lift $ throwError ("bad arg to inbuilt float function" <> show x)
 
@@ -28,8 +28,8 @@ mkFloatOp f =
   liftFun2 newf binfloat
   where
     newf :: Expr -> Expr -> EvalM Expr
-    newf (PrimE (Float f1)) (PrimE (Float f2)) =
-      pure $ PrimE $ Float $ f f1 f2
+    newf (PrimVal (Float f1)) (PrimVal (Float f2)) =
+      pure $ PrimVal $ Float $ f f1 f2
     newf x y =
       lift $ throwError ("bad arg to inbuilt float function"
                          <> show x <> ", " <> show y)
@@ -39,8 +39,8 @@ mkFltCmp f =
   liftFun2 newf floatCompare
   where
     newf :: Expr -> Expr -> EvalM Expr
-    newf (PrimE (Float n1)) (PrimE (Float n2)) =
-      pure $ PrimE $ Bool $ f n1 n2
+    newf (PrimVal (Float n1)) (PrimVal (Float n2)) =
+      pure $ PrimVal $ Bool $ f n1 n2
     newf x y =
       lift $ throwError ("bad arg to inbuilt integer function" ++
                          show x ++ ", " ++ show y)
@@ -51,8 +51,8 @@ mkIntUni f =
   liftFun newf uniint
   where
     newf :: Expr -> EvalM Expr
-    newf (PrimE (Int n1)) =
-      pure $ PrimE $ Int $ f n1
+    newf (PrimVal (Int n1)) =
+      pure $ PrimVal $ Int $ f n1
     newf x =
       lift $ throwError ("bad arg to inbuilt float function" <> show x)
 
@@ -61,8 +61,8 @@ mkIntOp f =
   liftFun2 newf binint
   where
     newf :: Expr -> Expr -> EvalM Expr
-    newf (PrimE (Int n1)) (PrimE (Int n2)) =
-      pure $ PrimE $ Int $ f n1 n2
+    newf (PrimVal (Int n1)) (PrimVal (Int n2)) =
+      pure $ PrimVal $ Int $ f n1 n2
     newf x y =
       lift $ throwError ("bad arg to inbuilt integer function" ++
                          show x ++ ", " ++ show y)
@@ -72,8 +72,8 @@ mkCmpOp f =
   liftFun2 newf intcompare
   where
     newf :: Expr -> Expr -> EvalM Expr
-    newf (PrimE (Int n1)) (PrimE (Int n2)) =
-      pure $ PrimE $ Bool $ f n1 n2
+    newf (PrimVal (Int n1)) (PrimVal (Int n2)) =
+      pure $ PrimVal $ Bool $ f n1 n2
     newf x y =
       lift $ throwError ("bad arg to inbuilt integer function" ++
                          show x ++ ", " ++ show y)
@@ -83,8 +83,8 @@ mkBoolOp f =
   liftFun2 newf binbool
   where
     newf :: Expr -> Expr -> EvalM Expr
-    newf (PrimE (Bool b1)) (PrimE (Bool b2)) =
-      pure $ PrimE $ Bool $ f b1 b2
+    newf (PrimVal (Bool b1)) (PrimVal (Bool b2)) =
+      pure $ PrimVal $ Bool $ f b1 b2
     newf x y =
       lift $ throwError ("bad arg to inbuilt bool function" ++
                          show x ++ ", " ++ show y)
@@ -94,8 +94,8 @@ mkBoolSing f =
   liftFun newf (NormArr bool_t bool_t)
   where
     newf :: Expr -> EvalM Expr
-    newf (PrimE (Bool b)) =
-      pure $ PrimE $ Bool $ f b
+    newf (PrimVal (Bool b)) =
+      pure $ PrimVal $ Bool $ f b
     newf x =
       lift $ throwError ("bad arg to inbuilt bool function" ++
                          show x)
@@ -116,8 +116,8 @@ intModule = Map.fromList
 
    ("^", mkIntOp (^)),
 
-   ("e0", PrimE (Int 0)),
-   ("e1", PrimE (Int 1)),
+   ("e0", PrimVal (Int 0)),
+   ("e1", PrimVal (Int 1)),
 
    ("<", mkCmpOp (<)),
    ("≤", mkCmpOp (<=)),
@@ -137,8 +137,8 @@ floatModule = Map.fromList
    ("/", mkFloatOp (/)),
    ("^", mkFloatOp (**)),
 
-   ("e0", PrimE (Float 0.0)),
-   ("e1", PrimE (Float 1.0)),
+   ("e0", PrimVal (Float 0.0)),
+   ("e1", PrimVal (Float 1.0)),
    
    ("add-inv", mkFloatUni (\x -> -x)),
    ("mul-inv", mkFloatUni (\x -> 1/x)),

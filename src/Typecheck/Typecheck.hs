@@ -245,9 +245,15 @@ typeCheck expr ctx = case expr of
        buildFnType ((ty, bl):tys) subst bodyty = do
          ret_ty <- buildFnType tys subst bodyty
          case ty of 
-           BoundArg str t -> if bl then  
+           BoundArg str t ->
+             if bl then  
              pure (NormImplDep str t ret_ty)
-             else pure (NormDep str t ret_ty)
+             else
+               if Set.member str (free ret_ty) then
+                 pure (NormDep str t ret_ty)
+               else
+                 pure (NormArr t ret_ty)
+               
            InfArg _ _ -> 
              throwError "buildFnType not expecting inference!"
 

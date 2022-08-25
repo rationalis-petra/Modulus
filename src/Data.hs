@@ -42,6 +42,8 @@ data Core
   = CVal Expr                            -- A value
   | CSym String                          -- Symbols
   | CDot Core String                     -- Access a field from a struct/signature
+  | CProd String Core TypeNormal         -- Dependent Product 
+  | CImplProd String Core TypeNormal     -- Dependent Product 
   | CAbs String Core TypeNormal          -- Function abstraction
   | CApp Core Core                       -- Function application 
   | CMAbs String TypeNormal Core         -- Macro abstraction
@@ -53,8 +55,8 @@ data Core
   | CIF Core Core Core
   -- | Hndl Core Core                       -- Handle with a handler
   -- | MkHndler [(String, [String], Core)]  -- Create a new handler
-  | CMod [Definition]                -- Module Definition
-  | CSig [Definition]                -- Signature Definition
+  | CSig [Definition]                -- Signature Definition (dependent sum)
+  | CSct [Definition]                -- Structure Definition
   deriving Show
 
 
@@ -77,7 +79,7 @@ data Special
   deriving Show
 
 
-data PrimE
+data PrimVal
   = Unit
   | Bool Bool
   | Int Integer
@@ -91,11 +93,30 @@ data CollE m
   | Vector (Vector (Value m))
 
 
+
+-- m is the type of monad inside the object
+-- data Normal m  
+--   = Neu Neutral
+--   | PrimVal PrimVal 
+--   | PrimType PrimType
+--   | NormUniv Int 
+--   | NormDep String Normal Normal
+--   | NormImplDep String Normal Normal
+--   | NormArr Normal Normal
+--   | NormSig [(String, Normal)]
+
+--   | Undef
+
+-- data Neutral m    
+--   = NeuVar String 
+--   | NeuApp Neutral Normal
+--   | NeuDot Neutral String
+
 -- m is the type of monad inside the object
 -- c is the type of the interpreted "code"
 data Value m
   -- Inbuilt Datatypes 
-  = PrimE PrimE
+  = PrimVal PrimVal
   | Coll (CollE m) 
   | Keyword String
   | Type TypeNormal
@@ -245,7 +266,7 @@ instance Show TypeExpr where
 
 
 
-instance Show PrimE where   
+instance Show PrimVal where   
   show e = case e of  
     Unit -> "()"
     Int x -> show x
@@ -262,7 +283,7 @@ instance Show (CollE m) where
 
 instance Show (Value a) where  
   show e = case e of
-    PrimE x -> show x
+    PrimVal x -> show x
     Keyword str -> "&" <> str
     AST ast -> show ast
     Coll c -> show c
