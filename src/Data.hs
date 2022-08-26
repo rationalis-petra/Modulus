@@ -215,8 +215,8 @@ instance Show TypeNormal where
   show (NormImplDep var a b) = "{" <> var <> ":" <> show a <> "}" <> " → " <> show b
   show (NormArr l r) = show l <> " → " <> show r
   show (NormSig fields) =
-    "(sig " <> (foldr
-                (\(f, val) str -> str <> ("def " <> f <> " " <> show val))
+    "(sig" <> (foldr
+                (\(f, val) str -> str <> (" (def " <> f <> " " <> show val <> ")"))
                 "" fields) <> ")"
 
   show Undef = "$Undef"
@@ -253,13 +253,13 @@ data ProgState = ProgState { _uid_counter :: Int, _var_counter :: Int }
 
   
 instance Show PrimType where 
-  show BoolT   = "bool"
-  show IntT    = "int"
-  show UnitT   = "unit"
-  show FloatT  = "float"
-  show CharT   = "char"
-  show StringT = "string"
-  show AbsurdT = "absurd"
+  show BoolT   = "Bool"
+  show IntT    = "Int"
+  show UnitT   = "Unit"
+  show FloatT  = "Float"
+  show CharT   = "Char"
+  show StringT = "String"
+  show AbsurdT = "Absurd"
 
 
 instance Show TypeExpr where

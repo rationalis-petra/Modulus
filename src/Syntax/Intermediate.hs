@@ -120,6 +120,7 @@ toIntermediateM (Cons (e : es)) ctx = do
     _ -> do
       args <- mapM (\v -> toIntermediateM v ctx) es
       let mkApply v [] = v
+          mkApply v ((IApply (IValue (Keyword "implicit")) x) : xs) = (mkApply (IImplApply v x) xs)
           mkApply v (x : xs) = (mkApply (IApply v x) xs)
       return (mkApply val args)
 

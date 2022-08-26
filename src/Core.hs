@@ -102,7 +102,7 @@ eval (CDot e field) = do
 eval (CIF cond e1 e2) = do
   b <- eval cond
   case b of 
-    (PrimVal (Bool True)) -> eval e2
+    (PrimVal (Bool True)) -> eval e1
     (PrimVal (Bool False)) -> eval e2
 
 eval (CApp e1 e2) = do

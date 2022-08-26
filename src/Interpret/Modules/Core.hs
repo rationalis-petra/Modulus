@@ -199,10 +199,10 @@ mlsConstrain = liftFun2 doConstrain (NormArr Undef (NormArr Undef Undef))
 coreStructure :: Map.Map String Expr
 coreStructure = Map.fromList [
   -- Types
-  ("int",  Type (NormPrim IntT)),
-  ("bool", Type (NormPrim BoolT)),
-  ("unit", Type (NormPrim UnitT)),
-  ("type", Type (NormUniv 0)),
+  ("Int",  Type (NormPrim IntT)),
+  ("Bool", Type (NormPrim BoolT)),
+  ("Unit", Type (NormPrim UnitT)),
+  ("𝒰", Type (NormUniv 0)),
   ("→", mlsFunType),
   ("sig", Special MkSig),
   ("×", mlsMkTupleType),

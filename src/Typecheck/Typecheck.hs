@@ -77,9 +77,9 @@ typeCheckTop (TDefinition def) env =
   case def of 
     TSingleDef name expr Nothing -> do
       (expr', ty, subst) <- typeCheck expr env
-      if subst == []
+      if subst /= []
         then 
-          throwError "subst strings empty at toplevel!"
+          throwError ("subst strings non empty at toplevel: " <> show subst)
         else do
           -- (expr'', ty') <- buildDepFn expr' ty
           pure $ Right $ TDefinition $ TSingleDef name expr' (Just ty)
@@ -130,6 +130,26 @@ typeCheck expr ctx = case expr of
       Right (Left ty) -> pure (TSymbol s, ty, nosubst)
       Right (Right (_, ty)) -> pure (TSymbol s, ty, nosubst)
       Left err -> throwError ("couldn't find type of symbol " <> s)
+
+  
+  (TImplApply l r) -> do 
+    (l', tl, substl) <- typeCheck l ctx
+    (r', tr, substr) <- typeCheck r ctx
+    substboth <- compose substl substr
+    case tl of  
+      NormImplDep var t1 t2 -> do
+        substcomb <- constrain tr t1 
+        let substsing = toSing substcomb
+        subst <- compose substsing substboth
+
+        -- convert r' to a literal type (int/int → int etc.), then apply it to
+        -- the (dependent) closure. 
+        -- in the future, r' should also be able to be a context variable, not
+        -- just a literal value! 
+        appTy <- toDepLiteral r' ctx
+        retTy <- Type.normSubst (appTy, var) t2
+        pure (TImplApply l' r', retTy, subst)
+      t -> throwError ("implicit application to non-implicit type" <> show t)
 
   (TApply l r) -> do 
     (l', tl, substl) <- typeCheck l ctx
@@ -232,10 +252,10 @@ typeCheck expr ctx = case expr of
      (body', ty, subst) <- typeCheck body ctx'
      case mty of 
        Nothing -> do
-         let fnlArgs = fixArgs args' subst
+         let (fnlArgs, fnlsubst) = fixArgs args' subst
          fnlTy <- buildFnType fnlArgs subst ty
          let fnl_lambda = TLambda fnlArgs body' (Just fnlTy)
-         pure (fnl_lambda, fnlTy, subst)
+         pure (fnl_lambda, fnlTy, fnlsubst)
        -- TODO: add checking if lambda type already there...
 
      where 
@@ -262,14 +282,24 @@ typeCheck expr ctx = case expr of
 
        -- fixArgs will take a list of Typed arguments, and convert any
        -- inference arguments to string arguments
-       fixArgs :: [(TArg TypeNormal, Bool)] -> Subst -> [(TArg TypeNormal, Bool)]
-       fixArgs [] subst = []  
-       fixArgs ((arg, impl) : args) subst = case arg of  
-         BoundArg str ty -> (BoundArg str ty, impl) : fixArgs args subst
-         -- TOOD: come up with a better solution to new names...
-         InfArg nme id -> case findStrSubst ("#" <> show id) subst of 
-           Just ty -> (BoundArg nme ty, impl) : fixArgs args subst
-           Nothing -> (BoundArg nme (NormUniv 0), impl) : fixArgs args subst
+       fixArgs :: [(TArg TypeNormal, Bool)] -> Subst -> ([(TArg TypeNormal, Bool)], Subst)
+       fixArgs args subst = 
+         let (args', subst', impl) = fixArgs' args subst
+         in (map (\str -> (BoundArg str (NormUniv 0), True)) impl <> args', subst')
+         
+
+       fixArgs' :: [(TArg TypeNormal, Bool)] -> Subst -> ([(TArg TypeNormal, Bool)], Subst, [String])
+       fixArgs' [] subst = ([], subst, [])
+       fixArgs' ((arg, isImpl) : args) subst =
+         let (args', subst', impl) = fixArgs' args subst in
+           case arg of
+             BoundArg str ty -> (((BoundArg str ty, isImpl) : args'), subst', impl)
+             -- TOOD: come up with a better solution to new names...
+             InfArg nme id -> case findStrSubst ("#" <> show id) subst of
+               Just ty -> (((BoundArg nme ty, isImpl) : args'), rmSubst ("#" <> show id) subst', impl)
+               Nothing -> ((BoundArg nme (Neu (NeuVar ("#" <> show id))), isImpl) : args',
+                           subst',
+                           ("#" <> show id) : impl)
 
   (TAccess term field) -> do
     (term', ty, subst) <- typeCheck term ctx

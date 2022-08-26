@@ -116,6 +116,11 @@ toTIntermediate (IApply i1 i2) ctx = do
   i2' <- toTIntermediate i2 ctx
   pure (TApply i1' i2')
 
+toTIntermediate (IImplApply i1 i2) ctx = do
+  i1' <- toTIntermediate i1 ctx
+  i2' <- toTIntermediate i2 ctx
+  pure (TImplApply i1' i2')
+
 toTIntermediate (ILambda args bdy) ctx = do
   (args', ctx') <- processArgs args ctx
   bdy' <- toTIntermediate bdy ctx'

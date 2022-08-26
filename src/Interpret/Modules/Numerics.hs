@@ -153,8 +153,8 @@ floatModule = Map.fromList
 
 numModule :: Map.Map String Expr
 numModule = Map.fromList
-  [("Int", Module intModule),
-   ("Float", Module floatModule),
+  [("int", Module intModule),
+   ("float", Module floatModule),
 
    ("∧", mkBoolOp (&&)),
    ("∨", mkBoolOp (||)),
