@@ -23,7 +23,7 @@ typeVal (Type ty) = pure $ NormUniv (typeSize ty)
     typeSize :: TypeNormal -> Int
     typeSize (NormUniv n) = n + 1
     typeSize (NormSig fields) = foldr (\(_, x) y -> (max (typeSize x) y)) 0 fields
-    typeSize _ = 1
+    typeSize _ = 0
 
 typeVal (Module m) = do
   -- TODO: is this dodgy?

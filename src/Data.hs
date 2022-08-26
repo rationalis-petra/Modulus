@@ -194,20 +194,38 @@ data TypeNormal
   | NormSig [(String, TypeNormal)]
 
   | Undef
-  deriving Show
 
 -- Neutral: a subset of normal expressions, these expressions cannot be
 -- evaluated further due to missing a variable application (i.e. normalisation
 -- within the body of a function). They include no introduction forms, only
 -- elimination forms.
-data TypeNeutral  
+data TypeNeutral
   = NeuVar String
   | NeuApp TypeNeutral TypeNormal
   | NeuImplApp TypeNeutral TypeNormal
   | NeuDot TypeNeutral String
-  deriving Show
   
 
+instance Show TypeNormal where
+  show (Neu neu) = show neu
+  show (NormPrim prim) = show prim
+  show (NormVector tn) = "Vector" <> show tn
+  show (NormUniv n) = if n == 0 then "𝒰" else "𝒰" <> show n
+  show (NormDep var a b) = "(" <> var <> ":" <> show a <> ")" <> " → " <> show b
+  show (NormImplDep var a b) = "{" <> var <> ":" <> show a <> "}" <> " → " <> show b
+  show (NormArr l r) = show l <> " → " <> show r
+  show (NormSig fields) =
+    "(sig " <> (foldr
+                (\(f, val) str -> str <> ("def " <> f <> " " <> show val))
+                "" fields) <> ")"
+
+  show Undef = "$Undef"
+
+instance Show TypeNeutral where
+  show (NeuVar var) = var
+  show (NeuApp neu norm) = show neu <> " " <> show norm
+  show (NeuImplApp neu norm) = show neu <> " {" <> show norm <> "}" 
+  show (NeuDot neu field) = show neu <> "." <> field 
 -- TODO: effect type
 
 class Variable a where   

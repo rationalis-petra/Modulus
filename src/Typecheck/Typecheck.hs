@@ -247,7 +247,10 @@ typeCheck expr ctx = case expr of
          case ty of 
            BoundArg str t ->
              if bl then  
-             pure (NormImplDep str t ret_ty)
+               if Set.member str (free ret_ty) then
+                 pure (NormImplDep str t ret_ty)
+               else
+                 throwError "bound types must be used in implicit products"
              else
                if Set.member str (free ret_ty) then
                  pure (NormDep str t ret_ty)
