@@ -1,4 +1,4 @@
-module Interpret.Modules.System where
+module Interpret.Structures.System where
 
 import qualified Data.Map as Map
 
@@ -16,8 +16,8 @@ mlsPutLine [(PrimVal (String str))] = do
   putStrLn (unpack str)
   pure $ pure $ PrimVal Unit
 
-systemModule :: [(String, Normal)]
-systemModule = [
+systemStructure :: [(String, Normal)]
+systemStructure = [
   ("getLine", IOAction 0 1 mlsGetLine []),
   ("putLine", IOAction 1 1 mlsPutLine [])
   ]

@@ -1,8 +1,7 @@
-module Interpret.Modules.Structures where
+module Interpret.Structures.Structures where
 
 import qualified Data.Map as Map
-import Interpret.Modules.BuildModule
--- import Interpret.Eval
+import Interpret.Structures.BuildStructure
 import Data(Normal, Normal'(Undef), EvalM)
 
   
@@ -60,11 +59,11 @@ ringSig = do
   buildModule Map.empty ringSource
 
 
-structModule :: EvalM [(String, Normal)]
+structStructure :: EvalM [(String, Normal)]
 -- structModule = do
 --   sfield <- fieldSig
 --   sring <- ringSig
 --   pure $ Map.fromList [("Ring",  sring),
 --                        ("Field", sfield)]
 
-structModule = pure []
+structStructure = pure []

@@ -1,4 +1,4 @@
-module Interpret.Modules.Collections.Vector (vectorModule) where
+module Interpret.Structures.Collections.Array (arrayStructure) where
 
 import Control.Monad.Except (throwError, catchError)
 
@@ -21,8 +21,8 @@ import Interpret.Transform
 --                                 (NormArr (NormVector (Neu (NeuVar "a"))) (NormVector (Neu (NeuVar "a"))))))
                                 
 
-vectorModule :: Normal
-vectorModule = NormMod []
+arrayStructure :: Normal
+arrayStructure = NormMod []
   -- -- Types
   -- ("concat",  mlsConcat),
   -- ("⋅", mlsConcat)

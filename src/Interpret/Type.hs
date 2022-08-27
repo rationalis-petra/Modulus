@@ -1,2 +1,0 @@
-module Interpret.Type where
-

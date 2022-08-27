@@ -13,8 +13,6 @@ import Interpret.Transform (lift)
 import qualified Interpret.Environment as Env
 import Interpret.EvalM(ask, throwError) 
 
-import qualified Core
-
   -- TODO: change macro-expansion to incorporate splicing
 
 macroExpand :: AST -> EvalM AST

@@ -7,19 +7,17 @@ import Data
 import Interpret.Eval (evalToIO, evalTop)
 import Syntax.Macroexpand 
 import Syntax.Intermediate (toIntermediate) 
-import Syntax.Conversions (toTIntermediateTop) 
+import Syntax.Conversions (toTIntermediateTop, toCore, toTopCore) 
 -- import Typecheck.Typecheck
 
 import Typecheck.Typecheck
 import qualified Typecheck.Context as Ctx
-import qualified Core
 
 
 import System.IO
 
-import Interpret.Modules (defaultModule)
+import Interpret.Structures (defaultStructure)
 import qualified Interpret.Environment as Env
-import qualified Data.Map as Map
 
 
 import Data.Text (pack)
@@ -84,7 +82,7 @@ main =
   
 defaultContext :: EvalM Environment 
 defaultContext = do
-  dfm <- defaultModule
+  dfm <- defaultStructure
   pure $ Environment {
   localCtx = Map.empty,
   currentModule = NormMod dfm,
@@ -139,7 +137,7 @@ runExprs (e : es) env state (IOpts {tc=tc}) b = do
                   cint' <- case cint of 
                         Left (t, ty) -> (print ty) >> pure t
                         Right t -> pure t
-                  case runExcept (Core.toTopCore cint') of 
+                  case runExcept (toTopCore cint') of 
                     Right v -> do
                       (fenv, fstate, mval) <- evalTopCore v env state''
                       case mval of 
@@ -149,25 +147,6 @@ runExprs (e : es) env state (IOpts {tc=tc}) b = do
                     Left err -> failWith ("toCore err: " <> err)
                 Nothing -> pure (env, state)
             Nothing -> pure (env, state)
-          -- case runCheckerTop (toTIntermediateTop val (Ctx.envToCtx env)) env state' of 
-          --   Just (t, state'') ->
-          --     case runCheckerTop t (Ctx.envToCtx env) of
-          --       Right res -> do
-          --         tint <- case res of 
-          --           Left (tint, ty) -> do
-          --             print ty
-          --             pure tint
-          --           Right tint -> pure tint
-          --         case runExcept (Core.toTopCore tint) of 
-          --           Right v -> do
-          --             (fenv, fstate, mval) <- evalTopCore v env state''
-          --             case mval of 
-          --               Just v -> print v
-          --               Nothing -> pure ()
-          --             pure (fenv, fstate)
-          --           Left err -> failWith ("toCore err: " <> err)
-          --       Left err -> failWith err 
-          --   Nothing -> failWith "toTintermediate err "
         Left err -> do
           print err
           pure (env, state)

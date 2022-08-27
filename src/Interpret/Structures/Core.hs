@@ -1,4 +1,4 @@
-module Interpret.Modules.Core (coreStructure) where
+module Interpret.Structures.Core (coreStructure) where
 
 import Control.Monad.Except (throwError, catchError)
 

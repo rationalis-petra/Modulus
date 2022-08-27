@@ -15,15 +15,9 @@ import Prelude hiding (lookup)
 import Control.Monad.State (State, runState)
 import Control.Monad.Except (ExceptT, runExceptT)
 import Control.Monad.Reader (ReaderT, runReaderT)
-import qualified Control.Lens as Lens -- ((+=), use)
-import qualified Control.Monad.Except as Except
-import qualified Control.Monad.Reader as Reader
-import qualified Control.Monad.State as State
-import qualified Interpret.Transform as Action
 import qualified Interpret.Environment as Env
 
 import Syntax.Utils  
-
 import Interpret.EvalM
   
 import Data
@@ -31,21 +25,6 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Interpret.Transform hiding (lift)
 
-
--- module Interpret.Type where
-
--- import qualified Data.Map as Map
--- import qualified Data.Set as Set
--- import Data (Core(..),
---              Normal,
---              Normal'(..),
---              Neutral,
---              Neutral'(..),
---              Environment,
---              EvalM) 
--- import Interpret.EvalM
--- import Typecheck.TypeUtils
--- import qualified Interpret.Environment as Env
 
 evalTop :: TopCore -> EvalM (Either Normal (Environment -> Environment))
 evalTop (TopExpr e) = eval e >>= (\val -> pure (Left val))

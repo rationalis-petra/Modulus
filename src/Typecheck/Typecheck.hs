@@ -17,7 +17,6 @@ import Data (PrimType(..),
 import Syntax.TIntermediate
 
 import qualified Typecheck.Context as Ctx
-import qualified Interpret.Type as Type
 import qualified Interpret.Environment as Env
 import Interpret.EvalM
 import qualified Interpret.Eval as Eval

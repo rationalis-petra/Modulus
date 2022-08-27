@@ -1,4 +1,4 @@
-module Interpret.Modules.Collections.List (listModule) where
+module Interpret.Structures.Collections.List (listStructure) where
 
 import Control.Monad.Except (throwError, catchError)
 
@@ -7,7 +7,7 @@ import qualified Data.Map as Map
 import qualified Data.Map as Map
 import Data
 import Interpret.Transform
-import Interpret.Modules.BuildModule
+import Interpret.Structures.BuildStructure
 
 -- mlsCons = CustomCtor 2 [] consCtor consDtor Undef
 --   where
@@ -42,7 +42,7 @@ import Interpret.Modules.BuildModule
 --         Coll (List []) -> pure $ Just []
 --         Coll _ -> pure Nothing 
 
-listModuleSource = "\
+listStructureSource = "\
 \ (module \
 \  (variant List [a] (Cons a (List a)) Nil) \
 \   \ 
@@ -86,8 +86,8 @@ listModuleSource = "\
 \   (def `>>=` bind))"
 
 
-listModule :: EvalM Normal
-listModule = pure (NormMod [])
+listStructure :: EvalM Normal
+listStructure = pure (NormMod [])
 -- listModule = buildModule
 --                Map.empty
 --                listModuleSource

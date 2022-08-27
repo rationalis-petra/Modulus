@@ -1,4 +1,4 @@
-module Interpret.Modules.Collections.String (stringModule) where
+module Interpret.Structures.Collections.String (stringStructure) where
 
 import Control.Monad.Except (throwError, catchError)
 
@@ -38,8 +38,8 @@ mlsLength = liftFun len (NormArr (PrimType StringT) (PrimType IntT))
     len _ = lift $ throwError "length expects string as an argument"
                                   
 
-stringModule :: Normal
-stringModule = NormMod $ [
+stringStructure :: Normal
+stringStructure = NormMod $ [
   ("string", PrimType StringT),
   ("t",      PrimType StringT),
   ("append", mlsConcat),

@@ -1,4 +1,4 @@
-module Interpret.Modules.Numerics (numModule) where
+module Interpret.Structures.Numerics (numStructure) where
 
 import Control.Monad.Except (throwError, catchError)
 
@@ -101,8 +101,8 @@ mkBoolSing f =
                          show x)
 
 
-intModule :: [(String, Normal)]
-intModule = 
+intStructure :: [(String, Normal)]
+intStructure = 
   [("t", int_t),
    ("int", int_t),
    ("+", mkIntOp (+)),
@@ -127,8 +127,8 @@ intModule =
    ("≠", mkCmpOp (/=))
   ]
 
-floatModule :: [(String, Normal)] 
-floatModule =
+floatStructure :: [(String, Normal)] 
+floatStructure =
   [("t",     float_t),
    ("float", float_t),
    ("+", mkFloatOp (+)),
@@ -151,10 +151,10 @@ floatModule =
    ("≠", mkFltCmp (/=))
   ]
 
-numModule :: [(String, Normal)]
-numModule = 
-  [("int", NormMod intModule),
-   ("float", NormMod floatModule),
+numStructure :: [(String, Normal)]
+numStructure = 
+  [("int", NormMod intStructure),
+   ("float", NormMod floatStructure),
 
    ("∧", mkBoolOp (&&)),
    ("∨", mkBoolOp (||)),
