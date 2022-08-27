@@ -4,7 +4,7 @@ import Control.Monad.Except (runExcept)
 
 import Parse (parseFile, parseRepl)
 import Data
-import Interpret.Eval (evalToIO)
+import Interpret.Eval (evalToIO, evalTop)
 import Syntax.Macroexpand 
 import Syntax.Intermediate (toIntermediate) 
 import Syntax.Conversions (toTIntermediateTop) 
@@ -87,8 +87,8 @@ defaultContext = do
   dfm <- defaultModule
   pure $ Environment {
   localCtx = Map.empty,
-  currentModule = Module dfm,
-  globalModule = Module Map.empty }
+  currentModule = NormMod dfm,
+  globalModule = NormMod [] }
 
 data IOpts = IOpts { tc :: Bool }
   
@@ -177,9 +177,9 @@ runExprs (e : es) env state (IOpts {tc=tc}) b = do
   where
     failWith err = (putStrLn err) >> (pure (env, state))
 
-evalTopCore :: TopCore -> Environment -> ProgState -> IO (Environment, ProgState, Maybe Expr)   
+evalTopCore :: TopCore -> Environment -> ProgState -> IO (Environment, ProgState, Maybe Normal)   
 evalTopCore core env state = do
-  out <- evalToIO (Core.evalTop core) env state
+  out <- evalToIO (evalTop core) env state
   case out of 
     Just (result, state') -> case result of
       Left val -> pure (env, state', Just val)

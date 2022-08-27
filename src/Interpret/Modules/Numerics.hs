@@ -8,37 +8,37 @@ import Data
 import Interpret.Eval (liftFun, liftFun2)
 import Interpret.Transform
 
-int_t = NormPrim IntT
-bool_t = NormPrim BoolT
-float_t = NormPrim FloatT
+int_t = PrimType IntT
+bool_t = PrimType BoolT
+float_t = PrimType FloatT
 
-mkFloatUni :: (Float -> Float) -> Expr
+mkFloatUni :: (Float -> Float) -> Normal
 mkFloatUni f = 
   liftFun newf unifloat
   where
-    newf :: Expr -> EvalM Expr
+    newf :: Normal -> EvalM Normal
     newf (PrimVal (Float f1)) =
       pure $ PrimVal $ Float $ f f1
     newf x =
       lift $ throwError ("bad arg to inbuilt float function" <> show x)
 
 
-mkFloatOp :: (Float -> Float -> Float) -> Expr
+mkFloatOp :: (Float -> Float -> Float) -> Normal
 mkFloatOp f = 
   liftFun2 newf binfloat
   where
-    newf :: Expr -> Expr -> EvalM Expr
+    newf :: Normal -> Normal -> EvalM Normal
     newf (PrimVal (Float f1)) (PrimVal (Float f2)) =
       pure $ PrimVal $ Float $ f f1 f2
     newf x y =
       lift $ throwError ("bad arg to inbuilt float function"
                          <> show x <> ", " <> show y)
 
-mkFltCmp :: (Float -> Float -> Bool) -> Expr
+mkFltCmp :: (Float -> Float -> Bool) -> Normal
 mkFltCmp f = 
   liftFun2 newf floatCompare
   where
-    newf :: Expr -> Expr -> EvalM Expr
+    newf :: Normal -> Normal -> EvalM Normal
     newf (PrimVal (Float n1)) (PrimVal (Float n2)) =
       pure $ PrimVal $ Bool $ f n1 n2
     newf x y =
@@ -46,54 +46,54 @@ mkFltCmp f =
                          show x ++ ", " ++ show y)
 
   
-mkIntUni :: (Integer -> Integer) -> Expr
+mkIntUni :: (Integer -> Integer) -> Normal
 mkIntUni f = 
   liftFun newf uniint
   where
-    newf :: Expr -> EvalM Expr
+    newf :: Normal -> EvalM Normal
     newf (PrimVal (Int n1)) =
       pure $ PrimVal $ Int $ f n1
     newf x =
       lift $ throwError ("bad arg to inbuilt float function" <> show x)
 
-mkIntOp :: (Integer -> Integer -> Integer) -> Expr
+mkIntOp :: (Integer -> Integer -> Integer) -> Normal
 mkIntOp f = 
   liftFun2 newf binint
   where
-    newf :: Expr -> Expr -> EvalM Expr
+    newf :: Normal -> Normal -> EvalM Normal
     newf (PrimVal (Int n1)) (PrimVal (Int n2)) =
       pure $ PrimVal $ Int $ f n1 n2
     newf x y =
       lift $ throwError ("bad arg to inbuilt integer function" ++
                          show x ++ ", " ++ show y)
 
-mkCmpOp :: (Integer -> Integer -> Bool) -> Expr
+mkCmpOp :: (Integer -> Integer -> Bool) -> Normal
 mkCmpOp f = 
   liftFun2 newf intcompare
   where
-    newf :: Expr -> Expr -> EvalM Expr
+    newf :: Normal -> Normal -> EvalM Normal
     newf (PrimVal (Int n1)) (PrimVal (Int n2)) =
       pure $ PrimVal $ Bool $ f n1 n2
     newf x y =
       lift $ throwError ("bad arg to inbuilt integer function" ++
                          show x ++ ", " ++ show y)
 
-mkBoolOp :: (Bool -> Bool -> Bool) -> Expr
+mkBoolOp :: (Bool -> Bool -> Bool) -> Normal
 mkBoolOp f = 
   liftFun2 newf binbool
   where
-    newf :: Expr -> Expr -> EvalM Expr
+    newf :: Normal -> Normal -> EvalM Normal
     newf (PrimVal (Bool b1)) (PrimVal (Bool b2)) =
       pure $ PrimVal $ Bool $ f b1 b2
     newf x y =
       lift $ throwError ("bad arg to inbuilt bool function" ++
                          show x ++ ", " ++ show y)
 
-mkBoolSing :: (Bool -> Bool) -> Expr
+mkBoolSing :: (Bool -> Bool) -> Normal
 mkBoolSing f = 
   liftFun newf (NormArr bool_t bool_t)
   where
-    newf :: Expr -> EvalM Expr
+    newf :: Normal -> EvalM Normal
     newf (PrimVal (Bool b)) =
       pure $ PrimVal $ Bool $ f b
     newf x =
@@ -101,10 +101,10 @@ mkBoolSing f =
                          show x)
 
 
-intModule :: Map.Map String Expr  
-intModule = Map.fromList
-  [("t", Type int_t),
-   ("int", Type int_t),
+intModule :: [(String, Normal)]
+intModule = 
+  [("t", int_t),
+   ("int", int_t),
    ("+", mkIntOp (+)),
    ("-", mkIntOp (-)),
    ("*", mkIntOp (*)),
@@ -127,10 +127,10 @@ intModule = Map.fromList
    ("≠", mkCmpOp (/=))
   ]
 
-floatModule :: Map.Map String Expr 
-floatModule = Map.fromList
-  [("t",     Type float_t),
-   ("float", Type float_t),
+floatModule :: [(String, Normal)] 
+floatModule =
+  [("t",     float_t),
+   ("float", float_t),
    ("+", mkFloatOp (+)),
    ("-", mkFloatOp (-)),
    ("*", mkFloatOp (*)),
@@ -151,10 +151,10 @@ floatModule = Map.fromList
    ("≠", mkFltCmp (/=))
   ]
 
-numModule :: Map.Map String Expr
-numModule = Map.fromList
-  [("int", Module intModule),
-   ("float", Module floatModule),
+numModule :: [(String, Normal)]
+numModule = 
+  [("int", NormMod intModule),
+   ("float", NormMod floatModule),
 
    ("∧", mkBoolOp (&&)),
    ("∨", mkBoolOp (||)),

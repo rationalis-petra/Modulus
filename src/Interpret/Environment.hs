@@ -4,40 +4,41 @@ import Prelude hiding (lookup)
 
 import Data
 import Interpret.Transform
+import Syntax.Utils (getField)
 
 import qualified Data.Map as Map
 
 
-lookup :: String -> Environment -> Maybe Expr
+lookup :: String -> Environment -> Maybe Normal
 lookup key (Environment {localCtx = lcl,
                          currentModule = curr,
                          globalModule = glbl}) = 
   case Map.lookup key lcl of 
     Just x -> Just x
     Nothing ->
-      let (Module m) = curr in
-      case Map.lookup key m of
+      let (NormMod m) = curr in
+      case getField key m of
         Just v -> Just v
         Nothing -> Nothing
 
 
-insert :: String -> Expr -> Environment -> Environment
+insert :: String -> Normal -> Environment -> Environment
 insert key val context = context{localCtx = newCtx}
   where
     newCtx = Map.insert key val (localCtx context)
 
-insertAll :: [(String, Expr)] -> Environment -> Environment
+insertAll :: [(String, Normal)] -> Environment -> Environment
 insertAll lst context = context{localCtx = newCtx}
   where
     newCtx = foldr (uncurry Map.insert) (localCtx context) lst
 
-insertCurrent :: String -> Expr -> Environment -> Environment
-insertCurrent key val context = context{currentModule = newModule}
+insertCurrent :: String -> Normal -> Environment -> Environment
+insertCurrent key val context = context {currentModule = newModule}
   where
-    (Module oldModule) = currentModule context
-    newModule = Module $ Map.insert key val oldModule
+    (NormMod oldModule) = currentModule context
+    newModule = NormMod $ (key, val) : oldModule -- TODO this is DODGY!!
 
 empty :: Environment
 empty = Environment {localCtx = Map.empty,
-                     currentModule = Module Map.empty,
-                     globalModule = Module Map.empty}
+                     currentModule = NormMod [],
+                     globalModule = NormMod []}

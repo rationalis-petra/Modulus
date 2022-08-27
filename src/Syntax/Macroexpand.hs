@@ -1,13 +1,14 @@
 module Syntax.Macroexpand where
 
-import Data(Value(..),
-            -- Intermediate(..),
+import Data(-- Intermediate(..),
+            Normal,
+            Normal'(..),
             AST (..),
-            TypeNormal(Undef),
             EvalM,
-            Core(CVal, CApp),
+            Core(CNorm, CApp),
             ProgState) 
 
+import qualified Interpret.Eval as Eval
 import Interpret.Transform (lift)
 import qualified Interpret.Environment as Env
 import Interpret.EvalM(ask, throwError) 
@@ -33,9 +34,9 @@ macroEval ast = do
       (Atom (Symbol s)) -> 
         case Env.lookup s env of 
           Just val -> case val of
-            (InbuiltMac f) -> (,) <$> f xs <*> pure True
-            (CMacro argnames bdy env ty) -> do
-              applyMacro (CFunction argnames bdy env ty) xs
+            (BuiltinMac f) -> (,) <$> f xs <*> pure True
+            -- (CMacro argnames bdy env ty) -> do
+            --   applyMacro (CFunction argnames bdy env ty) xs
             _ -> do
               zipped <- mapM (\v -> macroEval v) (x : xs)
               let (xs', bs) = unzip zipped
@@ -44,9 +45,9 @@ macroEval ast = do
             zipped <- mapM (\v -> macroEval v) (x : xs)
             let (xs', bs) = unzip zipped
             return (Cons xs', (foldr (||) False bs))
-      (Atom (InbuiltMac f)) -> (,) <$> f xs <*> pure True
-      (Atom (CMacro argnames bdy env ty)) -> do
-        applyMacro (CFunction argnames bdy env ty) xs
+      (Atom (BuiltinMac f)) -> (,) <$> f xs <*> pure True
+      -- (Atom (CMacro argnames bdy env ty)) -> do
+      --   applyMacro (CFunction argnames bdy env ty) xs
       _ -> do
         zipped <- mapM (\v -> macroEval v) (x : xs)
         let (xs', bs) = unzip zipped
@@ -54,17 +55,17 @@ macroEval ast = do
     _ -> return (ast, False)
 
   where
-    applyMacro ::  Value EvalM -> [AST] -> EvalM (AST, Bool)
+    applyMacro :: Normal -> [AST] -> EvalM (AST, Bool)
     applyMacro macro xs =
           (,)
-          <$> (toAST =<< Core.eval (unfold (CVal macro) (map AST xs)))
+          <$> (toAST =<< Eval.eval (unfold (CNorm macro) (map AST xs)))
           <*> pure True
 
-    unfold :: Core -> [(Value EvalM)] -> Core
+    unfold :: Core -> [Normal] -> Core
     unfold v [] = v
-    unfold v (x:xs) = unfold (CApp v (CVal x)) xs
+    unfold v (x:xs) = unfold (CApp v (CNorm x)) xs
 
-    toAST :: Value EvalM -> EvalM AST
+    toAST :: Normal -> EvalM AST
     toAST (AST a) = pure a
     toAST _ = throwError "expecting macro to return AST or List AST"
   

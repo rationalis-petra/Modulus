@@ -11,8 +11,10 @@ import qualified Interpret.Environment as Env
 import Data (AST(..),
              Environment,
              Special(..),
-             Expr,
-             Value(Symbol, Special, Constructor, Action, Keyword))
+             Normal,
+             Normal'(Symbol, Special, Keyword),
+             Neutral,
+             Neutral')
 
 
 newtype GlobCtx = GlobCtx (Environment, (Set.Set String))
@@ -33,7 +35,7 @@ data IDefinition
 
 -- Untyped (typed) intermediate
 data Intermediate
-  = IValue Expr
+  = IValue Normal
   | IDefinition IDefinition
   | IApply Intermediate Intermediate
   | IImplApply Intermediate Intermediate
@@ -268,7 +270,7 @@ mkMatch (expr : patterns) ctx = do
   where 
     mkPatterns :: [AST] -> GlobCtx -> Except String [(IPattern, Intermediate)]
     mkPatterns [] _ = pure []
-    mkPatterns (Cons [Atom (Symbol "→"), pat, expr] : xs) ctx = do
+    mkPatterns (Cons [Atom ((Symbol "→")), pat, expr] : xs) ctx = do
       bdy <- toIntermediateM expr ctx
       pat <- mkPattern pat ctx
       tl <- mkPatterns xs ctx

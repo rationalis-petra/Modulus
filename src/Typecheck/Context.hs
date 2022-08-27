@@ -4,17 +4,16 @@ import qualified Data.Map as Map
 -- import qualified Data.Set as Set
 import Control.Monad.Except
 
-import Data (Value (Module),
-             TypeNormal,
+import Data (Normal,
+             Normal'(NormMod),
              EvalM,
-             Environment(..),
-             Expr)
-import Typecheck.TypeUtils
+             Environment(..))
+import Syntax.Utils
 
 data Context = Context {
-  tlocalCtx      :: Map.Map String (Either TypeNormal (Value EvalM, TypeNormal)),
-  tcurrentModule :: Expr,
-  tglobalModule  :: Expr
+  tlocalCtx      :: Map.Map String (Either Normal (Normal, Normal)),
+  tcurrentModule :: Normal,
+  tglobalModule  :: Normal
 }
 
 envToCtx :: Environment -> Context
@@ -35,25 +34,25 @@ ctxToEnv (Context {tlocalCtx=lcl, tcurrentModule = curr, tglobalModule = glbl}) 
 
 
   
-lookup :: String -> Context -> Except String (Either TypeNormal (Value EvalM, TypeNormal))
+lookup :: String -> Context -> Except String (Either Normal (Normal, Normal))
 lookup key (Context {tlocalCtx = lcl,
                      tcurrentModule = curr,
                      tglobalModule = glbl}) = 
   case Map.lookup key lcl of 
     Just x -> pure x
     Nothing ->
-      let (Module m) = curr in
-      case Map.lookup key m of 
-        Just v ->  (Left  <$> typeVal v)
+      let (NormMod m) = curr in
+      case getField key m of 
+        Just v -> (Left  <$> typeVal v)
         Nothing -> throwError ("couldn't lookup " <> key)
 
-insert :: String -> TypeNormal -> Context -> Context
+insert :: String -> Normal -> Context -> Context
 insert key val context = context{tlocalCtx = newCtx}
   where
     newCtx = Map.insert key (Left val) (tlocalCtx context)
 
 
-insertVal :: String -> Value EvalM -> TypeNormal -> Context -> Context
+insertVal :: String -> Normal -> Normal -> Context -> Context
 insertVal key val ty context = context{tlocalCtx = newCtx}
   where
     newCtx = Map.insert key (Right (val, ty)) (tlocalCtx context)

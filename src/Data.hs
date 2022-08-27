@@ -18,17 +18,16 @@ import qualified Data.Set as Set
 -- type TypeContext' = TypeContext ProgMonad
 
 data Environment = Environment {
-  localCtx      :: Map.Map String (Value EvalM),
-  currentModule :: Expr,
-  globalModule  :: Expr
+  localCtx      :: Map.Map String (Normal' EvalM),
+  currentModule :: Normal,
+  globalModule  :: Normal
 }
 
-type SigDefn = Map.Map String TypeExpr
 data Definition
-  = SingleDef String Core TypeExpr
-  | VariantDef String [String] Int [(String, Int, [TypeNormal])] TypeNormal
+  = SingleDef String Core Normal
+  | VariantDef String [String] Int [(String, Int, [Normal])] Normal
   | EffectDef  String [String] [(String, [Core])]
-  | OpenDef Core SigDefn
+  | OpenDef Core [(String, Normal)]
   deriving Show
 
 data Pattern
@@ -39,18 +38,19 @@ data Pattern
   deriving Show
 
 data Core
-  = CVal Expr                            -- A value
-  | CSym String                          -- Symbols
-  | CDot Core String                     -- Access a field from a struct/signature
-  | CProd String Core TypeNormal         -- Dependent Product 
-  | CImplProd String Core TypeNormal     -- Dependent Product 
-  | CAbs String Core TypeNormal          -- Function abstraction
-  | CApp Core Core                       -- Function application 
-  | CMAbs String TypeNormal Core         -- Macro abstraction
-  | CSeq [Core]                          -- Sequence Effects
-  | CLet [(String, Core)] Core           -- Local binding
-  | CLetOpen [(Core, SigDefn)] Core      -- Local opens
-  | CMatch Core [(Pattern, Core)]        -- Pattern-Match
+  = CNorm Normal                     -- Normalised value
+  | CVar String                      -- Variable
+  | CDot Core String                 -- Access a field from a struct/signature
+  | CArr Core Core                   -- Arrow Type (degenerate product)
+  | CProd String Core Core           -- Dependent Product 
+  | CImplProd String Core Core       -- Dependent Product 
+  | CAbs String Core Normal          -- Function abstraction
+  | CApp Core Core                   -- Function application 
+  | CMAbs String Normal Core         -- Macro abstraction
+  | CSeq [Core]                      -- Sequence Effects
+  | CLet [(String, Core)] Core       -- Local binding
+  | CLetOpen [(Core, [(String, Core)])] Core  -- Local opens
+  | CMatch Core [(Pattern, Core)]    -- Pattern-Match
   -- TODO: remove this via lazy functions!
   | CIF Core Core Core
   -- | Hndl Core Core                       -- Handle with a handler
@@ -86,144 +86,165 @@ data PrimVal
   | Float Float
   | Char Char
   | String Text
+  deriving Eq
 
 
 data CollE m
-  = List [(Value m)]
-  | Vector (Vector (Value m))
+  = List [(Normal' m)]
+  | Vector (Vector (Normal' m))
 
 
 
 -- m is the type of monad inside the object
--- data Normal m  
---   = Neu Neutral
---   | PrimVal PrimVal 
---   | PrimType PrimType
---   | NormUniv Int 
---   | NormDep String Normal Normal
---   | NormImplDep String Normal Normal
---   | NormArr Normal Normal
---   | NormSig [(String, Normal)]
+type Normal = Normal' EvalM
+type Neutral = Neutral' EvalM
+  
+data Normal' m  
+  -- Basic Values and Types
+  = Neu (Neutral' m)
+  | PrimVal PrimVal 
+  | PrimType PrimType
+  | NormArrTy (Normal' m)
+  | NormUniv Int 
 
---   | Undef
+  -- Dependent Products & Functions
+  | NormProd String (Normal' m) (Normal' m)
+  | NormImplProd String (Normal' m) (Normal' m)
+  | NormArr (Normal' m) (Normal' m)
+  | NormAbs String (Normal' m) (Normal' m)
 
--- data Neutral m    
---   = NeuVar String 
---   | NeuApp Neutral Normal
---   | NeuDot Neutral String
+  | Builtin (Normal' m -> m (Normal' m)) (Normal' m)
+  
+  -- Structures & Signatures
+  | NormMod [(String, Normal' m)]
+  | NormSig [(String, Normal' m)]
 
+  -- Effects
+  | IOAction Int Int ([Normal' m] -> IO (m (Normal' m))) [Normal' m]
+
+  -- Multi-Stage Programming
+  | BuiltinMac ([AST] -> m AST)
+  | Special Special
+  | Keyword String
+  | Symbol String 
+  | AST AST
+  -- stuff related to macros etc.
+  | Undef
+
+data Neutral' m
+  = NeuVar String 
+  -- an inbuilt function waiting on a netural term
+  | NeuBuiltinApp (Normal' m -> m (Normal' m)) (Neutral' m) (Normal' m)
+  | NeuBuiltinApp2 (Normal' m -> Normal' m -> m (Normal' m)) (Neutral' m) (Normal' m)
+  | NeuBuiltinApp3 (Normal' m -> Normal' m -> Normal' m -> m (Normal' m)) (Neutral' m) (Normal' m)
+  | NeuBuiltinApp4 (Normal' m -> Normal' m -> Normal' m -> Normal' m -> m (Normal' m)) (Neutral' m) (Normal' m)
+  | NeuApp (Neutral' m) (Normal' m)
+  | NeuImplApp (Neutral' m) (Normal' m)
+  | NeuDot (Neutral' m) String
+  
+
+  
 -- m is the type of monad inside the object
 -- c is the type of the interpreted "code"
-data Value m
-  -- Inbuilt Datatypes 
-  = PrimVal PrimVal
-  | Coll (CollE m) 
-  | Keyword String
-  | Type TypeNormal
-  | Variant String Int Int [Value m]
-  | Constructor String Int Int Int [Value m]
-  | CConstructor String Int Int Int [String] [Value m] TypeNormal
-  | Module (Map.Map String (Value m))
+-- data Value m
+--   -- Inbuilt Datatypes 
+--   = PrimValue PrimVal
+--   | Coll (CollE m) 
+--   | Key String
+--   | Variant String Int Int [Value m]
+--   | Constructor String Int Int Int [Value m]
+--   | CConstructor String Int Int Int [String] [Value m] Normal
+--   | Module (Map.Map String (Value m))
 
-  -- Pattern matching on inbuilt data-types nargs currying
-  | CustomCtor Int [(Value m)]
-    -- constructor
-    ([Value m] -> m (Value m))
-    -- matcher
-    (Value m -> m (Maybe [(Value m)]))
-    -- type
-    TypeNormal
-  -- TODO: pattern-matching on structures.
+--   -- Pattern matching on inbuilt data-types nargs currying
+--   | CustomCtor Int [(Value m)]
+--     -- constructor
+--     ([Value m] -> m (Value m))
+--     -- matcher
+--     (Value m -> m (Maybe [(Value m)]))
+--     -- type
+--     Normal
+--   -- TODO: pattern-matching on structures.
 
-  -- Syntax and macros
-  | AST AST
-  | Symbol String
-  | Special Special
-  -- TODO: change to [String], figure out resultant errors in macroEval  
-  | CMacro String Core Environment TypeNormal
-  | InbuiltMac ([AST] -> m AST)
+--   -- Syntax and macros
+--   | AST AST
+--   | Symbol String
+--   | Sp Special
+--   -- TODO: change to [String], figure out resultant errors in macroEval  
+--   | CMacro String Core Environment Normal
+--   | InbuiltMac ([AST] -> m AST)
 
-  -- EVALUATION & FUNCTIONS
-  | CFunction String Core Environment TypeNormal 
-  | InbuiltFun (Value m -> m (Value m)) TypeNormal
+--   -- EVALUATION & FUNCTIONS
+--   | CFunction String Core Environment Normal 
+--   | InbuiltFun (Value m -> m (Value m)) Normal
 
-  -- ALGEBRAIC EFFECTS
-  | IOEffect
-  | IOAction Int Int ([Value m] -> IO (m (Value m))) [Value m]
-  | Effect Int Int
-  | Action Int Int Int [Value m]
-  | CHandler [(Int, Int, [String], Core)]
+--   -- ALGEBRAIC EFFECTS
+--   | IOEffect
+--   | IOAction Int Int ([Value m] -> IO (m (Value m))) [Value m]
+--   | Effect Int Int
+--   | Action Int Int Int [Value m]
+--   | CHandler [(Int, Int, [String], Core)]
 
 
 -- data AST = Atom Expr | Cons AST 
 data AST
-  = Atom Expr
+  = Atom Normal
   | Cons [AST]
 
 
 data MaybeEffect m a 
-  = RaiseAction (Value (ActionMonadT m) -> ActionMonadT m a)
+  = RaiseAction (Normal' (ActionMonadT m) -> ActionMonadT m a)
                 Int
                 Int
-                [Value (ActionMonadT m)]
-                (Maybe ([Value (ActionMonadT m)]
-                        -> IO ((ActionMonadT m) (Value (ActionMonadT m)))))
+                [Normal' (ActionMonadT m)]
+                (Maybe ([Normal' (ActionMonadT m)]
+                        -> IO ((ActionMonadT m) (Normal' (ActionMonadT m)))))
   | Value a
 
 
 
-data TypeExpr
-  = TyNorm TypeNormal
-  | TyVar String
-  | TyArr TypeExpr TypeExpr
-  | TyDep String TypeExpr TypeExpr
-  | TyImplDep String TypeExpr TypeExpr
-  | TyApp TypeExpr TypeExpr
-  | TySig [(String, TypeExpr)]
-  | TyDot TypeExpr String
 
--- Normal: expressions
-data TypeNormal
-  = Neu TypeNeutral
-  | NormPrim PrimType 
-  | NormVector TypeNormal
-  | NormUniv Int
-  | NormDep String TypeNormal TypeNormal
-  | NormImplDep String TypeNormal TypeNormal
-  | NormArr TypeNormal TypeNormal
-  | NormSig [(String, TypeNormal)]
-
-  | Undef
-
--- Neutral: a subset of normal expressions, these expressions cannot be
--- evaluated further due to missing a variable application (i.e. normalisation
--- within the body of a function). They include no introduction forms, only
--- elimination forms.
-data TypeNeutral
-  = NeuVar String
-  | NeuApp TypeNeutral TypeNormal
-  | NeuImplApp TypeNeutral TypeNormal
-  | NeuDot TypeNeutral String
-  
-
-instance Show TypeNormal where
+instance Show (Normal' m) where
   show (Neu neu) = show neu
-  show (NormPrim prim) = show prim
-  show (NormVector tn) = "Vector" <> show tn
+  show (PrimVal prim) = show prim
+  show (PrimType prim) = show prim
+  show (NormArrTy tn) = "Vector" <> show tn
   show (NormUniv n) = if n == 0 then "𝒰" else "𝒰" <> show n
-  show (NormDep var a b) = "(" <> var <> ":" <> show a <> ")" <> " → " <> show b
-  show (NormImplDep var a b) = "{" <> var <> ":" <> show a <> "}" <> " → " <> show b
+
+  show (NormProd var a b) = "(" <> var <> ":" <> show a <> ")" <> " → " <> show b
+  show (NormImplProd var a b) = "{" <> var <> ":" <> show a <> "}" <> " → " <> show b
   show (NormArr l r) = show l <> " → " <> show r
+  show (NormAbs var ty body) = "(λ " <> var <> " . " <> show body <> ")"
+  show (Builtin _ ty) = show "<fnc :: " <> show ty <> ">"
+
+  
+  show (NormMod fields) =
+    "(structue" <> (foldr
+                (\(f, val) str -> str <> (" (def " <> f <> " " <> show val <> ")"))
+                "" fields) <> ")"
   show (NormSig fields) =
-    "(sig" <> (foldr
+    "(signature" <> (foldr
                 (\(f, val) str -> str <> (" (def " <> f <> " " <> show val <> ")"))
                 "" fields) <> ")"
 
+  show (IOAction _ _ _ _) = "IO-Action"
+
+  show (BuiltinMac _) = show "<inbuilt-macro>"
+  show (Special sp) = show sp
+  show (Keyword word) = "&" <> word
+  show (Symbol sym) = "<" <> sym <> ">"
+  show (AST ast) = "AST" <> show ast
+
   show Undef = "$Undef"
 
-instance Show TypeNeutral where
+instance Show (Neutral' m) where
   show (NeuVar var) = var
   show (NeuApp neu norm) = show neu <> " " <> show norm
+
+  show (NeuBuiltinApp fn neu ty)  = "?? " <> show neu
+  show (NeuBuiltinApp2 fn neu ty) = "?? " <> show neu
+  show (NeuBuiltinApp3 fn neu ty) = "?? " <> show neu
+  
   show (NeuImplApp neu norm) = show neu <> " {" <> show norm <> "}" 
   show (NeuDot neu field) = show neu <> "." <> field 
 -- TODO: effect type
@@ -239,8 +260,6 @@ instance Variable String where
 data PrimType = BoolT | CharT | IntT | FloatT | UnitT | StringT | AbsurdT
   deriving (Eq, Ord)
   
-
-type Expr = Value EvalM
 
 type EvalEnvM env = ActionMonadT (ReaderT env (ExceptT String (State ProgState)))
 type EvalM = EvalEnvM Environment
@@ -262,28 +281,6 @@ instance Show PrimType where
   show AbsurdT = "Absurd"
 
 
-instance Show TypeExpr where
-  show (TyNorm n) = "Normal: " <> show n
-  show (TyVar var) = var
-
-  show (TyArr (TyArr t1 t2) t3) =
-    "(" <>  show (TyArr t1 t2) <> ") → " <> show t3
-  show (TyArr t1 t2) = show t1 <> " → " <> show t2  
-
-  -- show (MDep (MDep t1 s t2) s2 t3) =
-  --   "(" <>  s <> ":" <> show (MDep t1 s t2) <> ") → " <> show t3
-  show (TyDep var t1 t2) = "(" <> var <> ":" <> show t1 <> ") → " <> show t2 
-  show (TyImplDep var t1 t2) = "{" <> var <> ":" <> show t1 <> "} → " <> show t2
-  show (TyDot t s) = show t <> "." <> s 
-
-  -- TODO branch on isLarge!
-  show (TySig map) =
-    "(sig " <> drop 2 (foldr show_sig "" map) <> ")"
-    where show_sig (key, t) str = 
-            str <> ", " <> show key <> " : " <> show t
-
-
-
 instance Show PrimVal where   
   show e = case e of  
     Unit -> "()"
@@ -298,39 +295,6 @@ instance Show (CollE m) where
   show e = case e of  
     Data.List l -> show l
     Data.Vector v -> show v
-
-instance Show (Value a) where  
-  show e = case e of
-    PrimVal x -> show x
-    Keyword str -> "&" <> str
-    AST ast -> show ast
-    Coll c -> show c
-
-    Special s -> "<special:" <> show s <> ">"
-    Module map -> "(struct " <> drop 2 (Map.foldrWithKey show_entry "" map) <> ")"
-      where show_entry key v str =
-              (str <> ", " <> key <> " = " <> show v)
-    Symbol str -> "<sym "  ++ str ++ ">"
-
-    Variant s _ _ l -> s <> (foldl (\x y -> x <> " " <> y) "" (map show l))
-    Constructor s _ _ 0 _ -> s
-    Constructor s _ _ nargs l -> s <> " : " <> show nargs
-
-    CConstructor s _ _ 0 _ [] _ -> s
-    CConstructor s _ _ n _ nargs _ -> s <> foldr (\v s -> " " <> show v <> s) "" nargs
-
-    CustomCtor _ _ _ _ _ -> "Custom Ctor"
-
-    CFunction _ _ _ t -> "<fnc> :: " <> show t
-    InbuiltFun _ t -> "<fnc> :: " <> show t
-
-    InbuiltMac _ -> "<mac> :: "
-  
-    Type t -> show t
-
-    IOAction id1 id2 _ _ -> "<ioction " ++ show id1 ++ show id2 ++ ">"
-    Action id1 id2 size _ ->
-      foldl (<>) "<act " [show id1, ",", show id2, ": ", show size,  ">"]
 
 instance Show AST where
   show e = "AST: " <> show_ast e

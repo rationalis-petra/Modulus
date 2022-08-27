@@ -3,7 +3,7 @@ module Interpret.Modules.Structures where
 import qualified Data.Map as Map
 import Interpret.Modules.BuildModule
 -- import Interpret.Eval
-import Data(TypeNormal(Undef), EvalM, Expr)
+import Data(Normal, Normal'(Undef), EvalM)
 
   
 ringSource = "\
@@ -52,19 +52,19 @@ implFieldSource = "\
 \  (defn mul-inv {F : Field} [(n : F.t)] (F.mul-inv n))) \
 \"
 
-fieldSig :: EvalM Expr
+fieldSig :: EvalM Normal
 fieldSig = buildModule Map.empty fieldSource
 
-ringSig :: EvalM Expr
+ringSig :: EvalM Normal
 ringSig = do
   buildModule Map.empty ringSource
 
 
-structModule :: EvalM (Map.Map String Expr)
+structModule :: EvalM [(String, Normal)]
 -- structModule = do
 --   sfield <- fieldSig
 --   sring <- ringSig
 --   pure $ Map.fromList [("Ring",  sring),
 --                        ("Field", sfield)]
 
-structModule = pure (Map.empty)
+structModule = pure []

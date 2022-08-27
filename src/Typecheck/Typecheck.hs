@@ -7,11 +7,11 @@ import Control.Monad.State
 -- import Control.Lens 
 
 import Data (PrimType(..),
-             TypeNormal(..),
-             TypeExpr(..),
-             TypeNormal(..),
-             TypeNeutral(..),
-             Value(Type),
+             Normal,
+             Normal'(..),
+             Core(..),
+             Neutral,
+             Neutral'(..),
              var_counter,
              EvalM)
 import Syntax.TIntermediate
@@ -20,54 +20,21 @@ import qualified Typecheck.Context as Ctx
 import qualified Interpret.Type as Type
 import qualified Interpret.Environment as Env
 import Interpret.EvalM
-import Typecheck.TypeUtils (typeVal, free, getField)
+import qualified Interpret.Eval as Eval
+import Syntax.Utils (typeVal, free, getField)
 
  -- TODO: check - types are expressions, or values ?!?
 
 
 --   
-type LRSubst = ([(TypeNormal, String)], [(TypeNormal, String)], [(TypeNormal, String)])
-type Subst = [(TypeNormal, String)]
+type LRSubst = ([(Normal, String)], [(Normal, String)], [(Normal, String)])
+type Subst = [(Normal, String)]
 -- type TypeM = ExceptT String (State Int)
 
 err = throwError  
--- runCheckerTop :: TIntTop TypeNormal -> Ctx.Context
---               -> Either String (Either (TIntTop TypeNormal, TypeNormal) (TIntTop TypeNormal))
--- runCheckerTop term env = 
---   let mnd = do 
---         res <- typeCheckTop term env
---         case res of 
---           Left (infterm, inftype) -> do
---             let term' = coalesceTop infterm
---                 ty' = toMls inftype
---             pure (Left (term', ty'))
---           Right infterm -> do
---             let term' = coalesceTop infterm
---             pure (Right term')
 
---   in 
---     case runState (runExceptT mnd) 0 of 
---       (Left err, _) -> Left err
---       (Right val, _) -> Right val
-  
-
--- runChecker :: TIntermediate TypeExpr -> Ctx.Context -> Either String (TIntermediate TypeNormal, TypeNormal)
--- runChecker term env = 
---   let mnd :: EvalM (TIntermediate TypeNormal, TypeNormal)
---       mnd  = do 
---         (infterm, ty, subst) <- typeCheck term env
---         if subst /= nosubst then
---           throwError "substitution not empty at conclusion of type-checking!!"
---         else
---           pure (term, ty)
---   in 
---     case runState (runExceptT mnd) 0 of 
---       (Left err, _) -> Left err
---       (Right val, _) -> Right val
-
-
-typeCheckTop :: TIntTop TypeExpr -> Ctx.Context
-             -> EvalM (Either (TIntTop TypeNormal, TypeNormal) (TIntTop TypeNormal))
+typeCheckTop :: TIntTop Core -> Ctx.Context
+             -> EvalM (Either (TIntTop Normal, Normal) (TIntTop Normal))
 typeCheckTop (TExpr e) env = do
       (expr, ty, subst) <- typeCheck e env
       -- (expr', ty') <- buildDepFn expr ty
@@ -100,9 +67,9 @@ typeCheckTop (TDefinition def) env =
 --       pure $ Right $ TDefinition $ TVariantDef nme params id (map (\(n, i, ts) -> (n, i, map toInf ts)) alrs)
 --                      (toInf ty)
 
---     -- TEffectDef  String [String] Int [(String, Int, [TypeNormal])]
+--     -- TEffectDef  String [String] Int [(String, Int, [Normal])]
 
--- buildDepFn :: (TIntermediate TypeNormal) -> TypeNormal -> EvalM (TIntermediate TypeNormal, TypeNormal)
+-- buildDepFn :: (TIntermediate Normal) -> Normal -> EvalM (TIntermediate Normal, Normal)
 -- buildDepFn expr ty = do
 --   let bothFree = Set.toList (free ty)
 --   freeVars <- mapM (\str -> throwError ("non-inference type variable free when building Dependent Fn "
@@ -110,7 +77,7 @@ typeCheckTop (TDefinition def) env =
 --           bothFree
 --   let --mkFunTy :: []
 --       mkFunTy [] ty = ty
---       mkFunTy (id : ids) ty = NormImplDep ("#" <> show id) (NormUniv 0) (mkFunTy ids ty)
+--       mkFunTy (id : ids) ty = NormImplProd ("#" <> show id) (NormUniv 0) (mkFunTy ids ty)
 --       mkFun [] bdy = bdy
 --       mkFun vars bdy =
 --         TLambda (map (\id -> (BoundArg ("#" <> show id) (NormUniv 0), True)) vars)
@@ -119,7 +86,7 @@ typeCheckTop (TDefinition def) env =
 --   pure (mkFun freeVars expr, mkFunTy freeVars ty)
         
 
-typeCheck :: TIntermediate TypeExpr -> Ctx.Context -> EvalM (TIntermediate TypeNormal, TypeNormal, Subst)
+typeCheck :: TIntermediate Core -> Ctx.Context -> EvalM (TIntermediate Normal, Normal, Subst)
 typeCheck expr ctx = case expr of
   (TValue v) -> do
     t <- liftExcept (typeVal v)
@@ -137,17 +104,12 @@ typeCheck expr ctx = case expr of
     (r', tr, substr) <- typeCheck r ctx
     substboth <- compose substl substr
     case tl of  
-      NormImplDep var t1 t2 -> do
+      NormImplProd var t1 t2 -> do
         substcomb <- constrain tr t1 
         let substsing = toSing substcomb
         subst <- compose substsing substboth
-
-        -- convert r' to a literal type (int/int → int etc.), then apply it to
-        -- the (dependent) closure. 
-        -- in the future, r' should also be able to be a context variable, not
-        -- just a literal value! 
         appTy <- toDepLiteral r' ctx
-        retTy <- Type.normSubst (appTy, var) t2
+        retTy <- Eval.normSubst (appTy, var) t2
         pure (TImplApply l' r', retTy, subst)
       t -> throwError ("implicit application to non-implicit type" <> show t)
 
@@ -161,17 +123,12 @@ typeCheck expr ctx = case expr of
         let substsing = toSing substcomb
         subst <- compose substsing substboth
         pure (TApply l' r', t2, subst)
-      NormDep var t1 t2 -> do 
+      NormProd var t1 t2 -> do 
         substcomb <- constrain tr t1 
         let substsing = toSing substcomb
         subst <- compose substsing substboth
-
-        -- convert r' to a literal type (int/int → int etc.), then apply it to
-        -- the (dependent) closure. 
-        -- in the future, r' should also be able to be a context variable, not
-        -- just a literal value! 
         appTy <- toDepLiteral r' ctx
-        retTy <- Type.normSubst (appTy, var) t2
+        retTy <- Eval.normSubst (appTy, var) t2
         pure (TApply l' r', retTy, subst)
       _ -> do
         (args, unbound, subst, rettype) <- deriveFn tl tr r'
@@ -195,18 +152,18 @@ typeCheck expr ctx = case expr of
 
 
                   -- lhs/ty  rhs/ty     rhs
-      deriveFn :: TypeNormal -> TypeNormal -> TIntermediate TypeNormal
-               -> EvalM ([(Bool, TIntermediate TypeNormal)], [(TypeNormal, String)], Subst, TypeNormal)
-      deriveFn (NormImplDep var (NormUniv 0) t2) tr r = do
+      deriveFn :: Normal -> Normal -> TIntermediate Normal
+               -> EvalM ([(Bool, TIntermediate Normal)], [(Normal, String)], Subst, Normal)
+      deriveFn (NormImplProd var (NormUniv 0) t2) tr r = do
         (args, unbnd, subst, rettype) <- deriveFn t2 tr r
         case findStrSubst var subst of 
           Just ty -> do
-            retTy <- Type.normSubst (ty, var) rettype
-            pure (((True, (TType ty)) : args),
+            retTy <- Eval.normSubst (ty, var) rettype
+            pure (((True, (TValue ty)) : args),
                            unbnd,
                            rmSubst var subst,
                            retTy)
-          Nothing -> pure ((True, TType (Neu $ NeuVar var)) : args, ((NormUniv 0, var):unbnd),
+          Nothing -> pure ((True, TValue (Neu $ NeuVar var)) : args, ((NormUniv 0, var):unbnd),
                            rmSubst var subst, rettype)
       deriveFn (NormArr t1 t2) tr r = do
         substlr <- constrain tr t1
@@ -218,11 +175,11 @@ typeCheck expr ctx = case expr of
         let subst = toSing substlr
         pure ([(False, r)], [], subst, var')
 
-      mkFnlFn :: [(Bool, TIntermediate TypeNormal)] -> [(TypeNormal, String)] -> TIntermediate TypeNormal -> TypeNormal
-              -> (TIntermediate TypeNormal, TypeNormal)
+      mkFnlFn :: [(Bool, TIntermediate Normal)] -> [(Normal, String)] -> TIntermediate Normal -> Normal
+              -> (TIntermediate Normal, Normal)
       mkFnlFn args unbound bdy bodyty = (fnlfn, fnlty)
         where
-          fnlfn :: TIntermediate TypeNormal
+          fnlfn :: TIntermediate Normal
           fnlfn = if (null args)
             then
               (mkbdy [] bdy)
@@ -237,14 +194,14 @@ typeCheck expr ctx = case expr of
 
           -- justification for empty environment: the "inner" (bodyty) should be
           -- an application of the term to all unbound type variables, *and* 
-          fnlty :: TypeNormal
+          fnlty :: Normal
           fnlty =
             case unbound of 
               [] -> bodyty -- TODO: eval bodyty if empty
-              ((ty, var) : xs) -> NormImplDep var ty (mkFnlBdy xs bodyty)
-          mkFnlBdy :: [(TypeNormal, String)] -> TypeNormal -> TypeNormal
+              ((ty, var) : xs) -> NormImplProd var ty (mkFnlBdy xs bodyty)
+          mkFnlBdy :: [(Normal, String)] -> Normal -> Normal
           mkFnlBdy [] ret = ret
-          mkFnlBdy ((ty, var) : xs) ret = NormImplDep var ty (mkFnlBdy xs ret) 
+          mkFnlBdy ((ty, var) : xs) ret = NormImplProd var ty (mkFnlBdy xs ret) 
           
 
   (TLambda args body mty) -> do 
@@ -259,7 +216,7 @@ typeCheck expr ctx = case expr of
        -- TODO: add checking if lambda type already there...
 
      where 
-       buildFnType :: [(TArg TypeNormal, Bool)] -> Subst -> TypeNormal -> EvalM TypeNormal 
+       buildFnType :: [(TArg Normal, Bool)] -> Subst -> Normal -> EvalM Normal 
        buildFnType [] _ bodyty = pure bodyty
        -- TODO: consider substitutions!
        buildFnType ((ty, bl):tys) subst bodyty = do
@@ -268,12 +225,12 @@ typeCheck expr ctx = case expr of
            BoundArg str t ->
              if bl then  
                if Set.member str (free ret_ty) then
-                 pure (NormImplDep str t ret_ty)
+                 pure (NormImplProd str t ret_ty)
                else
                  throwError "bound types must be used in implicit products"
              else
                if Set.member str (free ret_ty) then
-                 pure (NormDep str t ret_ty)
+                 pure (NormProd str t ret_ty)
                else
                  pure (NormArr t ret_ty)
                
@@ -282,13 +239,13 @@ typeCheck expr ctx = case expr of
 
        -- fixArgs will take a list of Typed arguments, and convert any
        -- inference arguments to string arguments
-       fixArgs :: [(TArg TypeNormal, Bool)] -> Subst -> ([(TArg TypeNormal, Bool)], Subst)
-       fixArgs args subst = 
+       fixArgs :: [(TArg Normal, Bool)] -> Subst -> ([(TArg Normal, Bool)], Subst)
+       fixArgs args subst =
          let (args', subst', impl) = fixArgs' args subst
          in (map (\str -> (BoundArg str (NormUniv 0), True)) impl <> args', subst')
          
 
-       fixArgs' :: [(TArg TypeNormal, Bool)] -> Subst -> ([(TArg TypeNormal, Bool)], Subst, [String])
+       fixArgs' :: [(TArg Normal, Bool)] -> Subst -> ([(TArg Normal, Bool)], Subst, [String])
        fixArgs' [] subst = ([], subst, [])
        fixArgs' ((arg, isImpl) : args) subst =
          let (args', subst', impl) = fixArgs' args subst in
@@ -315,7 +272,7 @@ typeCheck expr ctx = case expr of
     (cond', tcond, substcond) <- typeCheck cond ctx
     (e1', te1, subste1) <- typeCheck e1 ctx
     (e2', te2, subste2) <- typeCheck e2 ctx
-    substcnd' <- constrain tcond (NormPrim BoolT)
+    substcnd' <- constrain tcond (PrimType BoolT)
     substterms <- constrain te1 te2
     let substcnd'' = toSing substcnd'
         substterms' = toSing substterms
@@ -350,26 +307,26 @@ typeCheck expr ctx = case expr of
     throwError ("typecheck unimplemented for intermediate term " <> show other)
 
   where
-    updateFromArgs :: Ctx.Context -> [(TArg TypeExpr, Bool)] -> EvalM (Ctx.Context, [(TArg TypeNormal, Bool)])
+    updateFromArgs :: Ctx.Context -> [(TArg Core, Bool)] -> EvalM (Ctx.Context, [(TArg Normal, Bool)])
     updateFromArgs ctx [] = pure (ctx, [])
     updateFromArgs ctx ((arg, bl) : args) = do 
       (ctx', args') <- updateFromArgs ctx args
       case arg of
         BoundArg str ty -> do
-          ty' <- local (Ctx.ctxToEnv ctx) (Type.eval ty)
+          ty' <- local (Ctx.ctxToEnv ctx) (Eval.eval ty)
           pure (Ctx.insert str ty' ctx', ((BoundArg str ty', bl) : args'))
         InfArg str id -> pure (Ctx.insert str (Neu $ NeuVar ("#" <> show id)) ctx',
                                (InfArg str id, bl) : args')
 
 
-typeCheckDef :: TDefinition TypeExpr -> Ctx.Context
-             -> EvalM (TDefinition TypeNormal, String, TypeNormal, Subst)
+typeCheckDef :: TDefinition Core -> Ctx.Context
+             -> EvalM (TDefinition Normal, String, Normal, Subst)
 -- typeCheckDef (TVariantDef name vars id variants ty)
 -- typeCheckDef (TEffectDef  name vars id actions)
 typeCheckDef (TSingleDef name body ty) ctx = do 
   bnd <- case ty of 
     Nothing -> freshVar
-    Just ty -> local (Ctx.ctxToEnv ctx) (Type.eval ty)
+    Just ty -> local (Ctx.ctxToEnv ctx) (Eval.eval ty)
   (body', ty', subst) <- typeCheck body (Ctx.insert name bnd ctx)
   pure (TSingleDef name body' (Just ty'), name, ty', subst)
 
@@ -387,7 +344,7 @@ typeCheckDef (TSingleDef name body ty) ctx = do
 -- TODO: break down constrain so that we have a "top" constrain that can
 -- instantiate either left or right implicit dependent products?  
 -- TODO: perhaps this needs to be done at any level (not just the top?)
-constrain :: TypeNormal -> TypeNormal -> EvalM LRSubst
+constrain :: Normal -> Normal -> EvalM LRSubst
 constrain (Neu (NeuVar v1)) (Neu (NeuVar v2)) =
     if v1 == v2 then pure lrnosubst
     else pure (rightsubst (Neu $ NeuVar v1) v2)
@@ -401,7 +358,7 @@ constrain ty (Neu (NeuVar v)) =
     err "occurs check failed"
   else
     pure (rightsubst ty v)
-constrain (NormPrim p1) (NormPrim p2) =
+constrain (PrimType p1) (PrimType p2) =
   if p1 == p2 then pure lrnosubst else err ("non-equal primitives in constrain: "
                                             <> show p1 <> " and " <> show p2)
 constrain (NormUniv n1) (NormUniv n2) =
@@ -415,7 +372,7 @@ constrain (NormArr l1 r1) (NormArr l2 r2) = do
   s2 <- constrain r1 r2
   composelr s1 s2
 
-constrain (NormDep str l1 r1) (NormDep str' l2 r2) =
+constrain (NormProd str l1 r1) (NormProd str' l2 r2) =
   -- TODO: is dependent subtyping is contravaraiant in the argument and
   -- covariant in the return type
   if str == str' then do
@@ -426,7 +383,7 @@ constrain (NormDep str l1 r1) (NormDep str' l2 r2) =
   else
     err "cannot constrain dependent types with unequal arg"
 
-constrain (NormImplDep str l1 r1) (NormImplDep str' l2 r2) =
+constrain (NormImplProd str l1 r1) (NormImplProd str' l2 r2) =
   -- TODO: same as above (dependent)
   if str == str' then do
     s1 <- constrain l2 l1
@@ -447,71 +404,42 @@ constrain (NormSig m1) (NormSig m2) =
                         Nothing -> err ("cannot constrain types, as rhs does not have field" <> k))
     (pure lrnosubst) m1
 
--- TODO: what if the type in field is transparent? is it evaluated away?
--- constrain (NormDot t1 field1) (TyDot t2 field2) = 
---   if field1 == field2 then 
---     constrain t1 t2
---   else 
---     err ("cannot constrain type" <> show t1 <> " and " <> show t2 <> " as they access different fields")
 
-
--- TOOD: IMNamed/IMEffect 
--- constrain (IMNamed id1 name1 params1 instances1) (IMNamed id2 name2 params2 instances2) = 
-
--- constrain (IMEffect set1 rettype1) (IMEffect set2 rettype2) = 
---   s1 <- (\ty mnd -> do
---             s1 <- mnd
---             s2 <- tryConstraint ty set2
---             compose s1 s2) set1
---   s2 <- constrain rettype1 rettype2
---   compose s1 s2
-
---   where
---     -- Note: as a consistency/constraint, we require that each effect type appears
---     -- only once in the set, even if it has different arguments! 
---     -- TODO: how does subtyping work for instanced effects: sometimes a type is
---     -- an argument, sometimes returned!! 
---     tryConstraint (CustomEff id tys) set = 
---       Set.filter (\t -> case t of
---                      (CustomEff id' tys' -> )
---                      )
-
-
-constrain (NormVector ty1) (NormVector ty2) = constrain ty1 ty2
+constrain (NormArrTy ty1) (NormArrTy ty2) = constrain ty1 ty2
 
 constrain t1 t2 =   
   err ("cannot constrain types" <> show t1 <> " and " <> show t2 <> " as they have different forms")
 
--- toTypeNormal :: TypeNormal -> TypeNormal 
+-- toNormal :: Normal -> Normal 
 
 
 
 -- Implicit argument inference  
-deriveLeft :: TIntermediate TypeNormal -> TypeNormal -> LRSubst -> EvalM (TIntermediate TypeNormal, TypeNormal, LRSubst)
+deriveLeft :: TIntermediate Normal -> Normal -> LRSubst -> EvalM (TIntermediate Normal, Normal, LRSubst)
 deriveLeft tinf ty (s, l, r) = do
   (tinf', ty,  l') <- derive tinf ty l
   pure (tinf', ty, (s, l', r))
-deriveRight :: TIntermediate TypeNormal -> TypeNormal -> LRSubst -> EvalM (TIntermediate TypeNormal, TypeNormal, LRSubst)
+deriveRight :: TIntermediate Normal -> Normal -> LRSubst -> EvalM (TIntermediate Normal, Normal, LRSubst)
 deriveRight tinf ty (s, l, r) = do
   (tinf', ty, r') <- derive tinf ty r
   pure (tinf', ty, (s, l, r'))
 
-derive :: TIntermediate TypeNormal -> TypeNormal -> Subst -> EvalM (TIntermediate TypeNormal, TypeNormal, Subst)
-derive tint (NormImplDep s t1 t2) subst = 
+derive :: TIntermediate Normal -> Normal -> Subst -> EvalM (TIntermediate Normal, Normal, Subst)
+derive tint (NormImplProd s t1 t2) subst = 
   case t1 of 
     (NormUniv 0) -> case findStrSubst s subst of 
       -- TODO: the toMls feels dodgy...
       Just ty -> do
-        fnlTy <- Type.normSubst (ty, s) t2
-        pure (TImplApply tint (TType ty), fnlTy, rmSubst s subst)
-      Nothing -> throwError ("unable to find type substitution in type: " <> show (NormImplDep s t1 t2))
+        fnlTy <- Eval.normSubst (ty, s) t2
+        pure (TImplApply tint (TValue ty), fnlTy, rmSubst s subst)
+      Nothing -> throwError ("unable to find type substitution in type: " <> show (NormImplProd s t1 t2))
     (NormSig sig) -> 
       throwError "inference for signatures not implemented yet!"
     _ -> throwError ("implicit argument only supported for type Type and Signature, not for " <> show t1)
 -- if not implicit application, ignore!
 derive tint ty subst = pure (tint, ty, subst)
 
-findStrSubst :: String -> Subst -> Maybe TypeNormal
+findStrSubst :: String -> Subst -> Maybe Normal
 findStrSubst str ((ty, str') : ss) =
   if str == str' then Just ty
   else findStrSubst str ss
@@ -526,7 +454,7 @@ rmSubst str [] = []
 
 -- Substitution Utilities  
 -- recall 
--- Subst = (Map.Map Int TypeNormal, Map.Map String TypeNormal)
+-- Subst = (Map.Map Int Normal, Map.Map String Normal)
 -- we need to be able to join and query these substitutions
 
 nosubst :: Subst
@@ -534,9 +462,9 @@ nosubst = []
 
 lrnosubst :: LRSubst
 lrnosubst = ([], [], [])
-leftsubst :: TypeNormal -> String -> LRSubst
+leftsubst :: Normal -> String -> LRSubst
 leftsubst ty s = ([], [(ty, s)], [])
-rightsubst :: TypeNormal -> String -> LRSubst
+rightsubst :: Normal -> String -> LRSubst
 rightsubst ty s =  ([], [], [(ty, s)])
 
 
@@ -552,7 +480,7 @@ compose :: Subst -> Subst -> EvalM Subst
   -- TODO SEEMS DODGY!!
 compose str1 str2 = pure $ str1 <> str2
 -- compose (s : ss, str1) (s2, str2) =
---   let iter :: (TypeNormal, String) -> [(TypeNormal, a)] -> EvalM [(TypeNormal, a)]
+--   let iter :: (Normal, String) -> [(Normal, a)] -> EvalM [(Normal, a)]
 --       iter s [] = pure []
 --       iter s ((ty, vr) : ss) = do
 --         ty' <- Type.normSubst s ty
@@ -567,10 +495,10 @@ compose str1 str2 = pure $ str1 <> str2
 composelr :: LRSubst -> LRSubst -> EvalM LRSubst
 composelr ([], l1, r1) (s2, l2, r2) = pure (s2, l1 <> l2, r1 <> r2)
 composelr (s : ss, l1, r1) (s2, l2, r2) =
-  let iter :: (TypeNormal, String) -> [(TypeNormal, a)] -> EvalM [(TypeNormal, a)]
+  let iter :: (Normal, String) -> [(Normal, a)] -> EvalM [(Normal, a)]
       iter s [] = pure []
       iter s ((ty, vr) : ss) = do
-        hd <- Type.normSubst s ty
+        hd <- Eval.normSubst s ty
         tl <- iter s ss
         pure $ (hd, vr) : tl
   in do
@@ -587,11 +515,11 @@ toSing (s, left, right) = (s <> left <> right)
 
 -- Perform substitution
 -- TODO: do what about order of string substitution? rearranging??
-dosubst :: Subst -> TypeNormal  -> EvalM TypeNormal 
+dosubst :: Subst -> Normal  -> EvalM Normal 
 dosubst subst ty = case subst of 
   [] -> pure ty 
   ((sty, s) : ss) -> do
-    ty' <- Type.normSubst (sty, s) ty
+    ty' <- Eval.normSubst (sty, s) ty
     dosubst ss ty'
 
 -- Throw an error if a variable (string) is contained in a substitution
@@ -609,31 +537,31 @@ checkSubst msg str (_, l, r) = checkSubst' str (l <> r)
   
 -- Occurs Check: given a variable x and a type t, x occurs in t 
 -- if some subterm of t is equal to x and x is not equal to t
-occurs :: String -> TypeNormal -> Bool
+occurs :: String -> Normal -> Bool
 occurs _ (Neu (NeuVar _)) = False
 occurs v t = occurs' v t
 
 -- OccursCheck': Subtly different from occurs, this algorithm is recursive:
 -- occurs' is true for variable v and type t if v = t or occurs' is
 -- true for v any subterms in t
-occurs' :: String -> TypeNormal -> Bool
+occurs' :: String -> Normal -> Bool
 occurs' _ (NormUniv _) = False
-occurs' _ (NormPrim _) = False
+occurs' _ (PrimType _) = False
 occurs' v1 (Neu (NeuVar v2)) = v1 == v2
 occurs' v (NormSig sig) = foldr (\(_, ty) b -> b || occurs' v ty) False sig
 occurs' v (NormArr t1 t2) = occurs' v t1 || occurs' v t2
-occurs' v (NormDep str t1 t2) = -- remember: dependent type binding can shadow!
+occurs' v (NormProd str t1 t2) = -- remember: dependent type binding can shadow!
   if v == str then
     occurs' v t1
   else
     occurs' v t1 || occurs' v t2
-occurs' v (NormImplDep str t1 t2) = -- remember: dependent type binding can
+occurs' v (NormImplProd str t1 t2) = -- remember: dependent type binding can
   -- shadow!
   if v == str then
     occurs' v t1
   else
     occurs' v t1 || occurs' v t2
-occurs' v (NormVector ty) = occurs' v ty
+occurs' v (NormArrTy ty) = occurs' v ty
 
   
 
@@ -646,13 +574,13 @@ occurs' v (NormVector ty) = occurs' v ty
 -- + if application, error! (TODO: evaluate if pure!)
 -- Intended to be used so arguments to 'dependent' functions can be converted
 -- into types, and then substituted in to make sure it all works!
-toDepLiteral :: TIntermediate TypeNormal -> Ctx.Context -> EvalM TypeNormal
-toDepLiteral (TValue (Type t)) env = pure t
-toDepLiteral (TType ty) env = pure ty
-toDepLiteral e env = throwError ("non-type expression given to toDepLiteral: " <> show e)
+
+toDepLiteral :: TIntermediate Normal -> Ctx.Context -> EvalM Normal
+toDepLiteral (TValue t) env = pure t
+toDepLiteral e env = throwError ("non-evaluated expression given to toDepLiteral: " <> show e)
 -- toDepLiteral (TSymbol str)
 
-freshVar :: EvalM TypeNormal  
+freshVar :: EvalM Normal  
 freshVar = do
   id <- use var_counter 
   var_counter += 1

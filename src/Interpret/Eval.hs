@@ -1,6 +1,9 @@
-module Interpret.Eval (Expr,
+module Interpret.Eval (Normal,
                        EvalM,
                        evalToIO,
+                       eval,
+                       evalTop,
+                       normSubst,
 
                        liftFun,
                        liftFun2,
@@ -18,15 +21,270 @@ import qualified Control.Monad.Reader as Reader
 import qualified Control.Monad.State as State
 import qualified Interpret.Transform as Action
 import qualified Interpret.Environment as Env
-import qualified Interpret.Type as Type
+
+import Syntax.Utils  
 
 import Interpret.EvalM
   
 import Data
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Interpret.Transform hiding (lift)
 
 
+-- module Interpret.Type where
+
+-- import qualified Data.Map as Map
+-- import qualified Data.Set as Set
+-- import Data (Core(..),
+--              Normal,
+--              Normal'(..),
+--              Neutral,
+--              Neutral'(..),
+--              Environment,
+--              EvalM) 
+-- import Interpret.EvalM
+-- import Typecheck.TypeUtils
+-- import qualified Interpret.Environment as Env
+
+evalTop :: TopCore -> EvalM (Either Normal (Environment -> Environment))
+evalTop (TopExpr e) = eval e >>= (\val -> pure (Left val))
+evalTop (TopDef def) = case def of
+  SingleDef name body ty -> do
+    val <- eval body
+    pure (Right (Env.insertCurrent name val))
+  OpenDef body sig -> do
+    mdle <- eval body
+    case mdle of 
+      NormMod m -> do
+        let m' = restrict m sig 
+        pure (Right (\env -> foldr (\(k, val) env -> Env.insertCurrent k val env) env m'))
+      _ -> throwError "cannot open non-module"
+  
+-- evaluate an expression, to a normal form (not a value!). This means that the
+-- environment now contains only normal forms!
+eval :: Core -> EvalM Normal
+eval (CNorm n) = pure n
+eval (CVar var) = do
+  env <- ask
+  case Env.lookup var env of 
+    Just val -> pure val
+    Nothing -> throwError ("could not find variable" <> var <> " in context")
+
+eval (CArr l r) = do
+  l' <- eval l 
+  r' <- eval r
+  pure $ NormArr l' r'
+  
+eval (CProd var a b) = do
+  a' <- eval a
+  b' <- localF (Env.insert var a') (eval b)
+  pure $ NormProd var a' b'
+
+eval (CImplProd var a b) = do
+  a' <- eval a
+  b' <- localF (Env.insert var (Neu (NeuVar var))) (eval b)
+  pure $ NormImplProd var a' b'
+
+eval (CAbs var body ty) = do   
+  body' <- localF (Env.insert var (Neu (NeuVar var))) (eval body)
+  pure $ NormAbs var body' ty
+
+eval (CApp l r) = do
+  l' <- eval l
+  r' <- eval r
+  case l' of 
+    Neu neu -> pure $ Neu (NeuApp neu r')
+    NormArr _ r -> pure r 
+    NormProd var ty body -> do
+      if t_hasType r' ty then
+        normSubst (r', var) body
+      else
+        throwError "bad type application"
+    NormAbs var body ty -> do
+      -- if t_hasType r' ty then
+      normSubst (r', var) body
+      -- else
+      --   throwError "bad type application"
+    Builtin fn ty -> fn r'
+
+
+-- eval (TySig defs) = do
+--   NormSig $ foldDefs defs
+--   where
+--     foldDefs :: [(String, TypeExpr)] -> EvalM  [(String, Normal)]
+--     foldDefs [] = pure []
+--     foldDefs ((var, ty) : defs) = do
+--       ty' <- eval ty
+--       localF (insertType var ty') (eval $ foldDefs defs)
+
+eval (CDot ty field) = do
+  ty' <- eval ty
+  case ty' of 
+    Neu neu ->
+      pure $ Neu (NeuDot neu field)
+    NormSig sig -> case getField field sig of
+      Just val -> pure val
+      Nothing -> throwError ("can't find field" <> field)
+
+
+normSubst :: (Normal, String) -> Normal -> EvalM Normal
+normSubst (val, var) ty = case ty of 
+  Neu neu -> neuSubst (val, var) neu
+  PrimType p -> pure $ PrimType p
+  PrimVal p -> pure $ PrimVal p
+  NormUniv n -> pure $ NormUniv n
+
+  
+  NormProd var' a b ->
+    if var == var' then  do
+      a' <- normSubst (val, var) a
+      pure $ NormProd var' a' b
+    else do
+      a' <- normSubst (val, var) a
+      b' <- normSubst (val, var) b
+      pure $ NormProd var' a' b'
+  NormImplProd var' a b -> 
+    if var == var' then  do
+      a' <- normSubst (val, var) a
+      pure $ NormImplProd var' a' b
+    else do
+      a' <- normSubst (val, var) a
+      b' <- normSubst (val, var) b
+      pure $ NormImplProd var' a' b'
+  NormArr a b -> do
+      a' <- normSubst (val, var) a
+      b' <- normSubst (val, var) b
+      pure $ NormArr a' b'
+  NormAbs var' body ty -> do 
+    if var == var' then  do
+      ty' <- normSubst (val, var) ty
+      pure $ NormAbs var' body ty'
+    else do
+      body' <- normSubst (val, var) body
+      ty' <- normSubst (val, var) ty
+      pure $ NormAbs var' body' ty'
+
+
+  -- NormMod [(String, Normal)]
+  -- NormSig [(String, Normal)]
+
+  -- IOAction
+
+  BuiltinMac m -> pure $ BuiltinMac m
+  Special sp   -> pure $ Special sp
+  Keyword key  -> pure $ Keyword key
+  Symbol sym   -> pure $ Symbol sym
+  AST ast      -> pure $ AST ast
+
+  -- Undef 
+
+  
+neuSubst :: (Normal, String) -> Neutral -> EvalM Normal
+neuSubst (val, var) neutral = case neutral of 
+  NeuVar var' ->
+    if var == var' then
+      pure val
+    else 
+      pure $ Neu (NeuVar var')
+  NeuApp l r -> do
+    l' <- neuSubst (val, var) l
+    r' <- normSubst (val, var) r
+    case l' of 
+      Neu n -> pure $ Neu (NeuApp n r')
+      NormProd var a b -> do
+        if t_hasType r' a then
+          normSubst (r', var) b
+        else
+          throwError "bad type application"
+      Builtin fn ty -> fn r'
+      v -> throwError ("bad app:" <> show v)
+
+  NeuBuiltinApp fn neu ty -> do
+    arg <- neuSubst (val, var) neu
+    fn arg
+      
+  NeuBuiltinApp2 fn neu ty -> do
+    arg <- neuSubst (val, var) neu
+    pure (liftFun (fn arg) ty)
+
+  NeuBuiltinApp3 fn neu ty -> do
+    arg <- neuSubst (val, var) neu
+    pure (liftFun2 (fn arg) ty)
+
+  -- NeuDot sig field -> do
+  --   sig' <- neuSubst 
+
+
+
+instance Eq (Normal' m) where
+  a == b = norm_equiv a b (Set.empty, 0) (Map.empty, Map.empty)
+
+
+-- TODO: add η reductions to the equality check
+norm_equiv :: (Normal' m) -> (Normal' m) -> Generator -> (Map.Map String String, Map.Map String String) -> Bool 
+norm_equiv (NormUniv n1) (NormUniv n2) gen rename = n1 == n2
+norm_equiv (Neu n1) (Neu n2) gen rename = neu_equiv n1 n2 gen rename
+norm_equiv (PrimVal p1) (PrimVal p2) _ _ = p1 == p2
+norm_equiv (PrimType p1) (PrimType p2) _ _ = p1 == p2
+
+-- Note: arrows and dependent types /can/ be equivalent if the bound variable
+-- doesn't come on the LHS
+norm_equiv (NormProd var a b) (NormProd var' a' b') gen (lrename, rrename) = 
+  let (nvar, gen') = genFresh gen
+  in (a == a') && (norm_equiv b b'
+                   (useVars [var, var', nvar] gen')
+                   (Map.insert var nvar lrename, Map.insert var' nvar rrename))
+norm_equiv (NormArr a b)     (NormArr a' b') gen rename = 
+  (norm_equiv a a' gen rename) || (norm_equiv b b' gen rename)
+norm_equiv (NormProd var a b) (NormArr a' b') gen rename = 
+  if Set.member var (free b) then
+    False
+  else
+    norm_equiv a a' gen rename && norm_equiv b b' gen rename
+norm_equiv (NormArr  a b) (NormProd var' a' b') gen rename = 
+  if Set.member var' (free b') then
+    False
+  else
+    norm_equiv a a' gen rename && norm_equiv b b' gen rename
+-- norm_equiv (NormImplProd var a b) (NormImplProd var' a' b') gen rename = 
+--   (var a b) || ()
+
+
+
+  
+neu_equiv :: (Neutral' m) -> (Neutral' m) -> Generator -> (Map.Map String String, Map.Map String String)
+        -> Bool 
+neu_equiv (NeuVar v1) (NeuVar v2) used (lrename, rrename) =
+  case (Map.lookup v1 lrename, Map.lookup v2 rrename) of
+    (Just v1', Just v2') -> v1 == v2
+    (_, _) -> False
+neu_equiv (NeuApp l1 r1) (NeuApp l2 r2) used rename = 
+  (neu_equiv l1 l2 used rename) && (norm_equiv r1 r2 used rename)
+neu_equiv (NeuDot neu1 field1) (NeuDot neu2 field2) used rename
+  = (field1 == field2) && neu_equiv neu1 neu2 used rename 
+
+
+
+
+
+type Generator = (Set.Set String, Int)  
+
+useVar :: String -> Generator -> Generator  
+useVar var (set, id) = (Set.insert var set, id)
+
+useVars :: [String] -> Generator -> Generator  
+useVars vars (set, id) = (foldr Set.insert set vars, id)
+
+  
+genFresh :: Generator -> (String, Generator)
+genFresh (set, id) =
+  let var = ("#" <> show id)
+  in
+    if Set.member var set then
+      genFresh (set, id+1)
+    else
+      (var, (Set.insert var set, id+1))
 
 
 evalToIO :: EvalM a -> Environment -> ProgState -> IO (Maybe (a, ProgState))
@@ -44,7 +302,7 @@ evalToIO (ActionMonadT inner_mnd) ctx state =
       putStrLn $ "error: " ++ err
       return Nothing
   where
-    accumEffects :: EvalM Expr -> (Expr -> EvalM a) -> ProgState -> IO (Maybe (a, ProgState))
+    accumEffects :: EvalM Normal -> (Normal -> EvalM a) -> ProgState -> IO (Maybe (a, ProgState))
     accumEffects (ActionMonadT inner_mnd) cnt state = 
       case runState (runExceptT (runReaderT inner_mnd ctx)) state of
         (Right (RaiseAction cnt2 id1 id2 args (Just f)), state') -> do 
@@ -60,30 +318,46 @@ evalToIO (ActionMonadT inner_mnd) ctx state =
           return Nothing
 
 
-liftFun :: (Expr -> EvalM Expr) -> TypeNormal -> Expr
-liftFun f ty = InbuiltFun f ty
+interceptNeutral :: (Normal -> EvalM Normal) -> Normal -> Normal -> EvalM Normal
+interceptNeutral f ty (Neu neutral) = pure $ Neu (NeuBuiltinApp (interceptNeutral f ty) neutral ty)
+interceptNeutral f ty val = f val
 
-liftFun2 :: (Expr -> Expr -> EvalM Expr) -> TypeNormal -> Expr
-liftFun2 f ty = InbuiltFun (\val ->
-                              case ty of
-                                (NormArr _ r) -> pure $ liftFun (f val) r
-                                (NormDep var _ body) -> pure $ liftFun (f val) body
-                                (NormImplDep var _ body) -> pure $ liftFun (f val) body)
-                ty
 
-liftFun3 :: (Expr -> Expr -> Expr -> EvalM Expr) -> TypeNormal -> Expr 
-liftFun3 f ty = InbuiltFun (\val ->
-                              case ty of
-                                (NormArr _ r) -> pure $ liftFun2 (f val) r
-                                (NormDep var _ body) -> pure $ liftFun2 (f val) body
-                                (NormImplDep var _ body) -> do pure $ liftFun2 (f val) body)
-                ty
+-- liftFun needs to intercept /neutral/ terms!
+liftFun :: (Normal -> EvalM Normal) -> Normal -> Normal
+liftFun f ty = Builtin (interceptNeutral f ty) ty
 
-liftFun4 :: (Expr -> Expr -> Expr -> Expr -> EvalM Expr) -> TypeNormal -> Expr 
-liftFun4 f ty = InbuiltFun (\val ->
-                              case ty of
-                                (NormArr _ r) -> pure $ liftFun3 (f val) r
-                                (NormDep var _ body) -> pure $ liftFun3 (f val) body
-                                (NormImplDep var _ body) -> pure $ liftFun3 (f val) body)
-                ty
+liftFun2 :: (Normal -> Normal -> EvalM Normal) -> Normal -> Normal
+liftFun2 f ty =
+  let f' = f in
+    Builtin (\val -> case val of
+                (Neu neu) -> pure $ Neu $ NeuBuiltinApp2 f neu ty
+                _ ->
+                  case ty of
+                    (NormArr _ r) -> pure $ liftFun (f' val) r
+                    (NormProd var _ body) -> pure $ liftFun (f' val) body
+                    (NormImplProd var _ body) -> pure $ liftFun (f' val) body)
+    ty
+
+liftFun3 :: (Normal -> Normal -> Normal -> EvalM Normal) -> Normal -> Normal 
+liftFun3 f ty =
+  let f' = f in
+    Builtin (\val -> case val of
+                (Neu neu) -> pure $ Neu $ NeuBuiltinApp3 f neu ty
+                _ -> case ty of
+                  (NormArr _ r) -> pure $ liftFun2 (f' val) r
+                  (NormProd var _ body) -> pure $ liftFun2 (f' val) body
+                  (NormImplProd var _ body) -> do pure $ liftFun2 (f' val) body)
+    ty
+
+liftFun4 :: (Normal -> Normal -> Normal -> Normal -> EvalM Normal) -> Normal -> Normal 
+liftFun4 f ty =
+  let f' = f in
+    Builtin (\val -> case val of
+                (Neu neu) -> pure $ Neu $ NeuBuiltinApp4 f neu ty
+                _ -> case ty of
+                  (NormArr _ r) -> pure $ liftFun3 (f val) r
+                  (NormProd var _ body) -> pure $ liftFun3 (f val) body
+                  (NormImplProd var _ body) -> pure $ liftFun3 (f val) body)
+    ty
 

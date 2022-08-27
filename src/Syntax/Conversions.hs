@@ -1,13 +1,12 @@
 module Syntax.Conversions where
 
-import Data(Expr,
-            Value(Type, CConstructor, CFunction),
-            EvalM,
-            Core (CVal, CAbs),
+import Data(EvalM,
+            Core (CNorm, CAbs),
             Definition(..),
-            TypeNormal(..),
-            TypeNeutral(..),
-            TypeExpr(..))
+            Normal,
+            Normal'(..),
+            Neutral,
+            Neutral'(..))
 import Syntax.Intermediate(Intermediate(..),
                            IDefinition(..),
                            IPattern(..),
@@ -24,6 +23,7 @@ import Syntax.TIntermediate
 -- import Typecheck.TypeUtils (isLarge)
 
 import qualified Core
+import qualified Interpret.Eval as Eval
 import qualified Typecheck.Typecheck
 
 -- evaluate for the typechecker
@@ -32,7 +32,7 @@ import qualified Typecheck.Typecheck
   
   
 
-toTIntermediateTop :: Intermediate -> Ctx.Context -> EvalM (TIntTop TypeExpr)
+toTIntermediateTop :: Intermediate -> Ctx.Context -> EvalM (TIntTop Core)
 toTIntermediateTop (IDefinition def) ctx =    
   case def of 
     ISingleDef s i -> do
@@ -102,7 +102,7 @@ toTIntermediateTop (IDefinition def) ctx =
 toTIntermediateTop i env = TExpr <$> toTIntermediate i env
 
 -- TODO: make sure to update the context with typeLookup
-toTIntermediate :: Intermediate -> Ctx.Context -> EvalM (TIntermediate TypeExpr)
+toTIntermediate :: Intermediate -> Ctx.Context -> EvalM (TIntermediate Core)
 toTIntermediate (IValue expr) _ = pure (TValue expr)
 toTIntermediate (ISymbol s) env = pure (TSymbol s)
 toTIntermediate (IAccess i s) env = do
@@ -126,12 +126,12 @@ toTIntermediate (ILambda args bdy) ctx = do
   bdy' <- toTIntermediate bdy ctx'
   pure $ TLambda args' bdy' Nothing
   where
-    processArgs :: [(IArg, Bool)] -> Ctx.Context -> EvalM ([(TArg TypeExpr, Bool)], Ctx.Context)
+    processArgs :: [(IArg, Bool)] -> Ctx.Context -> EvalM ([(TArg Core, Bool)], Ctx.Context)
     processArgs [] ctx = pure ([], ctx)
     processArgs ((Sym s, b) : xs) ctx =
       if b then  do
-        (tl, ctx') <- processArgs xs (Ctx.insertVal s (Type $ (Neu (NeuVar s))) (NormUniv 0) ctx)
-        pure (((BoundArg s (TyNorm (NormUniv 0)), b) : tl), ctx')
+        (tl, ctx') <- processArgs xs (Ctx.insertVal s (Neu (NeuVar s)) (NormUniv 0) ctx)
+        pure (((BoundArg s (CNorm (NormUniv 0)), b) : tl), ctx')
       else do
         (tl, ctx') <- processArgs xs ctx
         var <- fresh_var
@@ -139,16 +139,17 @@ toTIntermediate (ILambda args bdy) ctx = do
     processArgs ((Annotation s i, b) : xs) ctx = do
       ty <- local (Ctx.ctxToEnv ctx) (evalIntermediate i ctx)
       case ty of
-        Type t -> do
-          (tl, ctx') <- processArgs xs (Ctx.insertVal s (Type (Neu $ NeuVar s)) (NormUniv 0) ctx)
-          pure (((BoundArg s (TyNorm t), b) : tl), ctx')
+        -- TODO: check it it is a type (now an algorithmic judgement...)
+        t -> do
+          (tl, ctx') <- processArgs xs (Ctx.insertVal s (Neu $ NeuVar s) (NormUniv 0) ctx)
+          pure (((BoundArg s (CNorm t), b) : tl), ctx')
         _ -> throwError ("expected type in function annotation, got: " <> show ty)
 
 
 toTIntermediate (IModule defList) env = do
   TModule <$> getDefs defList env
   where
-    getDefs :: [IDefinition] -> Ctx.Context -> EvalM [TDefinition TypeExpr]
+    getDefs :: [IDefinition] -> Ctx.Context -> EvalM [TDefinition Core]
     getDefs [] _ = pure []
     getDefs (x:xs) env = case x of
       ISingleDef s i -> do
@@ -168,7 +169,7 @@ toTIntermediate (IModule defList) env = do
 toTIntermediate (ISignature defList) env = do
   TSignature <$> getDefs defList env
   where
-    getDefs :: [IDefinition] -> Ctx.Context -> EvalM [TDefinition TypeExpr]
+    getDefs :: [IDefinition] -> Ctx.Context -> EvalM [TDefinition Core]
     getDefs [] _ = pure []
     getDefs (x:xs) env = case x of
       ISingleDef s i -> do
@@ -197,13 +198,13 @@ toTIntermediate (IMatch e1 cases) ctx = do
   pure (TMatch e1' cases')
 
   where
-    toCase :: (IPattern, Intermediate) -> EvalM (TPattern TypeExpr, TIntermediate TypeExpr)
+    toCase :: (IPattern, Intermediate) -> EvalM (TPattern Core, TIntermediate Core)
     toCase (ipat, e) = do 
       tpat <- toTPat ipat 
       e' <- toTIntermediate e ctx
       pure (tpat, e')
 
-    toTPat :: IPattern -> EvalM (TPattern TypeExpr)
+    toTPat :: IPattern -> EvalM (TPattern Core)
     toTPat IWildCard = pure TWildCardPat
     toTPat (ISingPattern s) = pure (TBindPat s)
     toTPat (ICheckPattern pat subPatterns) = do
@@ -214,12 +215,12 @@ toTIntermediate (IMatch e1 cases) ctx = do
       val <- local (Ctx.ctxToEnv ctx) (evalIntermediate expr ctx)
       case val of 
         -- TODO: what to do with params?
-        CConstructor name id1 id2 len params [] ty ->
-          if len == length subPatterns then
-            pure (TVarPat id1 id2 subPatterns (TyNorm ty))
-          else
-            throwError ("subpatterns bad size for pattern: " <> name
-                        <> " expected " <> show len <> "got" <> show (length subPatterns))
+        -- CConstructor name id1 id2 len params [] ty ->
+        --   if len == length subPatterns then
+        --     pure (TVarPat id1 id2 subPatterns (TyNorm ty))
+        --   else
+        --     throwError ("subpatterns bad size for pattern: " <> name
+        --                 <> " expected " <> show len <> "got" <> show (length subPatterns))
         _ -> throwError ("couldn't extract pattern from val: " <> show val)
 
 
@@ -228,11 +229,11 @@ toTIntermediate x _ = throwError ("toTIntermediate not implemented for: "  <> sh
 
 
 
-evalIntermediate :: Intermediate -> Ctx.Context -> EvalM (Value EvalM)
+evalIntermediate :: Intermediate -> Ctx.Context -> EvalM Normal
 evalIntermediate term ctx = do
   t_term <- toTIntermediate term ctx
   (checked, _, _) <- typeCheck t_term ctx -- TODO: dodge??
   c_term <- case runExcept (Core.toCore checked) of 
         Left err -> throwError err
         Right val -> pure val
-  Core.eval c_term
+  Eval.eval c_term

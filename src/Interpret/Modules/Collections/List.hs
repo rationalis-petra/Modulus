@@ -86,8 +86,8 @@ listModuleSource = "\
 \   (def `>>=` bind))"
 
 
-listModule :: EvalM Expr
-listModule = pure (Module Map.empty)
+listModule :: EvalM Normal
+listModule = pure (NormMod [])
 -- listModule = buildModule
 --                Map.empty
 --                listModuleSource

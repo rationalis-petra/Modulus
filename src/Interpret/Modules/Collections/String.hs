@@ -12,36 +12,36 @@ import Interpret.Transform
 
   
 
-fnConcat :: Expr -> Expr -> EvalM Expr  
+fnConcat :: Normal -> Normal -> EvalM Normal  
 fnConcat (PrimVal (String s1)) (PrimVal (String s2)) =
   pure $ PrimVal $ String (s1 <> s2)
 fnConcat _ _ = lift $ throwError "append expects strings as arguments"
-mlsConcat = liftFun2 fnConcat (NormArr (NormPrim StringT)
-                               (NormArr (NormPrim StringT) (NormPrim StringT)))
+mlsConcat = liftFun2 fnConcat (NormArr (PrimType StringT)
+                               (NormArr (PrimType StringT) (PrimType StringT)))
 
-mlsElement :: Expr
-mlsElement = liftFun2 element (NormArr (NormPrim StringT)
-                               (NormArr (NormPrim IntT) (NormPrim CharT)))
+mlsElement :: Normal
+mlsElement = liftFun2 element (NormArr (PrimType StringT)
+                               (NormArr (PrimType IntT) (PrimType CharT)))
   where
-    element :: Expr -> Expr -> EvalM Expr  
+    element :: Normal -> Normal -> EvalM Normal  
     element (PrimVal (String s)) (PrimVal (Int i)) =
       pure $ PrimVal $ Char (index s (fromEnum i))
     element _ _ = lift $ throwError "element expects string/idx as arguments"
     
 
-mlsLength :: Expr
-mlsLength = liftFun len (NormArr (NormPrim StringT) (NormPrim IntT))
+mlsLength :: Normal
+mlsLength = liftFun len (NormArr (PrimType StringT) (PrimType IntT))
   where
-    len :: Expr -> EvalM Expr  
+    len :: Normal -> EvalM Normal  
     len (PrimVal (String s)) =
       pure $ PrimVal $ Int (toInteger (Text.length s))
     len _ = lift $ throwError "length expects string as an argument"
                                   
 
-stringModule :: Expr
-stringModule = Module $ Map.fromList [
-  ("string", Type (NormPrim StringT)),
-  ("t",      Type (NormPrim StringT)),
+stringModule :: Normal
+stringModule = NormMod $ [
+  ("string", PrimType StringT),
+  ("t",      PrimType StringT),
   ("append", mlsConcat),
   ("⋅",       mlsConcat),
   ("!!",     mlsElement),

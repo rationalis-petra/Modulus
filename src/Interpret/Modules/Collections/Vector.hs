@@ -13,17 +13,17 @@ import Interpret.Transform
 
   
 
-fnConcat :: Expr -> Expr -> Expr -> EvalM Expr  
-fnConcat _ (Coll (Vector v1)) (Coll (Vector v2)) = pure $ Coll $ Vector (v1 <> v2)
-fnConcat _ _ _ = lift $ throwError "concat expects strings as arguments"
-mlsConcat = liftFun3 fnConcat (NormImplDep "a" (NormUniv 0) 
-                               (NormArr (NormVector (Neu (NeuVar "a")))
-                                (NormArr (NormVector (Neu (NeuVar "a"))) (NormVector (Neu (NeuVar "a"))))))
+-- fnConcat :: Normal -> Normal -> Normal -> EvalM Normal  
+-- fnConcat _ (Coll (Vector v1)) (Coll (Vector v2)) = pure $ Coll $ Vector (v1 <> v2)
+-- fnConcat _ _ _ = lift $ throwError "concat expects strings as arguments"
+-- mlsConcat = liftFun3 fnConcat (NormImplDep "a" (NormUniv 0) 
+--                                (NormArr (NormVector (Neu (NeuVar "a")))
+--                                 (NormArr (NormVector (Neu (NeuVar "a"))) (NormVector (Neu (NeuVar "a"))))))
                                 
 
-vectorModule :: Expr
-vectorModule = Module $ Map.fromList [
-  -- Types
-  ("concat",  mlsConcat),
-  ("⋅", mlsConcat)
-  ]
+vectorModule :: Normal
+vectorModule = NormMod []
+  -- -- Types
+  -- ("concat",  mlsConcat),
+  -- ("⋅", mlsConcat)
+  -- ]

@@ -11,9 +11,9 @@ import Data
 
 
   
-collModule :: EvalM (Map.Map String Expr)
+collModule :: EvalM [(String, Normal)]
 collModule = do
   lm <- listModule
-  pure $ Map.fromList [("String",   stringModule),
-                       ("List",    lm),
-                       ("Vector",  vectorModule)]
+  pure $  [("String",  stringModule),
+           ("List",    lm),
+           ("Vector",  vectorModule)]

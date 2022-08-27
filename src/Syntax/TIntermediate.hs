@@ -2,12 +2,12 @@ module Syntax.TIntermediate where
 -- After the intermediate representation
 -- we have... the 
 
-import Data(Expr,
-            Value(Type, CConstructor),
-            EvalM,
-            Core (CVal),
+import Data(EvalM,
+            Core (CNorm),
             Definition(..),
-            TypeExpr(..))
+            Normal,
+            Normal'(..),
+            Core(..))
 import Syntax.Intermediate(Intermediate(..),
                            IDefinition(..),
                            IPattern(..),
@@ -65,8 +65,7 @@ data TPattern ty
 
 {-- --}
 data TIntermediate ty
-  = TValue Expr
-  | TType ty -- upon coalesce --> convert to TValue (MType (toMls ty))
+  = TValue Normal
   | TSymbol String
   | TApply (TIntermediate ty) (TIntermediate ty)
   | TImplApply (TIntermediate ty) (TIntermediate ty)

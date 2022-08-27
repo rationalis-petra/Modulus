@@ -1,8 +1,8 @@
 module Interpret.Modules.BuildModule where
 
 import Data(Environment(..),
-            Value(Module),
-            Expr,
+            Normal'(NormMod),
+            Normal,
             EvalM)
 
 import Control.Monad.Except (runExcept)
@@ -20,17 +20,18 @@ import Interpret.EvalM (local, throwError)
 import Interpret.Transform (lift)
 import Interpret.Modules.Core
 import qualified Core
+import qualified Interpret.Eval as Eval
 
 import qualified Data.Map as Map
 
 
 moduleContext = Environment {
   localCtx = Map.empty,
-  currentModule = Module coreStructure,
-  globalModule = Module Map.empty}
+  currentModule = NormMod coreStructure,
+  globalModule = NormMod []}
 
   
-buildModule :: Map.Map String Expr -> String -> EvalM Expr
+buildModule :: Map.Map String Normal -> String -> EvalM Normal
 buildModule mp s = 
   case parseModule "internal-module" (pack s) of 
     Left err -> throwError (show err)
@@ -45,7 +46,7 @@ buildModule mp s =
           core <- case runExcept (Core.toCore checked) of 
             Left err -> throwError err
             Right val -> pure val
-          local moduleContext (Core.eval core)
+          local moduleContext (Eval.eval core)
         --     (eval (IModule (Map.foldrWithKey
         --                   (\k v m -> (ISingleDef k (IValue v)) : m) m mp)))
         -- Right (ISignature m) -> 
