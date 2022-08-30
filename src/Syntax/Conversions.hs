@@ -132,17 +132,27 @@ toTIntermediate (ILambda args bdy) ctx = do
         var <- fresh_var
         pure $ (((InfArg s var), b) : tl, ctx')
     processArgs ((Annotation s i, b) : xs) ctx = do
-      ty <- local (Ctx.ctxToEnv ctx) (evalIntermediate i ctx)
-      case ty of
-        -- TODO: check it it is a type (now an algorithmic judgement...)
-        t -> do
-          (tl, ctx') <- processArgs xs (Ctx.insertVal s (Neu $ NeuVar s) (NormUniv 0) ctx)
-          pure (((BoundArg s (CNorm t), b) : tl), ctx')
-        _ -> throwError ("expected type in function annotation, got: " <> show ty)
+      ty <- local (Ctx.ctxToEnv ctx) (intermediateToCore i ctx)
+      -- TODO: add judgement that this is, in fact, a type!
+      (tl, ctx') <- processArgs xs (Ctx.insertVal s (Neu $ NeuVar s) (NormUniv 0) ctx)
+      pure (((BoundArg s ty, b) : tl), ctx')
+
+toTIntermediate (IProd arg bdy) ctx = do
+  (arg', ctx') <- case arg of
+    (Sym var, bl) ->
+      throwError "cannot place sym arg in dependent product"
+    (Annotation var ty, bl) -> do
+      ty' <- evalIntermediate ty ctx
+      pure ((BoundArg var (CNorm ty'), bl), (Ctx.insertVal var (Neu $ NeuVar var) ty' ctx))
+    (WildCard ty, bl) ->  do
+      ty' <- evalIntermediate ty ctx
+      pure ((TWildCard (CNorm ty'), bl), ctx)
+  body' <- toTIntermediate bdy ctx' 
+  pure $ TProd arg' body'
 
 
 toTIntermediate (IModule defList) env = do
-  TModule <$> getDefs defList env
+  TStructure <$> getDefs defList env
   where
     getDefs :: [IDefinition] -> Ctx.Context -> EvalM [TDefinition Core]
     getDefs [] _ = pure []
@@ -234,6 +244,15 @@ evalIntermediate term ctx = do
   Eval.eval c_term
 
 
+intermediateToCore :: Intermediate -> Ctx.Context -> EvalM Core
+intermediateToCore term ctx = do
+  t_term <- toTIntermediate term ctx
+  (checked, _, _) <- typeCheck t_term ctx -- TODO: dodge??
+  case runExcept (toCore checked) of
+    Left err -> throwError err
+    Right val -> pure val
+  
+
 
 err = Except.throwError
   
@@ -311,7 +330,23 @@ toCore (TLambda args body lty) = do
     getVar (BoundArg var _, _)  = var
     getVar (InfArg var _  , _)  = var
 
-toCore (TModule map) = do
+toCore (TProd (arg, bl) body) = do
+  body' <- toCore body 
+  case arg of 
+    BoundArg var ty ->
+      if bl then 
+        pure $ CImplProd var (CNorm ty) body'
+      else
+        pure $ CProd var (CNorm ty) body'
+    TWildCard ty ->
+      if bl then
+        err "cannot have implicit arrow!"
+      else
+        pure $ CArr (CNorm ty) body'
+  
+  
+
+toCore (TStructure map) = do
   coreDefs <- mapM defToCore map
   pure (CSct coreDefs)
   where

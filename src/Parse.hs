@@ -61,8 +61,8 @@ pLiteral = (PrimVal <$> choice [pUnit, pBool, pFloat, pInteger, pString])
   where
     pBool = Bool <$> (pTrue <|> pFalse) 
       where
-        pTrue = symbol "True" *> return True
-        pFalse = symbol "False" *> return False
+        pTrue = symbol "true" *> return True
+        pFalse = symbol "false" *> return False
   
     sign :: Num a => Parser a -> Parser a 
     sign p = (try (char '-') >> ((\x -> -x) <$> p)) <|> p

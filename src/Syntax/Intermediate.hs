@@ -22,7 +22,10 @@ newtype GlobCtx = GlobCtx (Environment, (Set.Set String))
 
 
 -- arguments to functions may have optional type annotations
-data IArg = Sym String | Annotation String Intermediate
+data IArg
+  = Sym String
+  | Annotation String Intermediate
+  | WildCard Intermediate
   deriving Show
 
 
@@ -31,7 +34,7 @@ data IDefinition
   | IVariantDef String [String] [(String, [Intermediate])] 
   | IEffectDef  String [String] [(String, [Intermediate])]
   | IOpenDef Intermediate
-  deriving (Show)
+  deriving Show
 
 -- Untyped (typed) intermediate
 data Intermediate
@@ -48,6 +51,7 @@ data Intermediate
   | ILet [(String, Intermediate)] Intermediate
   | ILetOpen [Intermediate] Intermediate
   | ILambda [(IArg, Bool)] Intermediate
+  | IProd (IArg, Bool) Intermediate
   | IMacro [IArg] Intermediate
   | IModule [IDefinition] 
   | ISignature [IDefinition] 
@@ -72,7 +76,7 @@ lookup s (GlobCtx (ctx, shadowed)) =
     Nothing
   else
     Env.lookup s ctx
-shadow (s) (GlobCtx (ctx, shadowed)) = 
+shadow s (GlobCtx (ctx, shadowed)) = 
   GlobCtx (ctx, Set.insert s shadowed)
 
 toIntermediate :: AST -> Environment -> Either String Intermediate
@@ -105,6 +109,7 @@ toIntermediateM (Cons (e : es)) ctx = do
     (IValue (Special Access)) -> mkAccess es ctx
     (IValue (Special MkStructure)) -> mkModule es ctx
     (IValue (Special MkSig)) -> mkSig es ctx
+    (IValue (Special MkProd)) -> mkProd es ctx
     (IValue (Special Open)) -> (mkOpen es ctx) >>= (pure . IDefinition)
     (IValue (Special LetOpen)) -> (mkLetOpen es ctx)
     (IValue (Special MkQuote)) -> case es of
@@ -156,6 +161,27 @@ mkLambda [Cons (Atom (Keyword "implicit") : isyms), syms, body] ctx = do
   body <- toIntermediateM body new_ctx
   pure $ ILambda (map (\x -> (x, True)) implList <> map (\x -> (x, False)) symList) body
 mkLambda ast _ = throwError ("bad syntax in lambda: " ++ show ast)
+
+mkProd :: [AST] -> GlobCtx -> Except String Intermediate
+mkProd [arg, body] ctx = 
+  let (impl, arg') = case arg of
+        Cons [Atom (Keyword "implicit"), arg'] -> (True, arg')
+        _ -> (False, arg)
+  in do
+    (arg'', var) <- case arg' of
+          Cons [Atom (Special Annotate), Atom (Symbol s), ty] -> do
+            ty' <- toIntermediateM ty ctx
+            pure (Annotation s ty', Just s)
+          ty -> do
+            ty' <- toIntermediateM ty ctx
+            pure (WildCard ty', Nothing)
+    case var of    
+      Just v -> IProd (arg'', impl) <$> toIntermediateM body (shadow v ctx) 
+      Nothing -> IProd (arg'', impl) <$> toIntermediateM body ctx 
+
+
+
+mkProd ast _ = throwError ("bad syntax in product (→): " ++ show ast)
 
 mkMacro :: [AST] -> GlobCtx -> Except String Intermediate
 mkMacro [syms, body] ctx = do

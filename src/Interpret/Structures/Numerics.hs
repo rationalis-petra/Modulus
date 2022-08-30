@@ -104,7 +104,7 @@ mkBoolSing f =
 intStructure :: [(String, Normal)]
 intStructure = 
   [("t", int_t),
-   ("int", int_t),
+   ("Int", int_t),
    ("+", mkIntOp (+)),
    ("-", mkIntOp (-)),
    ("*", mkIntOp (*)),
@@ -130,7 +130,7 @@ intStructure =
 floatStructure :: [(String, Normal)] 
 floatStructure =
   [("t",     float_t),
-   ("float", float_t),
+   ("Float", float_t),
    ("+", mkFloatOp (+)),
    ("-", mkFloatOp (-)),
    ("*", mkFloatOp (*)),
@@ -151,15 +151,18 @@ floatStructure =
    ("≠", mkFltCmp (/=))
   ]
 
+  
+boolStructure :: [(String, Normal)] 
+boolStructure =
+  [("∧", mkBoolOp (&&)),
+   ("∨", mkBoolOp (||)),
+   ("⊻", mkBoolOp (/=)),
+   ("not", mkBoolSing not)]
+
 numStructure :: [(String, Normal)]
 numStructure = 
   [("int", NormMod intStructure),
-   ("float", NormMod floatStructure),
-
-   ("∧", mkBoolOp (&&)),
-   ("∨", mkBoolOp (||)),
-   ("⊻", mkBoolOp (/=)),
-   ("not", mkBoolSing not)
+   ("float", NormMod floatStructure)
    ]
 
 binfloat = NormArr float_t (NormArr float_t float_t)

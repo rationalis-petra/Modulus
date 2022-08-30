@@ -147,11 +147,6 @@ mlsSig = BuiltinMac struct
 -- TYPES 
 
   -- TODO: to be well formed, these must accept types...
-mkFunType :: Normal -> Normal -> EvalM Normal
-mkFunType t1 t2 = pure $ (NormArr t1 t2)
-mkFunType _ _ = lift $ throwError "bad args to →: expected types"
-mlsFunType = liftFun2 mkFunType (NormArr (NormUniv 0) (NormArr (NormUniv 0) (NormUniv 0)))
-
 mkTupleType :: Normal -> Normal -> EvalM Normal
 mkTupleType t1 t2 = 
   pure $ NormSig [("_1", t1), ("_2", t2)]
@@ -186,24 +181,18 @@ doConstrain (NormMod mod) (NormSig sig) =
 doConstrain _ _ = lift $ throwError "bad args to <: expected structure and signature"
 mlsConstrain = liftFun2 doConstrain (NormArr Undef (NormArr Undef Undef))
 
--- subtype
--- doSubtype :: Normal -> Normal -> EvalM Normal
--- doSubtype (Type t1) (Type t2) = 
---   if subtype t1 t2 then pure (PrimE (Bool True)) else pure (PrimE (Bool False))
--- doSubtype _ _ = lift $ throwError "bad args to subtype"
--- mlsSubtype = liftFun2 doSubtype Undef Undef Undef
-
-
 
   
 coreStructure :: [(String, Normal)]
 coreStructure = [
   -- Types
-  ("Int",  PrimType IntT),
   ("Bool", PrimType BoolT),
   ("Unit", PrimType UnitT),
   ("𝒰", NormUniv 0),
-  ("→", mlsFunType),
+  ("𝒰₁", NormUniv 1),
+  ("𝒰₂", NormUniv 2),
+  ("𝒰₃", NormUniv 3),
+  ("→", Special MkProd),
   ("sig", Special MkSig),
   ("×", mlsMkTupleType),
 

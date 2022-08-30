@@ -46,6 +46,7 @@ lookup key (Context {tlocalCtx = lcl,
         Just v -> (Left  <$> typeVal v)
         Nothing -> throwError ("couldn't lookup " <> key)
 
+-- TODO change to use neutral??  
 insert :: String -> Normal -> Context -> Context
 insert key val context = context{tlocalCtx = newCtx}
   where

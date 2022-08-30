@@ -87,24 +87,44 @@ eval (CApp l r) = do
       --   throwError "bad type application"
     Builtin fn ty -> fn r'
 
+eval (CSct defs) = do
+  defs' <- foldDefs defs
+  pure $ NormMod $ defs'
+  where
+    foldDefs :: [Definition] -> EvalM  [(String, Normal)]
+    foldDefs [] = pure []
+    foldDefs (def : defs) = do
+      case def of  
+        SingleDef var core ty -> do
+          val <- eval core
+          defs' <- localF (Env.insert var val) (foldDefs defs)
+          pure ((var, val) : defs')
 
--- eval (TySig defs) = do
---   NormSig $ foldDefs defs
---   where
---     foldDefs :: [(String, TypeExpr)] -> EvalM  [(String, Normal)]
---     foldDefs [] = pure []
---     foldDefs ((var, ty) : defs) = do
---       ty' <- eval ty
---       localF (insertType var ty') (eval $ foldDefs defs)
+eval (CSig defs) = do
+  defs' <- foldDefs defs
+  pure $ NormSig $ defs'
+  where
+    foldDefs :: [Definition] -> EvalM  [(String, Normal)]
+    foldDefs [] = pure []
+    foldDefs (def : defs) = do
+      case def of
+        SingleDef var core ty -> do
+          val <- eval core
+          defs' <- localF (Env.insert var val) (foldDefs defs)
+          pure ((var, val) : defs')
 
 eval (CDot ty field) = do
   ty' <- eval ty
   case ty' of 
     Neu neu ->
       pure $ Neu (NeuDot neu field)
-    NormSig sig -> case getField field sig of
+    NormSig fields -> case getField field fields of
       Just val -> pure val
       Nothing -> throwError ("can't find field" <> field)
+    NormMod fields -> case getField field fields of 
+      Just val -> pure val
+      Nothing -> throwError ("can't find field" <> field)
+    non -> throwError ("value does is not structure" <> show non)
 
 
 normSubst :: (Normal, String) -> Normal -> EvalM Normal

@@ -24,17 +24,14 @@ import Interpret.Transform
 -- type annotation, unlike the 'raw' version. Further, several definitions are
 -- toTIntermediate
 
-data IType ty
-  = InferType
-  | MType ty 
-  deriving Show
 
 {-- The two types of binding that can occur within a function are type and val
     bindings. Binding a type means it is available and in scope for subsequent
     types within the body to use, i.e. a ∀a.a --}
 data TArg ty
-  = BoundArg String ty  -- TODO: merge InfArg/BoundArg 
+  = BoundArg String ty
   | InfArg String Int
+  | TWildCard ty
   deriving Show
 
 
@@ -69,9 +66,10 @@ data TIntermediate ty
   | TSymbol String
   | TApply (TIntermediate ty) (TIntermediate ty)
   | TImplApply (TIntermediate ty) (TIntermediate ty)
-  | TModule [TDefinition ty]
+  | TStructure [TDefinition ty]
   | TSignature [TDefinition ty]
   | TLambda [(TArg ty, Bool)] (TIntermediate ty) (Maybe ty)
+  | TProd (TArg ty, Bool) (TIntermediate ty)
   | TIF (TIntermediate ty) (TIntermediate ty) (TIntermediate ty)
   | TAccess (TIntermediate ty) String
   | TMatch (TIntermediate ty) [(TPattern ty, TIntermediate ty)]

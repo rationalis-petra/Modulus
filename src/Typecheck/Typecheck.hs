@@ -257,6 +257,19 @@ typeCheck expr ctx = case expr of
                            subst',
                            ("#" <> show id) : impl)
 
+  (TProd (arg, bl) body) -> do
+    case arg of  
+      BoundArg var ty -> do
+        ty' <- local (Ctx.ctxToEnv ctx) (Eval.eval ty)
+        --tyTy <- liftExcept (typeVal ty')
+        (body', bodyTy, subst) <- typeCheck body (Ctx.insert var ty' ctx)
+        pure (TProd (BoundArg var ty', bl) body', NormUniv 0, subst)
+      TWildCard ty -> do
+        ty' <- local (Ctx.ctxToEnv ctx) (Eval.eval ty)
+        --tyTy <- liftExcept (typeVal ty')
+        (body', bodyTy, subst) <- typeCheck body ctx
+        pure (TProd (TWildCard ty', bl) body', NormUniv 0, subst)
+
   (TAccess term field) -> do
     (term', ty, subst) <- typeCheck term ctx
     -- TODO: what if there is a substituion 
@@ -284,23 +297,33 @@ typeCheck expr ctx = case expr of
     pure (TIF cond' e1' e2', fnlTy, s4)
 
   -- TODO: mutually recursive definitions...
-  (TModule defs) -> do  
-    result <- mapM (\int -> typeCheckDef int ctx) defs
-    -- extract different values from the result   
-    let defs' = map (\(def, _, _, _) -> def) result
-        sig = map (\(_, str, ty, _) -> (str, ty)) result
+  (TStructure defs) -> do  
+    let foldDefs :: [TDefinition Core] -> Ctx.Context -> EvalM ([TDefinition Normal], [(String, Normal)], Subst)
+        foldDefs [] _ = pure ([], [], [])
+        foldDefs (def : defs) ctx = do
+          (def', var, val, subst) <- typeCheckDef def ctx
+          (defs', fields, subst') <- foldDefs defs (Ctx.insert var val ctx)
+          fnlSubst <- compose subst subst'
+          pure (def' : defs',  (var, val) : fields, fnlSubst)
+          
+    (defs', fields, subst) <- foldDefs defs ctx
 
-        foldCmp mnd [] = mnd
-        foldCmp mnd (s:ss) = do
-          s' <- mnd
-          foldCmp (compose s s') ss
+    pure (TStructure defs', NormMod fields, subst)
 
-    subst <- foldCmp (pure nosubst) (map (\(_, _, _, subst) -> subst) result)
+  -- TOOD: What /is/ the type of a signature? I've just done the same thing as
+  -- for modules...
+  (TSignature defs) -> do  
+    let foldDefs :: [TDefinition Core] -> Ctx.Context -> EvalM ([TDefinition Normal], [(String, Normal)], Subst)
+        foldDefs [] _ = pure ([], [], [])
+        foldDefs (def : defs) ctx = do
+          (def', var, val, subst) <- typeCheckDef def ctx
+          (defs', fields, subst') <- foldDefs defs (Ctx.insert var val ctx)
+          fnlSubst <- compose subst subst'
+          pure (def' : defs',  (var, val) : fields, fnlSubst)
+          
+    (defs', fields, subst) <- foldDefs defs ctx
 
-    pure (TModule defs', NormSig sig, subst)
-
-    
-
+    pure (TSignature defs', NormSig fields, subst)
 
   other -> 
     throwError ("typecheck unimplemented for intermediate term " <> show other)

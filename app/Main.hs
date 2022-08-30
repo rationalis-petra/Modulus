@@ -19,7 +19,6 @@ import System.IO
 import Interpret.Structures (defaultStructure)
 import qualified Interpret.Environment as Env
 
-
 import Data.Text (pack)
 import qualified Data.Map as Map
 

@@ -55,8 +55,8 @@ data Core
   | CIF Core Core Core
   -- | Hndl Core Core                       -- Handle with a handler
   -- | MkHndler [(String, [String], Core)]  -- Create a new handler
-  | CSig [Definition]                -- Signature Definition (dependent sum)
   | CSct [Definition]                -- Structure Definition
+  | CSig [Definition]                -- Signature Definition (dependent sum)
   deriving Show
 
 
@@ -71,11 +71,18 @@ data TopCore = TopDef Definition | TopExpr Core
 
 
 data Special
-  -- Forms which define new values 
-  = Def | DefVariant | If | Let | Lambda | Mac | MkHandler
-  | Handle | HandleAsync | HandleWith | MkStructure
-  | MkQuote | MkMatch | MkEffect | Open | LetOpen
-  | Do | Seq | Access | MkSig | Annotate
+  -- Definition Forms 
+  = Def | DefVariant | Open | LetOpen
+  -- Control Flow 
+  | If | MkMatch
+  -- Effects
+  | HandleAsync | Handle | HandleWith | MkEffect | Seq
+  -- Value Constructors
+  | Let | Lambda |  MkHandler | MkStructure 
+  -- Type Constructors
+  | MkSig | MkProd  
+  -- Syntax-Manipulation
+  | MkQuote | Do  | Access | Mac |  Annotate
   deriving Show
 
 
@@ -214,8 +221,8 @@ instance Show (Normal' m) where
   show (NormProd var a b) = "(" <> var <> ":" <> show a <> ")" <> " → " <> show b
   show (NormImplProd var a b) = "{" <> var <> ":" <> show a <> "}" <> " → " <> show b
   show (NormArr l r) = show l <> " → " <> show r
-  show (NormAbs var ty body) = "(λ " <> var <> " . " <> show body <> ")"
-  show (Builtin _ ty) = show "<fnc :: " <> show ty <> ">"
+  show (NormAbs var body ty) = "(λ " <> var <> " . " <> show body <> ")"
+  show (Builtin _ ty) = show "(fnc : " <> show ty <> ")"
 
   
   show (NormMod fields) =
@@ -241,9 +248,10 @@ instance Show (Neutral' m) where
   show (NeuVar var) = var
   show (NeuApp neu norm) = show neu <> " " <> show norm
 
-  show (NeuBuiltinApp fn neu ty)  = "?? " <> show neu
-  show (NeuBuiltinApp2 fn neu ty) = "?? " <> show neu
-  show (NeuBuiltinApp3 fn neu ty) = "?? " <> show neu
+  show (NeuBuiltinApp fn neu ty)  = "(fnc :" <> show ty  <> ") " <> show neu
+  show (NeuBuiltinApp2 fn neu ty) = "(fnc :" <> show ty  <> ") "  <> show neu
+  show (NeuBuiltinApp3 fn neu ty) = "(fnc :" <> show ty  <> ") "  <> show neu
+  show (NeuBuiltinApp4 fn neu ty) = "(fnc :" <> show ty  <> ") "  <> show neu
   
   show (NeuImplApp neu norm) = show neu <> " {" <> show norm <> "}" 
   show (NeuDot neu field) = show neu <> "." <> field 
@@ -286,7 +294,7 @@ instance Show PrimVal where
     Unit -> "()"
     Int x -> show x
     Float f -> show f
-    Bool x -> show x
+    Bool x -> if x then "true" else "false"
     Char c -> show c
     String str -> show str
 
