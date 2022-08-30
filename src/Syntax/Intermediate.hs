@@ -169,9 +169,16 @@ mkProd [arg, body] ctx =
         _ -> (False, arg)
   in do
     (arg'', var) <- case arg' of
-          Cons [Atom (Special Annotate), Atom (Symbol s), ty] -> do
-            ty' <- toIntermediateM ty ctx
-            pure (Annotation s ty', Just s)
+          Cons [hd, Atom (Symbol s), ty] -> do
+            val <- toIntermediateM hd ctx
+            case val of 
+              -- TODO: this is dodgy: make annotation a possible return value of toIntermediateM
+              (IValue (Special Annotate)) -> do
+                ty' <- toIntermediateM ty ctx
+                pure (Annotation s ty', Just s)
+              _ -> do
+                ty' <- toIntermediateM (Cons [hd, Atom (Symbol s), ty]) ctx
+                pure (WildCard ty', Nothing)
           ty -> do
             ty' <- toIntermediateM ty ctx
             pure (WildCard ty', Nothing)

@@ -262,7 +262,7 @@ typeCheck expr ctx = case expr of
       BoundArg var ty -> do
         ty' <- local (Ctx.ctxToEnv ctx) (Eval.eval ty)
         --tyTy <- liftExcept (typeVal ty')
-        (body', bodyTy, subst) <- typeCheck body (Ctx.insert var ty' ctx)
+        (body', _, subst) <- typeCheck body (Ctx.insertVal var (Neu $ NeuVar var) ty' ctx)
         pure (TProd (BoundArg var ty', bl) body', NormUniv 0, subst)
       TWildCard ty -> do
         ty' <- local (Ctx.ctxToEnv ctx) (Eval.eval ty)
@@ -302,7 +302,7 @@ typeCheck expr ctx = case expr of
         foldDefs [] _ = pure ([], [], [])
         foldDefs (def : defs) ctx = do
           (def', var, val, subst) <- typeCheckDef def ctx
-          (defs', fields, subst') <- foldDefs defs (Ctx.insert var val ctx)
+          (defs', fields, subst') <- foldDefs defs (Ctx.insertVal var (Neu $ NeuVar var) val ctx)
           fnlSubst <- compose subst subst'
           pure (def' : defs',  (var, val) : fields, fnlSubst)
           
@@ -317,7 +317,7 @@ typeCheck expr ctx = case expr of
         foldDefs [] _ = pure ([], [], [])
         foldDefs (def : defs) ctx = do
           (def', var, val, subst) <- typeCheckDef def ctx
-          (defs', fields, subst') <- foldDefs defs (Ctx.insert var val ctx)
+          (defs', fields, subst') <- foldDefs defs (Ctx.insertVal var (Neu $ NeuVar var) val ctx)
           fnlSubst <- compose subst subst'
           pure (def' : defs',  (var, val) : fields, fnlSubst)
           
@@ -332,12 +332,14 @@ typeCheck expr ctx = case expr of
     updateFromArgs :: Ctx.Context -> [(TArg Core, Bool)] -> EvalM (Ctx.Context, [(TArg Normal, Bool)])
     updateFromArgs ctx [] = pure (ctx, [])
     updateFromArgs ctx ((arg, bl) : args) = do 
-      (ctx', args') <- updateFromArgs ctx args
       case arg of
         BoundArg str ty -> do
           ty' <- local (Ctx.ctxToEnv ctx) (Eval.eval ty)
-          pure (Ctx.insert str ty' ctx', ((BoundArg str ty', bl) : args'))
-        InfArg str id -> pure (Ctx.insert str (Neu $ NeuVar ("#" <> show id)) ctx',
+          (ctx', args') <- updateFromArgs (Ctx.insertVal str (Neu $ NeuVar str) ty' ctx) args
+          pure (Ctx.insertVal str (Neu $ NeuVar str) ty' ctx', ((BoundArg str ty', bl) : args'))
+        InfArg str id -> do
+          (ctx', args') <- updateFromArgs ctx args
+          pure (Ctx.insert str (Neu $ NeuVar ("#" <> show id)) ctx',
                                (InfArg str id, bl) : args')
 
 
@@ -349,7 +351,7 @@ typeCheckDef (TSingleDef name body ty) ctx = do
   bnd <- case ty of 
     Nothing -> freshVar
     Just ty -> local (Ctx.ctxToEnv ctx) (Eval.eval ty)
-  (body', ty', subst) <- typeCheck body (Ctx.insert name bnd ctx)
+  (body', ty', subst) <- typeCheck body (Ctx.insertVal name (Neu $ NeuVar name) bnd ctx)
   pure (TSingleDef name body' (Just ty'), name, ty', subst)
 
 

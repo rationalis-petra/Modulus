@@ -57,7 +57,7 @@ eval (CArr l r) = do
   
 eval (CProd var a b) = do
   a' <- eval a
-  b' <- localF (Env.insert var a') (eval b)
+  b' <- localF (Env.insert var (Neu (NeuVar var))) (eval b)
   pure $ NormProd var a' b'
 
 eval (CImplProd var a b) = do
