@@ -40,7 +40,7 @@ buildModule mp s =
         Left err -> do 
           throwError err
         Right val -> do
-          result <- toTIntermediate val (Ctx.envToCtx moduleContext)
+          result <- toTIntermediate val
           (checked, _, _) <- typeCheck result (Ctx.envToCtx moduleContext) 
           core <- case runExcept (toCore checked) of 
             Left err -> throwError err

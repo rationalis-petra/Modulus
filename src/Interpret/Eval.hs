@@ -48,7 +48,7 @@ eval (CVar var) = do
   env <- ask
   case Env.lookup var env of 
     Just val -> pure val
-    Nothing -> throwError ("could not find variable" <> var <> " in context")
+    Nothing -> throwError ("could not find variable " <> var <> " in context")
 
 eval (CArr l r) = do
   l' <- eval l 

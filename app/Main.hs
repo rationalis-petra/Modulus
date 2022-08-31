@@ -127,7 +127,7 @@ runExprs (e : es) env state (IOpts {tc=tc}) b = do
     Just (expanded, state') ->
       case toIntermediate expanded env of 
         Right val -> do
-          result <- evalToIO (toTIntermediateTop val (Ctx.envToCtx env)) env state'
+          result <- evalToIO (toTIntermediateTop val) env state'
           case result of 
             Just (tint, state'') -> do
               result <- evalToIO (typeCheckTop tint (Ctx.envToCtx env)) env state''

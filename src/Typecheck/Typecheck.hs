@@ -18,11 +18,13 @@ import Syntax.TIntermediate
 
 import qualified Typecheck.Context as Ctx
 import qualified Interpret.Environment as Env
+import qualified Syntax.Conversions as Conv 
 import Interpret.EvalM
 import qualified Interpret.Eval as Eval
 import Syntax.Utils (typeVal, free, getField)
 
  -- TODO: check - types are expressions, or values ?!?
+
 
 
 --   
@@ -32,10 +34,10 @@ type Subst = [(Normal, String)]
 
 err = throwError  
 
-typeCheckTop :: TIntTop Core -> Ctx.Context
+typeCheckTop :: TIntTop TIntermediate' -> Ctx.Context
              -> EvalM (Either (TIntTop Normal, Normal) (TIntTop Normal))
-typeCheckTop (TExpr e) env = do
-      (expr, ty, subst) <- typeCheck e env
+typeCheckTop (TExpr e) ctx = do
+      (expr, ty, subst) <- typeCheck e ctx
       -- (expr', ty') <- buildDepFn expr ty
       pure $ Left $ (TExpr expr, ty)
 
@@ -85,7 +87,7 @@ typeCheckTop (TDefinition def) env =
 --   pure (mkFun freeVars expr, mkFunTy freeVars ty)
         
 
-typeCheck :: TIntermediate Core -> Ctx.Context -> EvalM (TIntermediate Normal, Normal, Subst)
+typeCheck :: TIntermediate TIntermediate' -> Ctx.Context -> EvalM (TIntermediate Normal, Normal, Subst)
 typeCheck expr ctx = case expr of
   (TValue v) -> do
     t <- liftExcept (typeVal v)
@@ -93,8 +95,7 @@ typeCheck expr ctx = case expr of
 
   (TSymbol s) -> do
     case runExcept (Ctx.lookup s ctx) of 
-      Right (Left ty) -> pure (TSymbol s, ty, nosubst)
-      Right (Right (_, ty)) -> pure (TSymbol s, ty, nosubst)
+      Right (_, ty) -> pure (TSymbol s, ty, nosubst)
       Left err -> throwError ("couldn't find type of symbol " <> s)
 
   
@@ -259,16 +260,14 @@ typeCheck expr ctx = case expr of
 
   (TProd (arg, bl) body) -> do
     case arg of  
-      BoundArg var ty -> do
-        ty' <- local (Ctx.ctxToEnv ctx) (Eval.eval ty)
-        --tyTy <- liftExcept (typeVal ty')
-        (body', _, subst) <- typeCheck body (Ctx.insertVal var (Neu $ NeuVar var) ty' ctx)
-        pure (TProd (BoundArg var ty', bl) body', NormUniv 0, subst)
-      TWildCard ty -> do
-        ty' <- local (Ctx.ctxToEnv ctx) (Eval.eval ty)
-        --tyTy <- liftExcept (typeVal ty')
+      BoundArg var (TIntermediate' ty) -> do
+        ty' <- local (Ctx.ctxToEnv ctx) (evalTIntermediate ty ctx)
+        (body', bodyTy, subst) <- typeCheck body (Ctx.insert var (Neu $ NeuVar var) ty' ctx)
+        pure (TProd (BoundArg var ty', bl) body', NormArr ty' bodyTy, subst)
+      TWildCard (TIntermediate' ty) -> do
+        ty' <- local (Ctx.ctxToEnv ctx) (evalTIntermediate ty ctx)
         (body', bodyTy, subst) <- typeCheck body ctx
-        pure (TProd (TWildCard ty', bl) body', NormUniv 0, subst)
+        pure (TProd (TWildCard ty', bl) body', NormArr ty' bodyTy, subst)
 
   (TAccess term field) -> do
     (term', ty, subst) <- typeCheck term ctx
@@ -298,11 +297,12 @@ typeCheck expr ctx = case expr of
 
   -- TODO: mutually recursive definitions...
   (TStructure defs) -> do  
-    let foldDefs :: [TDefinition Core] -> Ctx.Context -> EvalM ([TDefinition Normal], [(String, Normal)], Subst)
+    let foldDefs :: [TDefinition TIntermediate'] -> Ctx.Context
+                 -> EvalM ([TDefinition Normal], [(String, Normal)], Subst)
         foldDefs [] _ = pure ([], [], [])
         foldDefs (def : defs) ctx = do
           (def', var, val, subst) <- typeCheckDef def ctx
-          (defs', fields, subst') <- foldDefs defs (Ctx.insertVal var (Neu $ NeuVar var) val ctx)
+          (defs', fields, subst') <- foldDefs defs (Ctx.insert var (Neu $ NeuVar var) val ctx)
           fnlSubst <- compose subst subst'
           pure (def' : defs',  (var, val) : fields, fnlSubst)
           
@@ -313,11 +313,12 @@ typeCheck expr ctx = case expr of
   -- TOOD: What /is/ the type of a signature? I've just done the same thing as
   -- for modules...
   (TSignature defs) -> do  
-    let foldDefs :: [TDefinition Core] -> Ctx.Context -> EvalM ([TDefinition Normal], [(String, Normal)], Subst)
+    let foldDefs :: [TDefinition TIntermediate'] -> Ctx.Context
+                 -> EvalM ([TDefinition Normal], [(String, Normal)], Subst)
         foldDefs [] _ = pure ([], [], [])
         foldDefs (def : defs) ctx = do
           (def', var, val, subst) <- typeCheckDef def ctx
-          (defs', fields, subst') <- foldDefs defs (Ctx.insertVal var (Neu $ NeuVar var) val ctx)
+          (defs', fields, subst') <- foldDefs defs (Ctx.insert var (Neu $ NeuVar var) val ctx)
           fnlSubst <- compose subst subst'
           pure (def' : defs',  (var, val) : fields, fnlSubst)
           
@@ -329,29 +330,29 @@ typeCheck expr ctx = case expr of
     throwError ("typecheck unimplemented for intermediate term " <> show other)
 
   where
-    updateFromArgs :: Ctx.Context -> [(TArg Core, Bool)] -> EvalM (Ctx.Context, [(TArg Normal, Bool)])
+    updateFromArgs :: Ctx.Context -> [(TArg TIntermediate', Bool)] -> EvalM (Ctx.Context, [(TArg Normal, Bool)])
     updateFromArgs ctx [] = pure (ctx, [])
     updateFromArgs ctx ((arg, bl) : args) = do 
       case arg of
-        BoundArg str ty -> do
-          ty' <- local (Ctx.ctxToEnv ctx) (Eval.eval ty)
-          (ctx', args') <- updateFromArgs (Ctx.insertVal str (Neu $ NeuVar str) ty' ctx) args
-          pure (Ctx.insertVal str (Neu $ NeuVar str) ty' ctx', ((BoundArg str ty', bl) : args'))
+        BoundArg str (TIntermediate' ty) -> do
+          ty' <- local (Ctx.ctxToEnv ctx) (evalTIntermediate ty ctx)
+          (ctx', args') <- updateFromArgs (Ctx.insert str (Neu $ NeuVar str) ty' ctx) args
+          pure (Ctx.insert str (Neu $ NeuVar str) ty' ctx', ((BoundArg str ty', bl) : args'))
         InfArg str id -> do
           (ctx', args') <- updateFromArgs ctx args
-          pure (Ctx.insert str (Neu $ NeuVar ("#" <> show id)) ctx',
+          pure (Ctx.insert str (Neu $ NeuVar ("#" <> show id)) (NormUniv 0) ctx',
                                (InfArg str id, bl) : args')
 
 
-typeCheckDef :: TDefinition Core -> Ctx.Context
+typeCheckDef :: TDefinition TIntermediate' -> Ctx.Context
              -> EvalM (TDefinition Normal, String, Normal, Subst)
 -- typeCheckDef (TVariantDef name vars id variants ty)
 -- typeCheckDef (TEffectDef  name vars id actions)
 typeCheckDef (TSingleDef name body ty) ctx = do 
   bnd <- case ty of 
     Nothing -> freshVar
-    Just ty -> local (Ctx.ctxToEnv ctx) (Eval.eval ty)
-  (body', ty', subst) <- typeCheck body (Ctx.insertVal name (Neu $ NeuVar name) bnd ctx)
+    Just (TIntermediate' ty) -> local (Ctx.ctxToEnv ctx) (evalTIntermediate ty ctx)
+  (body', ty', subst) <- typeCheck body (Ctx.insert name (Neu $ NeuVar name) bnd ctx)
   pure (TSingleDef name body' (Just ty'), name, ty', subst)
 
 
@@ -609,3 +610,12 @@ freshVar = do
   id <- use var_counter 
   var_counter += 1
   pure (Neu $ NeuVar ("#" <> show id))
+
+
+evalTIntermediate :: TIntermediate TIntermediate' -> Ctx.Context -> EvalM Normal  
+evalTIntermediate tint ctx = do 
+  (checked, _, _) <- typeCheck tint ctx -- TODO: dodge??
+  c_term <- case runExcept (Conv.toCore checked) of 
+        Left err -> throwError err
+        Right val -> pure val
+  Eval.eval c_term

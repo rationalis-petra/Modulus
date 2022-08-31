@@ -74,3 +74,6 @@ data TIntermediate ty
   | TAccess (TIntermediate ty) String
   | TMatch (TIntermediate ty) [(TPattern ty, TIntermediate ty)]
   deriving Show
+
+newtype TIntermediate' = TIntermediate' (TIntermediate TIntermediate')
+  deriving Show

@@ -20,21 +20,19 @@ import qualified Control.Monad.Except as Except
 
 import qualified Interpret.Environment as Env
 import qualified Typecheck.Context as Ctx 
-import Typecheck.Typecheck (typeCheck) 
 import Syntax.TIntermediate
 import qualified Interpret.Eval as Eval
-import qualified Typecheck.Typecheck
 
   
 
-toTIntermediateTop :: Intermediate -> Ctx.Context -> EvalM (TIntTop Core)
-toTIntermediateTop (IDefinition def) ctx =    
+toTIntermediateTop :: Intermediate -> EvalM (TIntTop TIntermediate')
+toTIntermediateTop (IDefinition def) =    
   case def of 
     ISingleDef s i -> do
-      t <- toTIntermediate i ctx
+      t <- toTIntermediate i
       pure (TDefinition $ TSingleDef s t Nothing)
     IOpenDef i -> do
-      t <- toTIntermediate i ctx
+      t <- toTIntermediate i
       pure (TDefinition $ TOpenDef t Nothing)
     -- IVariantDef nme params alternatives -> do
     --   id <- fresh_id
@@ -94,72 +92,71 @@ toTIntermediateTop (IDefinition def) ctx =
       
 
   
-toTIntermediateTop i env = TExpr <$> toTIntermediate i env
+toTIntermediateTop i = TExpr <$> toTIntermediate i
 
 -- TODO: make sure to update the context with typeLookup
-toTIntermediate :: Intermediate -> Ctx.Context -> EvalM (TIntermediate Core)
-toTIntermediate (IValue expr) _ = pure (TValue expr)
-toTIntermediate (ISymbol s) env = pure (TSymbol s)
-toTIntermediate (IAccess i s) env = do
-  t <- toTIntermediate i env
+toTIntermediate :: Intermediate -> EvalM (TIntermediate TIntermediate')
+toTIntermediate (IValue expr) = pure (TValue expr)
+toTIntermediate (ISymbol s) = pure (TSymbol s)
+toTIntermediate (IAccess i s) = do
+  t <- toTIntermediate i
   pure (TAccess t s)
 
 
 -- Note: implicit argument resolution done during type-checking!
-toTIntermediate (IApply i1 i2) ctx = do
-  i1' <- toTIntermediate i1 ctx
-  i2' <- toTIntermediate i2 ctx
+toTIntermediate (IApply i1 i2) = do
+  i1' <- toTIntermediate i1
+  i2' <- toTIntermediate i2
   pure (TApply i1' i2')
 
-toTIntermediate (IImplApply i1 i2) ctx = do
-  i1' <- toTIntermediate i1 ctx
-  i2' <- toTIntermediate i2 ctx
+toTIntermediate (IImplApply i1 i2) = do
+  i1' <- toTIntermediate i1
+  i2' <- toTIntermediate i2
   pure (TImplApply i1' i2')
 
-toTIntermediate (ILambda args bdy) ctx = do
-  (args', ctx') <- processArgs args ctx
-  bdy' <- toTIntermediate bdy ctx'
+toTIntermediate (ILambda args bdy) = do
+  args' <- processArgs args
+  bdy' <- toTIntermediate bdy
   pure $ TLambda args' bdy' Nothing
   where
-    processArgs :: [(IArg, Bool)] -> Ctx.Context -> EvalM ([(TArg Core, Bool)], Ctx.Context)
-    processArgs [] ctx = pure ([], ctx)
-    processArgs ((Sym s, b) : xs) ctx =
+    processArgs :: [(IArg, Bool)] -> EvalM [(TArg TIntermediate', Bool)]
+    processArgs [] = pure []
+    processArgs ((Sym s, b) : xs) =
       if b then  do
-        (tl, ctx') <- processArgs xs (Ctx.insertVal s (Neu (NeuVar s)) (NormUniv 0) ctx)
-        pure (((BoundArg s (CNorm (NormUniv 0)), b) : tl), ctx')
+        tl <- processArgs xs
+        pure $ ((BoundArg s (TIntermediate' $ TValue $ NormUniv 0), b) : tl)
       else do
-        (tl, ctx') <- processArgs xs ctx
+        tl <- processArgs xs
         var <- fresh_var
-        pure $ (((InfArg s var), b) : tl, ctx')
-    processArgs ((Annotation s i, b) : xs) ctx = do
-      ty <- local (Ctx.ctxToEnv ctx) (intermediateToCore i ctx)
-      -- TODO: add judgement that this is, in fact, a type!
-      (tl, ctx') <- processArgs xs (Ctx.insertVal s (Neu $ NeuVar s) (NormUniv 0) ctx)
-      pure (((BoundArg s ty, b) : tl), ctx')
+        pure $ ((InfArg s var), b) : tl
+    processArgs ((Annotation s i, b) : xs) = do
+      ty <- toTIntermediate i
+      tl <- processArgs xs
+      pure ((BoundArg s (TIntermediate' ty), b) : tl)
 
-toTIntermediate (IProd arg bdy) ctx = do
-  (arg', ctx') <- case arg of
+toTIntermediate (IProd arg bdy) = do
+  arg' <- case arg of
     (Sym var, bl) ->
       throwError "cannot place sym arg in dependent product"
     (Annotation var ty, bl) -> do
-      ty' <- evalIntermediate ty ctx
-      pure ((BoundArg var (CNorm ty'), bl), (Ctx.insertVal var (Neu $ NeuVar var) ty' ctx))
+      ty' <- toTIntermediate ty
+      pure (BoundArg var (TIntermediate' ty'), bl)
     (WildCard ty, bl) ->  do
-      ty' <- evalIntermediate ty ctx
-      pure ((TWildCard (CNorm ty'), bl), ctx)
-  body' <- toTIntermediate bdy ctx' 
+      ty' <- toTIntermediate ty
+      pure (TWildCard (TIntermediate' ty'), bl)
+  body' <- toTIntermediate bdy
   pure $ TProd arg' body'
 
 
-toTIntermediate (IModule defList) env = do
-  TStructure <$> getDefs defList env
+toTIntermediate (IModule defList) = do
+  TStructure <$> getDefs defList 
   where
-    getDefs :: [IDefinition] -> Ctx.Context -> EvalM [TDefinition Core]
-    getDefs [] _ = pure []
-    getDefs (x:xs) env = case x of
+    getDefs :: [IDefinition] -> EvalM [TDefinition TIntermediate']
+    getDefs [] = pure []
+    getDefs (x:xs) = case x of
       ISingleDef s i -> do
-        hd <- toTIntermediate i env
-        tl <- getDefs xs env 
+        hd <- toTIntermediate i
+        tl <- getDefs xs 
         pure $ TSingleDef s hd Nothing : tl
       -- TODO: types of variants
       IVariantDef nme args variants -> -- String[String][(String,[Intermediate])]
@@ -167,19 +164,19 @@ toTIntermediate (IModule defList) env = do
       IEffectDef nme args effects -> -- String [String] [(String, [Intermediate])]
         throwError "effects not implemented yet..."
       IOpenDef i -> do
-        opn <- TOpenDef <$> (toTIntermediate i env) <*> pure Nothing
-        rest <- getDefs xs env
+        opn <- TOpenDef <$> (toTIntermediate i) <*> pure Nothing
+        rest <- getDefs xs
         pure $ opn : rest
 
-toTIntermediate (ISignature defList) env = do
-  TSignature <$> getDefs defList env
+toTIntermediate (ISignature defList) = do
+  TSignature <$> getDefs defList
   where
-    getDefs :: [IDefinition] -> Ctx.Context -> EvalM [TDefinition Core]
-    getDefs [] _ = pure []
-    getDefs (x:xs) env = case x of
+    getDefs :: [IDefinition] -> EvalM [TDefinition TIntermediate']
+    getDefs [] = pure []
+    getDefs (x:xs) = case x of
       ISingleDef s i -> do
-        hd <- toTIntermediate i env
-        tl <- getDefs xs env 
+        hd <- toTIntermediate i
+        tl <- getDefs xs 
         pure $ TSingleDef s hd Nothing : tl
       -- TODO: types of variants
       IVariantDef nme args variants -> -- String[String][(String,[Intermediate])]
@@ -187,29 +184,29 @@ toTIntermediate (ISignature defList) env = do
       IEffectDef nme args effects -> -- String [String] [(String, [Intermediate])]
         throwError "effects in signatures not implemented yet..."
       IOpenDef i -> do
-        opn <- TOpenDef <$> (toTIntermediate i env) <*> pure Nothing
-        rest <- getDefs xs env
+        opn <- TOpenDef <$> (toTIntermediate i) <*> pure Nothing
+        rest <- getDefs xs
         pure $ opn : rest
   
-toTIntermediate (IIF cond e1 e2) env = do
-  cond' <- toTIntermediate cond env
-  e1' <- toTIntermediate e1 env
-  e2' <- toTIntermediate e2 env
+toTIntermediate (IIF cond e1 e2) = do
+  cond' <- toTIntermediate cond 
+  e1' <- toTIntermediate e1 
+  e2' <- toTIntermediate e2
   pure (TIF cond' e1' e2')
 
-toTIntermediate (IMatch e1 cases) ctx = do 
-  e1' <- toTIntermediate e1 ctx
+toTIntermediate (IMatch e1 cases) = do 
+  e1' <- toTIntermediate e1 
   cases' <- mapM toCase cases 
   pure (TMatch e1' cases')
 
   where
-    toCase :: (IPattern, Intermediate) -> EvalM (TPattern Core, TIntermediate Core)
+    toCase :: (IPattern, Intermediate) -> EvalM (TPattern TIntermediate', TIntermediate TIntermediate')
     toCase (ipat, e) = do 
       tpat <- toTPat ipat 
-      e' <- toTIntermediate e ctx
+      e' <- toTIntermediate e 
       pure (tpat, e')
 
-    toTPat :: IPattern -> EvalM (TPattern Core)
+    toTPat :: IPattern -> EvalM (TPattern TIntermediate')
     toTPat IWildCard = pure TWildCardPat
     toTPat (ISingPattern s) = pure (TBindPat s)
     toTPat (ICheckPattern pat subPatterns) = do
@@ -217,7 +214,7 @@ toTIntermediate (IMatch e1 cases) ctx = do
       extractPattern pat subPatterns'
 
     extractPattern expr subPatterns = do
-      val <- local (Ctx.ctxToEnv ctx) (evalIntermediate expr ctx)
+      val <- toTIntermediate expr
       case val of 
         -- TODO: what to do with params?
         -- CConstructor name id1 id2 len params [] ty ->
@@ -230,27 +227,17 @@ toTIntermediate (IMatch e1 cases) ctx = do
 
 
 
-toTIntermediate x _ = throwError ("toTIntermediate not implemented for: "  <> show x)
+toTIntermediate x = throwError ("toTIntermediate not implemented for: "  <> show x)
 
 
 
-evalIntermediate :: Intermediate -> Ctx.Context -> EvalM Normal
-evalIntermediate term ctx = do
-  t_term <- toTIntermediate term ctx
-  (checked, _, _) <- typeCheck t_term ctx -- TODO: dodge??
-  c_term <- case runExcept (toCore checked) of 
-        Left err -> throwError err
-        Right val -> pure val
-  Eval.eval c_term
-
-
-intermediateToCore :: Intermediate -> Ctx.Context -> EvalM Core
-intermediateToCore term ctx = do
-  t_term <- toTIntermediate term ctx
-  (checked, _, _) <- typeCheck t_term ctx -- TODO: dodge??
-  case runExcept (toCore checked) of
-    Left err -> throwError err
-    Right val -> pure val
+-- intermediateToCore :: Intermediate -> Ctx.Context -> EvalM Core
+-- intermediateToCore term ctx = do
+--   t_term <- toTIntermediate term ctx
+--   (checked, _, _) <- typeCheck t_term ctx -- TODO: dodge??
+--   case runExcept (toCore checked) of
+--     Left err -> throwError err
+--     Right val -> pure val
   
 
 

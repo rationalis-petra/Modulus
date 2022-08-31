@@ -15,12 +15,12 @@ import Data(EvalM, ActionMonadT(..), Environment, ProgState, uid_counter, var_co
 ask :: EvalM Environment
 ask = Action.lift $ Reader.ask
 
-local :: Environment -> EvalM a -> EvalM a
-local ctx m = localF (\_ -> ctx) m
-
 localF :: (Environment -> Environment) -> EvalM a -> EvalM a
 localF f (ActionMonadT mnd) =
   ActionMonadT (Reader.local f mnd)
+
+local :: Environment -> EvalM a -> EvalM a
+local env m = localF (\_ -> env) m
 
 throwError :: String -> EvalM a
 throwError err = Action.lift $ Reader.lift $ Except.throwError err

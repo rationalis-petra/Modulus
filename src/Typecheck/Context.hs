@@ -11,7 +11,7 @@ import Data (Normal,
 import Syntax.Utils
 
 data Context = Context {
-  tlocalCtx      :: Map.Map String (Either Normal (Normal, Normal)),
+  tlocalCtx      :: Map.Map String (Normal, Normal),
   tcurrentModule :: Normal,
   tglobalModule  :: Normal
 }
@@ -26,15 +26,11 @@ ctxToEnv :: Context -> Environment
 ctxToEnv (Context {tlocalCtx=lcl, tcurrentModule = curr, tglobalModule = glbl}) =
   (Environment {localCtx=newLcl, currentModule=curr, globalModule=glbl})
   where
-    newLcl = Map.foldrWithKey
-               (\key entry m' -> case entry of
-                   Left _ -> m'
-                   Right (val, _) -> Map.insert key val m')
-               Map.empty lcl
+    newLcl = Map.map (\(val, _) -> val) lcl
 
 
   
-lookup :: String -> Context -> Except String (Either Normal (Normal, Normal))
+lookup :: String -> Context -> Except String (Normal, Normal)
 lookup key (Context {tlocalCtx = lcl,
                      tcurrentModule = curr,
                      tglobalModule = glbl}) = 
@@ -43,17 +39,11 @@ lookup key (Context {tlocalCtx = lcl,
     Nothing ->
       let (NormMod m) = curr in
       case getField key m of 
-        Just v -> (Left  <$> typeVal v)
+        Just v -> ((,) v) <$> typeVal v
         Nothing -> throwError ("couldn't lookup " <> key)
 
--- TODO change to use neutral??  
-insert :: String -> Normal -> Context -> Context
-insert key val context = context{tlocalCtx = newCtx}
-  where
-    newCtx = Map.insert key (Left val) (tlocalCtx context)
 
-
-insertVal :: String -> Normal -> Normal -> Context -> Context
-insertVal key val ty context = context{tlocalCtx = newCtx}
+insert :: String -> Normal -> Normal -> Context -> Context
+insert key val ty context = context{tlocalCtx = newCtx}
   where
-    newCtx = Map.insert key (Right (val, ty)) (tlocalCtx context)
+    newCtx = Map.insert key (val, ty) (tlocalCtx context)
