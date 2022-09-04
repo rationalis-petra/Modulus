@@ -40,10 +40,10 @@ data TArg ty
     'compile-time', so all created modules have the types be equal. 
     Thus, definitions are realised here with --}
 data TDefinition ty
-  --             name  type-args id  definitions                   type of variant
-  = TVariantDef String [String] Int [(String, Int, [ty])] ty
-  | TEffectDef  String [String] Int [(String, Int, [ty])]
-  | TSingleDef  String (TIntermediate ty) (Maybe ty)
+  --            name   id  params         index id  definitions
+  = TInductDef String  Int [(String, ty)] ty [(String, Int, ty)]
+  | TEffectDef String [String] Int [(String, Int, [ty])]
+  | TSingleDef String (TIntermediate ty) (Maybe ty)
   | TOpenDef (TIntermediate ty) (Maybe ty)
   deriving Show
 

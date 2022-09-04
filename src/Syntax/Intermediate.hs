@@ -31,8 +31,8 @@ data IArg
 
 data IDefinition
   = ISingleDef String Intermediate
-  | IVariantDef String [String] [(String, [Intermediate])] 
-  | IEffectDef  String [String] [(String, [Intermediate])]
+  | IInductDef String [IArg] Intermediate [(String, Intermediate)]
+  | IEffectDef String [String] [(String, [Intermediate])]
   | IOpenDef Intermediate
   deriving Show
 
@@ -98,7 +98,7 @@ toIntermediateM (Cons (e : es)) ctx = do
   val <- toIntermediateM e ctx
   case val of  
     (IValue (Special Def)) -> mkDef es ctx >>= (pure . IDefinition)
-    (IValue (Special DefVariant)) -> mkVariant es ctx >>= (pure . IDefinition)
+    (IValue (Special Induct)) -> mkInduct es ctx >>= (pure . IDefinition)
     (IValue (Special MkEffect)) -> mkEffect es ctx >>= (pure . IDefinition)
     (IValue (Special Do)) -> mkDo es ctx
     (IValue (Special Seq)) -> mkSeq es ctx
@@ -238,7 +238,7 @@ mkModule lst ctx = do
       case mdef of 
         -- TODO: shadow all variables...
         (IValue (Special Def)) -> mkDef body ctx
-        (IValue (Special DefVariant)) -> mkVariant body ctx
+        (IValue (Special Induct)) -> mkInduct body ctx
         (IValue (Special MkEffect)) -> mkEffect body ctx
         (IValue (Special Open)) -> mkOpen body ctx
         _ -> throwError "Modules should contain only definition-terms"
@@ -255,44 +255,58 @@ mkSig lst ctx = do
       case mdef of 
         -- TODO: shadow all variables...
         (IValue (Special Def)) -> mkDef body ctx
-        (IValue (Special DefVariant)) -> mkVariant body ctx
+        (IValue (Special Induct)) -> mkInduct body ctx
         (IValue (Special MkEffect)) -> mkEffect body ctx
         (IValue (Special Open)) -> mkOpen body ctx
         _ -> throwError "Signatures should contain only definition-terms"
     getDef v = throwError ("bad term in signature definition: " ++ show v)
 
 
-mkVariant :: [AST] -> GlobCtx -> Except String IDefinition
-mkVariant ((Atom (Symbol s)) : Cons args : tl) ctx = do
-  alternatives <- mkAlternatives tl ctx
-  params <- getParams args
-  pure $ IVariantDef s params alternatives
+mkInduct :: [AST] -> GlobCtx -> Except String IDefinition
+mkInduct (def : tl) ctx = do
+  (sym, params, ty) <- extractDef def ctx
+  alternatives <- mkAlternatives tl (shadow sym ctx)
+  pure $ IInductDef sym params ty alternatives
   where
-    mkAlternatives :: [AST] -> GlobCtx -> Except String [(String, [Intermediate])] 
+    extractDef :: AST -> GlobCtx -> Except String (String, [IArg], Intermediate)
+    extractDef (Cons [a, Cons [Atom (Symbol s), params], ty]) ctx = do
+      a' <- toIntermediateM a ctx
+      case a' of 
+        (IValue (Special Annotate)) -> do
+          params' <- getAnnSymList params ctx
+          ty' <- toIntermediateM ty ctx
+          pure (s, params', ty')
+        _ -> throwError "Poorly formed inductive type definition"
+    extractDef (Cons [a, Atom (Symbol s), ty]) ctx = do
+      a' <- toIntermediateM a ctx
+      case a' of 
+        (IValue (Special Annotate)) -> do
+          ty' <- toIntermediateM ty ctx
+          pure (s, [], ty')
+        _ -> throwError "Poorly formed inductive type definition"
+    extractDef def _ = throwError ("Poorly formed inductive type definition: " <> show def)
+
+    
+    mkAlternatives :: [AST] -> GlobCtx -> Except String [(String, Intermediate)] 
     mkAlternatives (hd : tl) ctx = do
       bot <- mkAlternatives tl ctx
       top <- mkAlternative hd ctx
       pure (top : bot)
     mkAlternatives [] ctx = pure []
 
-    mkAlternative :: AST -> GlobCtx -> Except String (String, [Intermediate]) 
-    mkAlternative (Cons (Atom (Symbol s) : tl)) ctx = do
-      rest <- mapM (\v -> toIntermediateM v ctx) tl
-      pure (s, rest)
-    mkAlternative (Atom (Symbol s)) _ = 
-      pure (s, [])
-    mkAlternative _ _ = throwError "variant definition is ill-formed"
-
-    getParams :: [AST] -> Except String [String]
-    getParams (Atom (Symbol s) : tl) = do
-      ss <- getParams tl
-      pure (s : ss)
-    getParams [] = pure []
-    getParams _ = throwError "variant requires argument-list of only strings"
+    mkAlternative :: AST -> GlobCtx -> Except String (String, Intermediate) 
+    mkAlternative (Cons [a, Atom (Symbol s), altTy]) ctx = do
+      a' <- toIntermediateM a ctx
+      case a' of 
+        (IValue (Special Annotate)) -> do
+          altTy' <- toIntermediateM altTy ctx
+          pure (s, altTy')
+        _ -> throwError "Poorly formed inductive type definition"
+    mkAlternative _ _ = throwError "Poorly formed inductive type definition"
 
 
   
-mkVariant _ _ = throwError "ill-formed variant definition"
+mkInduct _ _ = throwError "ill-formed variant definition"
 
 
 mkMatch :: [AST] -> GlobCtx -> Except String Intermediate  

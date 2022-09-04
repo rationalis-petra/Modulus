@@ -118,8 +118,7 @@ runInteractively str env state opts =
       Right vals -> runExprs vals env state opts False
 
 -- runExprs takes in an AST list, a context
-runExprs :: [AST] -> Environment -> ProgState -> IOpts -> Bool
-              -> IO (Environment, ProgState)
+runExprs :: [AST] -> Environment -> ProgState -> IOpts -> Bool -> IO (Environment, ProgState)
 runExprs [] env state _ _ = pure (env, state)
 runExprs (e : es) env state (IOpts {tc=tc}) b = do
   result <- evalToIO (macroExpand e) env state

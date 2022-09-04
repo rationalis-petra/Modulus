@@ -238,7 +238,8 @@ coreStructure = [
   ("defstruct",    mlsDefStruct),
   ("defsignature", mlsDefSig),
   ("effect",       Special MkEffect),
-  ("variant",      Special DefVariant)
+  ("induct",       Special Induct),
+  ("coinduct",     Special Coinduct)
   -- ("signature", (mlsDefSignature, Undef))
   ]
 

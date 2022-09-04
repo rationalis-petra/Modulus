@@ -25,8 +25,8 @@ data Environment = Environment {
 
 data Definition
   = SingleDef String Core Normal
-  | VariantDef String [String] Int [(String, Int, [Normal])] Normal
-  | EffectDef  String [String] [(String, [Core])]
+  | InductDef String Int [(String, Normal)] Normal [(String, Int, Normal)] 
+  | EffectDef String [String] [(String, [Core])]
   | OpenDef Core [(String, Normal)]
   deriving Show
 
@@ -72,7 +72,7 @@ data TopCore = TopDef Definition | TopExpr Core
 
 data Special
   -- Definition Forms 
-  = Def | DefVariant | Open | LetOpen
+  = Def | Induct | Coinduct | Open | LetOpen
   -- Control Flow 
   | If | MkMatch
   -- Effects
@@ -125,6 +125,10 @@ data Normal' m
   -- Structures & Signatures
   | NormMod [(String, Normal' m)]
   | NormSig [(String, Normal' m)]
+
+  -- Inductive (later. Coinductive) datatypes
+  | NormIType String Int [Normal] 
+  | NormIVal String Int Int [Normal] Normal
 
   -- Effects
   | IOAction Int Int ([Normal' m] -> IO (m (Normal' m))) [Normal' m]
@@ -228,11 +232,17 @@ instance Show (Normal' m) where
   show (NormMod fields) =
     "(structue" <> (foldr
                 (\(f, val) str -> str <> (" (def " <> f <> " " <> show val <> ")"))
-                "" fields) <> ")"
+                "" (reverse fields)) <> ")"
   show (NormSig fields) =
     "(signature" <> (foldr
-                (\(f, val) str -> str <> (" (def " <> f <> " " <> show val <> ")"))
-                "" fields) <> ")"
+                (\(f, val) str -> str <> (" (" <> f <> " : " <> show val <> ")"))
+                "" (reverse fields)) <> ")"
+
+  
+  show (NormIType name id ty) = 
+    name <> " : " <> show ty
+  show (NormIVal name tid id params ty) = 
+    name <> (foldr (\p s -> " " <> show p <> s) "" (reverse params))
 
   show (IOAction _ _ _ _) = "IO-Action"
 
@@ -257,13 +267,6 @@ instance Show (Neutral' m) where
   show (NeuDot neu field) = show neu <> "." <> field 
 -- TODO: effect type
 
-class Variable a where   
-  fromString :: String -> a
-  toString :: a -> String
-
-instance Variable String where
-  fromString = id
-  toString = id
   
 data PrimType = BoolT | CharT | IntT | FloatT | UnitT | StringT | AbsurdT
   deriving (Eq, Ord)

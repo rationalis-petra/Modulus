@@ -41,10 +41,10 @@ typeCheckTop (TExpr e) ctx = do
       -- (expr', ty') <- buildDepFn expr ty
       pure $ Left $ (TExpr expr, ty)
 
-typeCheckTop (TDefinition def) env = 
+typeCheckTop (TDefinition def) ctx = 
   case def of 
     TSingleDef name expr Nothing -> do
-      (expr', ty, subst) <- typeCheck expr env
+      (expr', ty, subst) <- typeCheck expr ctx
       if subst /= []
         then 
           throwError ("subst strings non empty at toplevel: " <> show subst)
@@ -56,36 +56,67 @@ typeCheckTop (TDefinition def) env =
       throwError "cannot check type-annotated single definitions"
 
     TOpenDef expr Nothing -> do 
-      (expr', ty, subst) <- typeCheck expr env
+      (expr', ty, subst) <- typeCheck expr ctx
       if subst /= nosubst
         then 
           throwError "subst non-empty at toplevel!"
         else
           pure $ Right $ TDefinition $ TOpenDef expr' (Just ty)
 
---     TVariantDef nme params id alrs ty -> 
---       -- TODO: check for well-formedness!! (maybe?)
---       pure $ Right $ TDefinition $ TVariantDef nme params id (map (\(n, i, ts) -> (n, i, map toInf ts)) alrs)
---                      (toInf ty)
+    TInductDef sym id params (TIntermediate' ty) alts -> do
+      -- TODO: check alternative definitions are well-formed (positive, return
+      -- correct Constructor) 
+      ty' <- evalTIntermediate ty ctx
+      (index, iret) <- readIndex ty'
+      (ctx', params') <- updateFromParams params ctx
+      (indCtor, indTy) <- mkIndexTy params' index iret id
+      alts' <- processAlts alts (Ctx.insert sym indCtor indTy ctx')
+      pure $ Right $ TDefinition $ TInductDef sym id params' indTy alts'
+
+      where
+        processAlts :: [(String, Int, TIntermediate')] -> Ctx.Context -> EvalM [(String, Int, Normal)]
+        processAlts [] ctx = pure []
+        processAlts ((sym, id, (TIntermediate' ty)) : alts) ctx = do
+          -- TODO: check for well-formedness!!
+          -- TODO: positivity check
+          ty' <- evalTIntermediate ty ctx
+          alts' <- processAlts alts ctx
+          pure $ (sym, id, ty') : alts'
+
+        updateFromParams :: [(String, TIntermediate')] -> Ctx.Context -> EvalM (Ctx.Context, [(String, Normal)])
+        updateFromParams [] ctx = pure (ctx, [])
+        updateFromParams ((sym, TIntermediate' ty) : args) ctx = do
+          ty' <- evalTIntermediate ty ctx
+          (ctx', args') <- updateFromParams args (Ctx.insert sym (Neu $ NeuVar sym) ty' ctx)
+          pure (Ctx.insert sym (Neu $ NeuVar sym) ty' ctx', ((sym, ty') : args'))
+
+        readIndex :: Normal -> EvalM ([(String, Normal)], Normal)
+        readIndex (NormUniv n) = pure ([], (NormUniv n))
+        readIndex (NormProd sym a b) = do 
+          (tl, iret) <- readIndex b
+          pure ((sym, a)  : tl, iret)
+        readIndex (NormArr a b) = do
+          id <- freshVar
+          (tl, iret) <- readIndex b
+          pure (("#" <> show id, a) : tl, iret)
+        readIndex _ = throwError "bad inductive type annotation"
+
+  
+        mkIndexTy :: [(String, Normal)] -> [(String, Normal)] -> Normal -> Int -> EvalM (Normal, Normal)
+        mkIndexTy params index bodyty id = mkIndexTy' params index (bodyty, id) []
+        -- TODO: consider substitutions!
+        mkIndexTy' :: [(String, Normal)] -> [(String, Normal)] -> (Normal, Int) -> [String] -> EvalM (Normal, Normal) 
+        mkIndexTy' [] [] (body, id) args = do 
+          pure (NormIType sym id (reverse (map (Neu . NeuVar) args)), body)
+        mkIndexTy' ((sym, ty):params) index body args = do
+          (l, r) <- mkIndexTy' params index body (sym : args)
+          pure $ (NormAbs sym ty l, NormProd sym ty r)
+        mkIndexTy' [] ((sym, ty) : ids) body args = do
+          (l, r) <- mkIndexTy' [] ids body (sym : args)
+          pure $ (NormAbs sym ty l, NormProd sym ty r)
+          
 
 --     -- TEffectDef  String [String] Int [(String, Int, [Normal])]
-
--- buildDepFn :: (TIntermediate Normal) -> Normal -> EvalM (TIntermediate Normal, Normal)
--- buildDepFn expr ty = do
---   let bothFree = Set.toList (free ty)
---   freeVars <- mapM (\str -> throwError ("non-inference type variable free when building Dependent Fn "
---                                     <> str <> " in type " <> show ty <> " for val " <> show expr)) 
---           bothFree
---   let --mkFunTy :: []
---       mkFunTy [] ty = ty
---       mkFunTy (id : ids) ty = NormImplProd ("#" <> show id) (NormUniv 0) (mkFunTy ids ty)
---       mkFun [] bdy = bdy
---       mkFun vars bdy =
---         TLambda (map (\id -> (BoundArg ("#" <> show id) (NormUniv 0), True)) vars)
---                 bdy
---                 (Just (mkFunTy freeVars ty))
---   pure (mkFun freeVars expr, mkFunTy freeVars ty)
-        
 
 typeCheck :: TIntermediate TIntermediate' -> Ctx.Context -> EvalM (TIntermediate Normal, Normal, Subst)
 typeCheck expr ctx = case expr of
@@ -96,7 +127,7 @@ typeCheck expr ctx = case expr of
   (TSymbol s) -> do
     case runExcept (Ctx.lookup s ctx) of 
       Right (_, ty) -> pure (TSymbol s, ty, nosubst)
-      Left err -> throwError ("couldn't find type of symbol " <> s)
+      Left _ -> throwError ("couldn't find type of symbol " <> s)
 
   
   (TImplApply l r) -> do 
@@ -261,13 +292,13 @@ typeCheck expr ctx = case expr of
   (TProd (arg, bl) body) -> do
     case arg of  
       BoundArg var (TIntermediate' ty) -> do
-        ty' <- local (Ctx.ctxToEnv ctx) (evalTIntermediate ty ctx)
+        ty' <- evalTIntermediate ty ctx
         (body', bodyTy, subst) <- typeCheck body (Ctx.insert var (Neu $ NeuVar var) ty' ctx)
-        pure (TProd (BoundArg var ty', bl) body', NormArr ty' bodyTy, subst)
+        pure (TProd (BoundArg var ty', bl) body', NormUniv 0, subst)
       TWildCard (TIntermediate' ty) -> do
-        ty' <- local (Ctx.ctxToEnv ctx) (evalTIntermediate ty ctx)
+        ty' <- evalTIntermediate ty ctx
         (body', bodyTy, subst) <- typeCheck body ctx
-        pure (TProd (TWildCard ty', bl) body', NormArr ty' bodyTy, subst)
+        pure (TProd (TWildCard ty', bl) body', NormUniv 0, subst)
 
   (TAccess term field) -> do
     (term', ty, subst) <- typeCheck term ctx
@@ -308,7 +339,7 @@ typeCheck expr ctx = case expr of
           
     (defs', fields, subst) <- foldDefs defs ctx
 
-    pure (TStructure defs', NormMod fields, subst)
+    pure (TStructure defs', NormSig fields, subst)
 
   -- TOOD: What /is/ the type of a signature? I've just done the same thing as
   -- for modules...
@@ -324,7 +355,7 @@ typeCheck expr ctx = case expr of
           
     (defs', fields, subst) <- foldDefs defs ctx
 
-    pure (TSignature defs', NormSig fields, subst)
+    pure (TSignature defs', NormUniv 0, subst)
 
   other -> 
     throwError ("typecheck unimplemented for intermediate term " <> show other)
@@ -335,12 +366,12 @@ typeCheck expr ctx = case expr of
     updateFromArgs ctx ((arg, bl) : args) = do 
       case arg of
         BoundArg str (TIntermediate' ty) -> do
-          ty' <- local (Ctx.ctxToEnv ctx) (evalTIntermediate ty ctx)
+          ty' <- evalTIntermediate ty ctx
           (ctx', args') <- updateFromArgs (Ctx.insert str (Neu $ NeuVar str) ty' ctx) args
           pure (Ctx.insert str (Neu $ NeuVar str) ty' ctx', ((BoundArg str ty', bl) : args'))
         InfArg str id -> do
           (ctx', args') <- updateFromArgs ctx args
-          pure (Ctx.insert str (Neu $ NeuVar ("#" <> show id)) (NormUniv 0) ctx',
+          pure (Ctx.insert str (Neu $ NeuVar str) (Neu $ NeuVar ("#" <> show id))  ctx',
                                (InfArg str id, bl) : args')
 
 
@@ -351,7 +382,7 @@ typeCheckDef :: TDefinition TIntermediate' -> Ctx.Context
 typeCheckDef (TSingleDef name body ty) ctx = do 
   bnd <- case ty of 
     Nothing -> freshVar
-    Just (TIntermediate' ty) -> local (Ctx.ctxToEnv ctx) (evalTIntermediate ty ctx)
+    Just (TIntermediate' ty) -> evalTIntermediate ty ctx
   (body', ty', subst) <- typeCheck body (Ctx.insert name (Neu $ NeuVar name) bnd ctx)
   pure (TSingleDef name body' (Just ty'), name, ty', subst)
 
@@ -601,8 +632,8 @@ occurs' v (NormArrTy ty) = occurs' v ty
 -- into types, and then substituted in to make sure it all works!
 
 toDepLiteral :: TIntermediate Normal -> Ctx.Context -> EvalM Normal
-toDepLiteral (TValue t) env = pure t
-toDepLiteral e env = throwError ("non-evaluated expression given to toDepLiteral: " <> show e)
+toDepLiteral (TValue t) ctx = pure t
+toDepLiteral e ctx = throwError ("non-evaluated expression given to toDepLiteral: " <> show e)
 -- toDepLiteral (TSymbol str)
 
 freshVar :: EvalM Normal  
@@ -618,4 +649,4 @@ evalTIntermediate tint ctx = do
   c_term <- case runExcept (Conv.toCore checked) of 
         Left err -> throwError err
         Right val -> pure val
-  Eval.eval c_term
+  local (Ctx.ctxToEnv ctx) (Eval.eval c_term) 

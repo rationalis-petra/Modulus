@@ -39,6 +39,31 @@ evalTop (TopDef def) = case def of
         let m' = restrict m sig 
         pure (Right (\env -> foldr (\(k, val) env -> Env.insertCurrent k val env) env m'))
       _ -> throwError "cannot open non-module"
+  InductDef sym indid params ty alts -> do 
+    let insertCtor env = Env.insertCurrent sym ty env
+        insertAlts alts env = foldr (\(k, val) env -> Env.insertCurrent k val env) env alts
+
+        mkAlts [] = pure []
+        mkAlts ((sym, id, ty) : alts) = do
+          alt <- mkAlt sym id ty []
+          alts' <- mkAlts alts
+          pure ((sym, alt) : alts')
+          
+        mkAlt :: String -> Int -> Normal -> [Normal] -> EvalM Normal
+        mkAlt sym id (NormArr l r) params = do
+          var <- fresh_var 
+          subterm <- mkAlt sym id r ((Neu $ NeuVar ("#" <> show var)): params)
+          pure $ NormAbs ("#" <> show var) subterm (NormArr l r)
+        mkAlt sym id (NormProd var a b) params = do
+          subterm <- mkAlt sym id b (Neu (NeuVar var) : params)
+          pure $ NormAbs var subterm (NormProd var a b)
+        mkAlt sym id (NormImplProd var a b) params = do
+          subterm <- mkAlt sym id b (Neu (NeuVar var) : params)
+          pure $ NormAbs var subterm (NormImplProd var a b)
+        mkAlt sym id ty params = pure $ NormIVal sym indid id (reverse params) ty
+    
+    alts' <- mkAlts alts
+    pure $ Right (insertCtor . insertAlts alts')
   
 -- evaluate an expression, to a normal form (not a value!). This means that the
 -- environment now contains only normal forms!
@@ -74,12 +99,6 @@ eval (CApp l r) = do
   r' <- eval r
   case l' of 
     Neu neu -> pure $ Neu (NeuApp neu r')
-    NormArr _ r -> pure r 
-    NormProd var ty body -> do
-      if t_hasType r' ty then
-        normSubst (r', var) body
-      else
-        throwError "bad type application"
     NormAbs var body ty -> do
       -- if t_hasType r' ty then
       normSubst (r', var) body
@@ -165,8 +184,10 @@ normSubst (val, var) ty = case ty of
       pure $ NormAbs var' body' ty'
 
 
-  -- NormMod [(String, Normal)]
-  -- NormSig [(String, Normal)]
+  NormMod fields -> do
+    NormMod <$> substFields (val, var) fields
+  NormSig fields -> do
+    NormSig <$> substFields (val, var) fields
 
   -- IOAction
 
@@ -177,6 +198,17 @@ normSubst (val, var) ty = case ty of
   AST ast      -> pure $ AST ast
 
   -- Undef 
+  s -> throwError ("subst not implemented for: " <> show s)
+  where 
+    substFields :: (Normal, String) -> [(String, Normal)] -> EvalM [(String, Normal)]
+    substFields (val, var) ((var', val') : fields) = do
+      if var == var' then 
+        pure $ (var', val') : fields
+      else do
+        val'' <- normSubst (val, var) val'
+        fields' <- substFields (val, var) fields 
+        pure $ (var', val'') : fields'
+    substFields (val, var) [] = pure []
 
   
 neuSubst :: (Normal, String) -> Neutral -> EvalM Normal

@@ -65,9 +65,10 @@ typeVal (NormMod m) = do
   -- TODO: is this dodgy?
   fields <- mapM (\(s, v) -> typeVal v >>= \t -> pure (s, t)) m
   pure (NormSig fields)
--- typeVal (CFunction _ _ ctx ty) = pure ty
--- typeVal (CConstructor _ _ _ _ _ _ ty) = pure ty
--- typeVal (CustomCtor _ _ _ _ ty) = pure ty
+
+-- typeVal (NormIType _ _ ty) = pure ty
+typeVal (NormIVal _ _ _ _ ty) = pure ty
+  
 typeVal e = throwError $ "untypable value: " <> show e
 
 

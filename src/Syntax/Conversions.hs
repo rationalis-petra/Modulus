@@ -16,7 +16,7 @@ import Syntax.Intermediate(Intermediate(..),
 import Interpret.EvalM (local, fresh_id, fresh_var, throwError)
 import Control.Monad.State (State, runState)
 import Control.Monad.Except (ExceptT, Except, runExceptT, runExcept)
-import qualified Control.Monad.Except as Except 
+import qualified Control.Monad.Except as Except
 
 import qualified Interpret.Environment as Env
 import qualified Typecheck.Context as Ctx 
@@ -34,62 +34,34 @@ toTIntermediateTop (IDefinition def) =
     IOpenDef i -> do
       t <- toTIntermediate i
       pure (TDefinition $ TOpenDef t Nothing)
-    -- IVariantDef nme params alternatives -> do
-    --   id <- fresh_id
-    --   let
-    --     -- varVal: the variant type itself, defined as a type-constructor
-    --     -- (i.e. a function from a type to a type)
-    --     varVal = mkVFun params 
-    --     -- CFunction params (CVal $ Type $ MNamed id nme (map MVar params) []) Env.empty
-    --     mkVFun [] = Type $ MNamed id nme (map MVar params) []
-    --     mkVFun (p:ps) = CFunction p (mkBdy ps) Env.empty (mkTFun (p:ps))
-    --       where
-    --         mkBdy [] = CVal $ Type $ MNamed id nme (map MVar params) []
-    --         mkBdy (p:ps) = CAbs p (mkBdy ps) (mkTFun (p:ps))
+    IInductDef sym params ty alts -> do 
+      params' <- processParams params
+      ty' <- toTIntermediate ty
+      alts' <- processAlts alts
+      id <- fresh_id
+      pure $ TDefinition $ TInductDef sym id params' (TIntermediate' ty') alts'
+      where
+        processAlts :: [(String, Intermediate)] -> EvalM [(String, Int, TIntermediate')] 
+        processAlts [] = pure []
+        processAlts ((str, inter) : params) = do
+          tint' <- toTIntermediate inter
+          id <- fresh_id
+          rest <- processAlts params
+          pure $ ((str, id, (TIntermediate' tint')) : rest)
 
-    --     -- varType: the type of the variant type constructor (i.e. type -> type -> ...)
-    --     varType = mkTFun params
-    --     mkTFun (p : ps) = MArr (TypeN 1) (mkTFun ps)
-    --     mkTFun [] = TypeN 1
-      
-    --     newCtx :: Ctx.Context
-    --     newCtx = foldr (\s ctx -> Ctx.insertVal s (Type $ MVar s) (TypeN 1) ctx) ctx params  
-    --     newCtx' = Ctx.insertVal nme varVal varType newCtx
-         
-    --   alts <- local (Ctx.ctxToEnv newCtx') (evalAlts 0 alternatives)
-    --   let (alts', varType') = recursiveSubst id nme (map MVar params) alts
-    --   pure (TDefinition $ TVariantDef nme params id alts' varType')
-    --   where
-    --     evalAlts _ [] = pure []
-    --     evalAlts n ((s, ilist) : tl) = do
-    --       types <- evalTypes ilist
-    --       tl' <- evalAlts (n + 1) tl
-    --       pure ((s, n, types) : tl')
+        processParams :: [IArg] -> EvalM [(String, TIntermediate')]
+        processParams [] = pure []
+        processParams (Sym sym : args) = do
+          args' <- processArgs args
+          pure $ ((sym, TIntermediate' (TValue (NormUniv 0))) : args')
 
-    --     evalTypes [] = pure []
-    --     evalTypes (i:is) = do
-    --       ty <- evalIntermediate i ctx
-    --       case ty of 
-    --         (Type t) -> do
-    --           ts <- evalTypes is
-    --           pure (t : ts)
-    --         _ -> throwError "variant requires types"
-  
-    --     recursiveSubst :: Int -> String -> [TypeNormal] -> [(String, Int, [TypeNormal])]
-    --                    -> ([(String, Int, [TypeNormal])], TypeNormal)
-    --     recursiveSubst id nme params alts = 
-    --       let alts' = map (\(s, n, ts) -> (s, n, map subst ts)) alts
-    --           varType' = MNamed id nme params (map (\(_, _, t) -> t) alts')
+        processArgs (Annotation sym inter : args) = do
+          args' <- processArgs args
+          inter' <- toTIntermediate inter
+          pure $ ((sym, TIntermediate' inter') : args')
 
-    --           -- TODO: finish this function!
-    --           -- subst (MNamed id' n p a) = if id == id' then
-    --           --   varType' else (MNamed id' n p a)
-    --           subst (NormArr t1 t2) = NormArr (subst t1) (subst t2) 
-    --           subst (MPrim p) = (MPrim p)
-    --           subst (MVar v) = (MVar v)
-    --           subst (TypeN n) = (TypeN n)
-    --       in (alts', varType')
-      
+        processArgs (WildCard inter : args) = do
+          throwError "inductive definitions do not accept wildcard parameters"
 
   
 toTIntermediateTop i = TExpr <$> toTIntermediate i
@@ -128,11 +100,13 @@ toTIntermediate (ILambda args bdy) = do
       else do
         tl <- processArgs xs
         var <- fresh_var
-        pure $ ((InfArg s var), b) : tl
+        pure $ (InfArg s var, b) : tl
     processArgs ((Annotation s i, b) : xs) = do
       ty <- toTIntermediate i
       tl <- processArgs xs
       pure ((BoundArg s (TIntermediate' ty), b) : tl)
+
+  
 
 toTIntermediate (IProd arg bdy) = do
   arg' <- case arg of
@@ -159,9 +133,9 @@ toTIntermediate (IModule defList) = do
         tl <- getDefs xs 
         pure $ TSingleDef s hd Nothing : tl
       -- TODO: types of variants
-      IVariantDef nme args variants -> -- String[String][(String,[Intermediate])]
+      IInductDef nme params ty alts -> -- String[String][(String,[Intermediate])]
         throwError "variants not implemented yet..."
-      IEffectDef nme args effects -> -- String [String] [(String, [Intermediate])]
+      IEffectDef nme args effects ->   -- String [String] [(String, [Intermediate])]
         throwError "effects not implemented yet..."
       IOpenDef i -> do
         opn <- TOpenDef <$> (toTIntermediate i) <*> pure Nothing
@@ -179,7 +153,7 @@ toTIntermediate (ISignature defList) = do
         tl <- getDefs xs 
         pure $ TSingleDef s hd Nothing : tl
       -- TODO: types of variants
-      IVariantDef nme args variants -> -- String[String][(String,[Intermediate])]
+      IInductDef nme params ty alts ->
         throwError "variants in signatures not implemented yet..."
       IEffectDef nme args effects -> -- String [String] [(String, [Intermediate])]
         throwError "effects in signatures not implemented yet..."
@@ -256,6 +230,10 @@ toTopCore (TDefinition def) = TopDef <$> fromDef def
       let (NormSig sig) = ty
       pure (OpenDef coreBody sig)
     fromDef (TOpenDef body Nothing) = err "definitions must be typed"
+
+    fromDef (TInductDef sym id params ty alts) = do
+      pure (InductDef sym id params ty alts)
+
 
     -- fromDef (TVariantDef nme params id alts ty) = pure (VariantDef nme params id alts ty)
 toTopCore (TExpr v) = TopExpr <$> toCore v
