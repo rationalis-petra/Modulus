@@ -33,7 +33,7 @@ data Definition
 data Pattern
   = WildCard
   | VarBind String 
-  | MatchVariant Int Int [Pattern]
+  | MatchInduct Int Int [Pattern]
   | MatchModule [(String, Pattern)]
   deriving Show
 
@@ -52,7 +52,7 @@ data Core
   | CLetOpen [(Core, [(String, Core)])] Core  -- Local opens
   | CMatch Core [(Pattern, Core)]    -- Pattern-Match
   -- TODO: remove this via lazy functions!
-  | CIF Core Core Core
+  | CIf Core Core Core
   -- | Hndl Core Core                       -- Handle with a handler
   -- | MkHndler [(String, [String], Core)]  -- Create a new handler
   | CSct [Definition]                -- Structure Definition
@@ -127,7 +127,7 @@ data Normal' m
   | NormSig [(String, Normal' m)]
 
   -- Inductive (later. Coinductive) datatypes
-  | NormIType String Int [Normal] 
+  | NormIType String Int [Normal]
   | NormIVal String Int Int [Normal] Normal
 
   -- Effects
@@ -145,13 +145,16 @@ data Normal' m
 data Neutral' m
   = NeuVar String 
   -- an inbuilt function waiting on a netural term
+  | NeuApp (Neutral' m) (Normal' m)
+  | NeuImplApp (Neutral' m) (Normal' m)
+  | NeuDot (Neutral' m) String
+  | NeuIf (Neutral' m) (Normal' m) (Normal' m)
+  | NeuMatch (Neutral' m) [(Pattern, Normal)]
+
   | NeuBuiltinApp (Normal' m -> m (Normal' m)) (Neutral' m) (Normal' m)
   | NeuBuiltinApp2 (Normal' m -> Normal' m -> m (Normal' m)) (Neutral' m) (Normal' m)
   | NeuBuiltinApp3 (Normal' m -> Normal' m -> Normal' m -> m (Normal' m)) (Neutral' m) (Normal' m)
   | NeuBuiltinApp4 (Normal' m -> Normal' m -> Normal' m -> Normal' m -> m (Normal' m)) (Neutral' m) (Normal' m)
-  | NeuApp (Neutral' m) (Normal' m)
-  | NeuImplApp (Neutral' m) (Normal' m)
-  | NeuDot (Neutral' m) String
   
 
   
@@ -239,8 +242,11 @@ instance Show (Normal' m) where
                 "" (reverse fields)) <> ")"
 
   
-  show (NormIType name id ty) = 
-    name <> " : " <> show ty
+  show (NormIType name id params) = 
+    if null params then 
+      name
+    else
+      name <> " : " <> show params
   show (NormIVal name tid id params ty) = 
     name <> (foldr (\p s -> " " <> show p <> s) "" (reverse params))
 
@@ -256,16 +262,22 @@ instance Show (Normal' m) where
 
 instance Show (Neutral' m) where
   show (NeuVar var) = var
+  show (NeuApp neu (Neu (NeuApp n1 n2))) = show neu <> " (" <> show (Neu (NeuApp n1 n2)) <> ")"
   show (NeuApp neu norm) = show neu <> " " <> show norm
+  show (NeuImplApp neu norm) = show neu <> " {" <> show norm <> "}" 
+  show (NeuDot neu field) = show neu <> "." <> field 
+  show (NeuMatch neu pats) = "(match " <> show neu 
+                             <> foldr (\(p, e) s -> s <> "\n" <> show p <> " → " <> show e) "" (reverse pats)
+                             <> ")"
+  show (NeuIf cond e1 e2) = "(if " <> show e1 <> " " <> show e2 <> ")"
 
   show (NeuBuiltinApp fn neu ty)  = "(fnc :" <> show ty  <> ") " <> show neu
   show (NeuBuiltinApp2 fn neu ty) = "(fnc :" <> show ty  <> ") "  <> show neu
   show (NeuBuiltinApp3 fn neu ty) = "(fnc :" <> show ty  <> ") "  <> show neu
   show (NeuBuiltinApp4 fn neu ty) = "(fnc :" <> show ty  <> ") "  <> show neu
-  
-  show (NeuImplApp neu norm) = show neu <> " {" <> show norm <> "}" 
-  show (NeuDot neu field) = show neu <> "." <> field 
 -- TODO: effect type
+
+
 
   
 data PrimType = BoolT | CharT | IntT | FloatT | UnitT | StringT | AbsurdT

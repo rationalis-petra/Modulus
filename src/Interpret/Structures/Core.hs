@@ -163,7 +163,7 @@ mlsMkTuple = liftFun4 mkTuple (NormImplProd "a" (NormUniv 0)
                                    (NormArr (Neu (NeuVar "b"))
                                     (NormSig [("_1", Neu (NeuVar "a")), ("_2", Neu (NeuVar "b"))])))))
              
-
+  
 -- CONSTRAINTS
 doConstrain :: Normal -> Normal -> EvalM Normal
 doConstrain (NormMod mod) (NormSig sig) = 
@@ -193,7 +193,7 @@ coreStructure = [
   ("𝒰₂", NormUniv 2),
   ("𝒰₃", NormUniv 3),
   ("→", Special MkProd),
-  ("sig", Special MkSig),
+  ("sig", mlsSig),
   ("×", mlsMkTupleType),
 
   -- misc. functions (constructors etc.)

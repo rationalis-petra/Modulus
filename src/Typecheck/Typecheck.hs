@@ -44,13 +44,17 @@ typeCheckTop (TExpr e) ctx = do
 typeCheckTop (TDefinition def) ctx = 
   case def of 
     TSingleDef name expr Nothing -> do
-      (expr', ty, subst) <- typeCheck expr ctx
-      if subst /= []
+      recTy <- freshVar
+      (expr', ty, vsubst) <- typeCheck expr (Ctx.insert name (Neu $ NeuVar name) recTy ctx)
+      csubst <- constrain recTy ty
+      let fnlSubst = rmSubst (show recTy) (toSing csubst)
+      recTy' <- doSubst (toSing csubst) recTy    
+      if (null fnlSubst)
         then 
-          throwError ("subst strings non empty at toplevel: " <> show subst)
-        else do
           -- (expr'', ty') <- buildDepFn expr' ty
-          pure $ Right $ TDefinition $ TSingleDef name expr' (Just ty)
+          pure $ Right $ TDefinition $ TSingleDef name expr' (Just recTy')
+        else do
+          throwError ("subst strings non empty at toplevel: " <> show fnlSubst)
 
     TSingleDef name expr (Just mty) -> do
       throwError "cannot check type-annotated single definitions"
@@ -63,7 +67,7 @@ typeCheckTop (TDefinition def) ctx =
         else
           pure $ Right $ TDefinition $ TOpenDef expr' (Just ty)
 
-    TInductDef sym id params (TIntermediate' ty) alts -> do
+    TInductDef sym id params (TIntermediate' ty) alts Nothing -> do
       -- TODO: check alternative definitions are well-formed (positive, return
       -- correct Constructor) 
       ty' <- evalTIntermediate ty ctx
@@ -71,7 +75,7 @@ typeCheckTop (TDefinition def) ctx =
       (ctx', params') <- updateFromParams params ctx
       (indCtor, indTy) <- mkIndexTy params' index iret id
       alts' <- processAlts alts (Ctx.insert sym indCtor indTy ctx')
-      pure $ Right $ TDefinition $ TInductDef sym id params' indTy alts'
+      pure $ Right $ TDefinition $ TInductDef sym id params' indTy alts' (Just indCtor)
 
       where
         processAlts :: [(String, Int, TIntermediate')] -> Ctx.Context -> EvalM [(String, Int, Normal)]
@@ -98,7 +102,7 @@ typeCheckTop (TDefinition def) ctx =
         readIndex (NormArr a b) = do
           id <- freshVar
           (tl, iret) <- readIndex b
-          pure (("#" <> show id, a) : tl, iret)
+          pure ((show id, a) : tl, iret)
         readIndex _ = throwError "bad inductive type annotation"
 
   
@@ -244,7 +248,6 @@ typeCheck expr ctx = case expr of
          fnlTy <- buildFnType fnlArgs subst ty
          let fnl_lambda = TLambda fnlArgs body' (Just fnlTy)
          pure (fnl_lambda, fnlTy, fnlsubst)
-       -- TODO: add checking if lambda type already there...
 
      where 
        buildFnType :: [(TArg Normal, Bool)] -> Subst -> Normal -> EvalM Normal 
@@ -323,7 +326,7 @@ typeCheck expr ctx = case expr of
     s2 <- compose s1 subste2 
     s3 <- compose s2 substcnd''
     s4 <- compose s3 substterms'
-    fnlTy <- dosubst s4 te1
+    fnlTy <- doSubst s4 te1
     pure (TIF cond' e1' e2', fnlTy, s4)
 
   -- TODO: mutually recursive definitions...
@@ -356,6 +359,65 @@ typeCheck expr ctx = case expr of
     (defs', fields, subst) <- foldDefs defs ctx
 
     pure (TSignature defs', NormUniv 0, subst)
+
+  (TMatch term patterns) -> do
+    (term', ty, subst) <- typeCheck term ctx
+    retTy <- freshVar 
+    (patterns', subst') <- checkPatterns patterns ty retTy
+    outSubst <- compose subst subst'
+    retTy' <- doSubst outSubst retTy
+    let fnlSubst = rmSubst (show retTy) outSubst
+    pure $ (TMatch term' patterns', retTy', fnlSubst)
+    where
+      -- Check Patterns: take a list of patterns as input, along with the
+      -- matching type and return type, to be unified with
+      -- return a pattern, the return type of that pattern and the required substituion
+      checkPatterns :: [(TPattern TIntermediate', TIntermediate TIntermediate')] -> Normal -> Normal
+                    -> EvalM ([(TPattern Normal, TIntermediate Normal)], Subst)
+      checkPatterns [] _ _ = pure ([], nosubst)
+      checkPatterns ((p, e) : ps) matchty retty = do
+        -- get the type of 
+        (p', matchty', ctxUpd) <- getPatternType p
+        
+  
+        let ctx' = foldr (\(sym, ty) ctx -> Ctx.insert sym (Neu $ NeuVar sym) ty ctx) ctx ctxUpd
+        (e', eret, esubst) <- typeCheck e ctx'
+
+        -- TODO: ensure that the constrains are right way round...
+        restMatchSubst <- constrain matchty matchty'
+        restRetSubst <- constrain retty eret
+        (ps', pssubst) <- checkPatterns ps matchty retty
+  
+        -- TODO: make sure composition is right way round...
+        substFnl <- composeList [(toSing restMatchSubst), (toSing restRetSubst), esubst, pssubst]
+        pure $ ((p', e') : ps', substFnl)
+      
+      -- TODO: check for duplicate variable patterns!
+      -- Get the type of a single pattern, to be constrained against.
+      -- Also, return a list of variables and their
+        
+      getPatternType :: TPattern TIntermediate' -> EvalM (TPattern Normal, Normal, [(String, Normal)]) 
+      getPatternType TWildPat = do
+        var <- freshVar
+        pure $ (TWildPat, var, [])
+      getPatternType (TBindPat sym) = do
+        ty <- freshVar
+        pure $ (TBindPat sym, ty, [(sym, ty)])
+      getPatternType (TIMatch indid altid (TIntermediate' altTy) subpatterns) = do 
+        lst <- mapM getPatternType subpatterns
+        let (subpatterns', norms, vars) = foldr (\(s, n, v) (ss, ns, vs) -> (s:ss, n:ns, v <> vs)) ([], [], []) lst 
+        altTy' <- evalTIntermediate altTy ctx
+        retty <- foldTyApp altTy' norms
+        pure $ (TIMatch indid altid altTy' subpatterns', retty, vars)
+
+        where 
+          foldTyApp ty [] = pure ty
+          foldTyApp ty (n : ns) = do
+            ty' <- Eval.tyApp ty n
+            foldTyApp ty' ns
+      -- getPatternType (MatchModule fields) = do 
+
+
 
   other -> 
     throwError ("typecheck unimplemented for intermediate term " <> show other)
@@ -461,6 +523,27 @@ constrain (NormSig m1) (NormSig m2) =
     (pure lrnosubst) m1
 
 
+constrain (NormIVal name1 tyid1 id1 vals1 norm1) (NormIVal name2 tyid2 id2 vals2 norm2) =
+  if tyid1 == tyid2 && id1 == id2 then
+    foldr (\(n1, n2) mnd -> do
+              s1 <- mnd
+              s2 <- constrain n1 n2
+              composelr s1 s2)
+      (pure lrnosubst) (zip vals1 vals2)
+  else
+    err "cannot constrain inductive values of non-equal constructors"
+
+constrain (NormIType name1 id1 vals1) (NormIType name2 id2 vals2) =
+  if id1 == id2 then
+    foldr (\(n1, n2) mnd -> do
+              s1 <- mnd
+              s2 <- constrain n1 n2
+              composelr s1 s2)
+      (pure lrnosubst) (zip vals1 vals2)
+  else
+    err "cannot constrain inductive datatypes of non-equal constructors"
+  
+
 constrain (NormArrTy ty1) (NormArrTy ty2) = constrain ty1 ty2
 
 constrain t1 t2 =   
@@ -547,6 +630,11 @@ compose str1 str2 = pure $ str1 <> str2
 --     tl <- iter s s2 
 --     compose (ss, str1) (s : tl)
 
+composeList [] = pure nosubst
+composeList (s:ss) = do
+  cmp <- composeList ss
+  compose s cmp
+
 
 composelr :: LRSubst -> LRSubst -> EvalM LRSubst
 composelr ([], l1, r1) (s2, l2, r2) = pure (s2, l1 <> l2, r1 <> r2)
@@ -571,12 +659,12 @@ toSing (s, left, right) = (s <> left <> right)
 
 -- Perform substitution
 -- TODO: do what about order of string substitution? rearranging??
-dosubst :: Subst -> Normal  -> EvalM Normal 
-dosubst subst ty = case subst of 
+doSubst :: Subst -> Normal  -> EvalM Normal 
+doSubst subst ty = case subst of 
   [] -> pure ty 
   ((sty, s) : ss) -> do
     ty' <- Eval.normSubst (sty, s) ty
-    dosubst ss ty'
+    doSubst ss ty'
 
 -- Throw an error if a variable (string) is contained in a substitution
 checkSubst :: String -> String -> LRSubst -> EvalM ()
@@ -618,6 +706,7 @@ occurs' v (NormImplProd str t1 t2) = -- remember: dependent type binding can
   else
     occurs' v t1 || occurs' v t2
 occurs' v (NormArrTy ty) = occurs' v ty
+occurs' v (NormIType _ _ params) = foldr (\ty b -> b || occurs' v ty) False params
 
   
 

@@ -3,6 +3,7 @@ module Syntax.Conversions where
 import Data(EvalM,
             TopCore(..),
             Core (..),
+            Pattern(..),
             Definition(..),
             Normal,
             Normal'(..),
@@ -39,7 +40,7 @@ toTIntermediateTop (IDefinition def) =
       ty' <- toTIntermediate ty
       alts' <- processAlts alts
       id <- fresh_id
-      pure $ TDefinition $ TInductDef sym id params' (TIntermediate' ty') alts'
+      pure $ TDefinition $ TInductDef sym id params' (TIntermediate' ty') alts' Nothing
       where
         processAlts :: [(String, Intermediate)] -> EvalM [(String, Int, TIntermediate')] 
         processAlts [] = pure []
@@ -60,7 +61,7 @@ toTIntermediateTop (IDefinition def) =
           inter' <- toTIntermediate inter
           pure $ ((sym, TIntermediate' inter') : args')
 
-        processArgs (WildCard inter : args) = do
+        processArgs (IWildCardArg inter : args) = do
           throwError "inductive definitions do not accept wildcard parameters"
 
   
@@ -115,7 +116,7 @@ toTIntermediate (IProd arg bdy) = do
     (Annotation var ty, bl) -> do
       ty' <- toTIntermediate ty
       pure (BoundArg var (TIntermediate' ty'), bl)
-    (WildCard ty, bl) ->  do
+    (IWildCardArg ty, bl) ->  do
       ty' <- toTIntermediate ty
       pure (TWildCard (TIntermediate' ty'), bl)
   body' <- toTIntermediate bdy
@@ -181,7 +182,7 @@ toTIntermediate (IMatch e1 cases) = do
       pure (tpat, e')
 
     toTPat :: IPattern -> EvalM (TPattern TIntermediate')
-    toTPat IWildCard = pure TWildCardPat
+    toTPat IWildCard = pure TWildPat
     toTPat (ISingPattern s) = pure (TBindPat s)
     toTPat (ICheckPattern pat subPatterns) = do
       subPatterns' <- mapM toTPat subPatterns
@@ -190,13 +191,8 @@ toTIntermediate (IMatch e1 cases) = do
     extractPattern expr subPatterns = do
       val <- toTIntermediate expr
       case val of 
-        -- TODO: what to do with params?
-        -- CConstructor name id1 id2 len params [] ty ->
-        --   if len == length subPatterns then
-        --     pure (TVarPat id1 id2 subPatterns (TyNorm ty))
-        --   else
-        --     throwError ("subpatterns bad size for pattern: " <> name
-        --                 <> " expected " <> show len <> "got" <> show (length subPatterns))
+        TValue (NormIVal name altid vid [] ty) ->
+          pure (TIMatch altid vid (TIntermediate' (TValue ty)) subPatterns)
         _ -> throwError ("couldn't extract pattern from val: " <> show val)
 
 
@@ -231,7 +227,7 @@ toTopCore (TDefinition def) = TopDef <$> fromDef def
       pure (OpenDef coreBody sig)
     fromDef (TOpenDef body Nothing) = err "definitions must be typed"
 
-    fromDef (TInductDef sym id params ty alts) = do
+    fromDef (TInductDef sym id params _ alts (Just ty)) = do
       pure (InductDef sym id params ty alts)
 
 
@@ -368,6 +364,28 @@ toCore (TIF cond e1 e2) = do
   cond' <- toCore cond
   e1' <- toCore e1
   e2' <- toCore e2
-  pure (CIF cond' e1' e2')
+  pure (CIf cond' e1' e2')
+
+toCore (TMatch term patterns) = do
+  term' <- toCore term
+  patterns' <- toCoreCases patterns
+  pure $ CMatch term' patterns'
+  where
+    toCoreCases [] = pure []
+    toCoreCases ((p, e):ps) = do
+      e' <- toCore e
+      p' <- toCorePat p
+      ps' <- toCoreCases ps
+      pure ((p', e') : ps')
+
+    toCorePat :: TPattern Normal -> Except String Pattern
+    toCorePat TWildPat = pure WildCard
+    toCorePat (TBindPat str) = pure (VarBind str)
+    toCorePat (TIMatch id1 id2 ty pats) = do
+      pats' <- mapM toCorePat pats
+      pure $ (MatchInduct id1 id2 pats')
+
+
+
 
 toCore x = err ("unimplemented" <> show x)

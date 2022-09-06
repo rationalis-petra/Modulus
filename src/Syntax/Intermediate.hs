@@ -12,7 +12,7 @@ import Data (AST(..),
              Environment,
              Special(..),
              Normal,
-             Normal'(Symbol, Special, Keyword),
+             Normal'(Symbol, Special, Keyword, NormIVal),
              Neutral,
              Neutral')
 
@@ -25,7 +25,7 @@ newtype GlobCtx = GlobCtx (Environment, (Set.Set String))
 data IArg
   = Sym String
   | Annotation String Intermediate
-  | WildCard Intermediate
+  | IWildCardArg Intermediate
   deriving Show
 
 
@@ -178,10 +178,10 @@ mkProd [arg, body] ctx =
                 pure (Annotation s ty', Just s)
               _ -> do
                 ty' <- toIntermediateM (Cons [hd, Atom (Symbol s), ty]) ctx
-                pure (WildCard ty', Nothing)
+                pure (IWildCardArg ty', Nothing)
           ty -> do
             ty' <- toIntermediateM ty ctx
-            pure (WildCard ty', Nothing)
+            pure (IWildCardArg ty', Nothing)
     case var of    
       Just v -> IProd (arg'', impl) <$> toIntermediateM body (shadow v ctx) 
       Nothing -> IProd (arg'', impl) <$> toIntermediateM body ctx 
@@ -241,7 +241,7 @@ mkModule lst ctx = do
         (IValue (Special Induct)) -> mkInduct body ctx
         (IValue (Special MkEffect)) -> mkEffect body ctx
         (IValue (Special Open)) -> mkOpen body ctx
-        _ -> throwError "Modules should contain only definition-terms"
+        _ -> throwError "Modules should contain only definition terms"
     getDef v = throwError ("bad term in module definition: " ++ show v)
 
 mkSig :: [AST] -> GlobCtx -> Except String Intermediate
@@ -255,10 +255,11 @@ mkSig lst ctx = do
       case mdef of 
         -- TODO: shadow all variables...
         (IValue (Special Def)) -> mkDef body ctx
+        (IValue (Special Annotate)) -> mkDef body ctx
         (IValue (Special Induct)) -> mkInduct body ctx
         (IValue (Special MkEffect)) -> mkEffect body ctx
         (IValue (Special Open)) -> mkOpen body ctx
-        _ -> throwError "Signatures should contain only definition-terms"
+        _ -> throwError "Signatures should contain only definition terms"
     getDef v = throwError ("bad term in signature definition: " ++ show v)
 
 
@@ -276,14 +277,14 @@ mkInduct (def : tl) ctx = do
           params' <- getAnnSymList params ctx
           ty' <- toIntermediateM ty ctx
           pure (s, params', ty')
-        _ -> throwError "Poorly formed inductive type definition"
+        _ -> throwError ("Poorly formed inductive type definition" <> show a')
     extractDef (Cons [a, Atom (Symbol s), ty]) ctx = do
       a' <- toIntermediateM a ctx
       case a' of 
         (IValue (Special Annotate)) -> do
           ty' <- toIntermediateM ty ctx
           pure (s, [], ty')
-        _ -> throwError "Poorly formed inductive type definition"
+        _ -> throwError ("Poorly formed inductive type definition - expected annotate, got: " <> show a')
     extractDef def _ = throwError ("Poorly formed inductive type definition: " <> show def)
 
     
@@ -333,7 +334,10 @@ mkMatch (expr : patterns) ctx = do
     mkPattern (Atom (Symbol s)) ctx =
       case s of 
         "_" -> pure $ IWildCard
-        _ -> pure $ ISingPattern s
+        _ -> case lookup s ctx of
+           Just (NormIVal name id1 id2 [] ty) ->
+             pure $ ICheckPattern (IValue (NormIVal name id1 id2 [] ty)) []
+           _ -> pure $ ISingPattern s
 
   
 mkMatch _ _ = throwError "ill-formed pattern-match"

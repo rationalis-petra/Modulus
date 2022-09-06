@@ -4,6 +4,7 @@ module Interpret.Eval (Normal,
                        eval,
                        evalTop,
                        normSubst,
+                       tyApp,
 
                        liftFun,
                        liftFun2,
@@ -29,6 +30,12 @@ import Interpret.Transform hiding (lift)
 evalTop :: TopCore -> EvalM (Either Normal (Environment -> Environment))
 evalTop (TopExpr e) = eval e >>= (\val -> pure (Left val))
 evalTop (TopDef def) = case def of
+  SingleDef name (CAbs sym core norm) ty -> do
+    env <- ask
+    let liftedFun = liftFun (\v -> local (Env.insert sym v liftedEnv) (eval core)) norm
+        liftedEnv = Env.insert name liftedFun env
+    val <- local liftedEnv (eval $ CAbs sym core norm)
+    pure (Right (Env.insertCurrent name val))
   SingleDef name body ty -> do
     val <- eval body
     pure (Right (Env.insertCurrent name val))
@@ -45,22 +52,10 @@ evalTop (TopDef def) = case def of
 
         mkAlts [] = pure []
         mkAlts ((sym, id, ty) : alts) = do
-          alt <- mkAlt sym id ty []
+          let alt = NormIVal sym indid id [] ty
           alts' <- mkAlts alts
           pure ((sym, alt) : alts')
           
-        mkAlt :: String -> Int -> Normal -> [Normal] -> EvalM Normal
-        mkAlt sym id (NormArr l r) params = do
-          var <- fresh_var 
-          subterm <- mkAlt sym id r ((Neu $ NeuVar ("#" <> show var)): params)
-          pure $ NormAbs ("#" <> show var) subterm (NormArr l r)
-        mkAlt sym id (NormProd var a b) params = do
-          subterm <- mkAlt sym id b (Neu (NeuVar var) : params)
-          pure $ NormAbs var subterm (NormProd var a b)
-        mkAlt sym id (NormImplProd var a b) params = do
-          subterm <- mkAlt sym id b (Neu (NeuVar var) : params)
-          pure $ NormAbs var subterm (NormImplProd var a b)
-        mkAlt sym id ty params = pure $ NormIVal sym indid id (reverse params) ty
     
     alts' <- mkAlts alts
     pure $ Right (insertCtor . insertAlts alts')
@@ -100,11 +95,18 @@ eval (CApp l r) = do
   case l' of 
     Neu neu -> pure $ Neu (NeuApp neu r')
     NormAbs var body ty -> do
-      -- if t_hasType r' ty then
       normSubst (r', var) body
-      -- else
-      --   throwError "bad type application"
     Builtin fn ty -> fn r'
+    NormIVal name tyid altid params ty -> case ty of 
+      NormArr l r -> pure $ NormIVal name tyid altid (r' : params) r
+      NormProd sym a b -> do
+        b' <- normSubst (r', sym) b
+        pure $ NormIVal name tyid altid (r' : params) b'
+      NormImplProd sym a b -> do
+        b' <- normSubst (r', sym) b
+        pure $ NormIVal name tyid altid (r' : params) b'
+      _ -> throwError ("tried to apply to non-function: " <> show l')
+    other -> throwError ("tried to apply to non-function: " <> show other)
 
 eval (CSct defs) = do
   defs' <- foldDefs defs
@@ -145,6 +147,61 @@ eval (CDot ty field) = do
       Nothing -> throwError ("can't find field" <> field)
     non -> throwError ("value does is not structure" <> show non)
 
+eval (CMatch term alts) = do
+  term' <- eval term
+  case term' of
+    Neu neu -> neuMatch neu alts
+    _ -> match term' alts
+  where 
+    match t [] = throwError ("couldn't match value: " <> show t)
+    match t ((pat, expr) : as) = do
+      binds <- getBinds t pat
+      case binds of
+        Just b -> do
+          env <- ask
+          let env' = foldr (\(sym, val) env -> Env.insert sym val env) env b
+          local env' (eval expr)
+        Nothing -> match t as
+
+    getBinds :: Normal -> Pattern -> EvalM (Maybe [(String, Normal)])
+    getBinds t WildCard = pure $ Just []
+    getBinds t (VarBind sym) = pure $ Just [(sym, t)]
+    getBinds (NormIVal _ id1 id2 params _) (MatchInduct id1' id2' patterns) = do
+      if id1 == id1' && id2 == id2' then do
+        nestedBinds <- mapM (uncurry getBinds) (zip params patterns)
+        let allBinds = foldr (\b a -> case (a, b) of
+                                (Just a', Just b') -> Just (a' <> b')
+                                _ -> Nothing) (Just []) nestedBinds
+        pure allBinds
+      else pure Nothing
+    getBinds _ _= pure Nothing
+
+    neuMatch :: Neutral -> [(Pattern, Core)] -> EvalM Normal
+    neuMatch n ps = do
+      ps' <- mapM (\(pat, core) -> do
+        env <- ask
+        let env' = Set.fold (\sym env -> Env.insert sym (Neu $ NeuVar sym) env) env (patVars pat)
+        norm <- local env' (eval core)
+        pure (pat, norm)) ps
+      pure $ Neu $ NeuMatch n ps'
+
+    getPatNeu WildCard env = env
+    getPatNeu (VarBind sym) env = Env.insert sym (Neu $ NeuVar sym) env
+    getPatNeu (MatchInduct id1 id2 pats) env =
+      foldr getPatNeu env pats
+
+eval (CIf cond e1 e2) = do 
+  cond' <- eval cond
+  case cond' of 
+    Neu n -> do
+      e1' <- eval e1
+      e2' <- eval e2
+      pure $ Neu $ NeuIf n e1' e2'
+    PrimVal (Bool True) -> eval e1
+    PrimVal (Bool False) -> eval e2
+    _ -> throwError "eval expects condition to be bool"
+
+eval other = throwError ("eval not implemented for" <> show other)
 
 normSubst :: (Normal, String) -> Normal -> EvalM Normal
 normSubst (val, var) ty = case ty of 
@@ -189,6 +246,14 @@ normSubst (val, var) ty = case ty of
   NormSig fields -> do
     NormSig <$> substFields (val, var) fields
 
+
+  NormIType name id params -> do
+    NormIType name id <$> mapM (normSubst (val, var)) params 
+  NormIVal name tid id vals ty -> do
+    vals' <- mapM (normSubst (val, var)) vals
+    ty' <- normSubst (val, var) ty
+    pure $ NormIVal name tid id vals' ty' 
+
   -- IOAction
 
   BuiltinMac m -> pure $ BuiltinMac m
@@ -223,13 +288,60 @@ neuSubst (val, var) neutral = case neutral of
     r' <- normSubst (val, var) r
     case l' of 
       Neu n -> pure $ Neu (NeuApp n r')
-      NormProd var a b -> do
-        if t_hasType r' a then
-          normSubst (r', var) b
-        else
-          throwError "bad type application"
       Builtin fn ty -> fn r'
       v -> throwError ("bad app:" <> show v)
+
+  -- TODO: by "escaping" to the eval, we no longer have that Neu has no value -- bad?
+  NeuMatch term pats -> do
+    term' <- neuSubst (val, var) term
+    case term' of
+      Neu n -> do
+        pats' <- mapM (\(p, e) -> do
+                          if Set.member var (patVars p) then
+                            pure (p, e)
+                            else
+                            ((,) p <$> normSubst (val, var) e)) pats
+        pure $ Neu (NeuMatch n pats')
+      term -> match term pats
+
+     where
+        match t [] = throwError ("couldn't match value: " <> show t)
+        match t ((pat, expr) : as) = do
+          binds <- getBinds t pat
+          case binds of
+            Just b -> do
+              expr' <- foldBinds b expr
+              normSubst (val, var) expr'
+              where
+                foldBinds ((var, val) : bs) expr = normSubst (val, var) expr >>= foldBinds bs
+                foldBinds [] expr = pure expr
+            Nothing -> match t as
+    
+        getBinds :: Normal -> Pattern -> EvalM (Maybe [(String, Normal)])
+        getBinds t WildCard = pure $ Just []
+        getBinds t (VarBind sym) = pure $ Just [(sym, t)]
+        getBinds (NormIVal _ id1 id2 params _) (MatchInduct id1' id2' patterns) = do
+          if id1 == id1' && id2 == id2' then do
+            nestedBinds <- mapM (uncurry getBinds) (zip params patterns)
+            let allBinds = foldr (\b a -> case (a, b) of
+                                    (Just a', Just b') -> Just (a' <> b')
+                                    _ -> Nothing) (Just []) nestedBinds
+            pure allBinds
+          else pure Nothing
+        getBinds _ _= pure Nothing
+
+  NeuIf cond e1 e2 -> do
+   cond' <- neuSubst (val, var) cond
+   case cond' of 
+     Neu n -> do
+       e1' <- normSubst (val, var) e1
+       e2' <- normSubst (val, var) e2
+       pure $ Neu $ NeuIf n e1' e2'
+     PrimVal (Bool True) -> normSubst (val, var) e1
+     PrimVal (Bool False) -> normSubst (val, var) e2
+     _ -> throwError ("bad condition in if: expected bool, got: " <> show cond')
+     
+
 
   NeuBuiltinApp fn neu ty -> do
     arg <- neuSubst (val, var) neu
@@ -245,6 +357,11 @@ neuSubst (val, var) neutral = case neutral of
 
   -- NeuDot sig field -> do
   --   sig' <- neuSubst 
+
+tyApp :: Normal -> Normal -> EvalM Normal
+tyApp (NormArr l r) _ = pure r 
+tyApp (NormProd sym a b) arg = normSubst (arg, sym) b
+tyApp (NormImplProd sym a b) arg = normSubst (arg, sym) b
 
 
 
@@ -391,4 +508,6 @@ liftFun4 f ty =
                   (NormProd var _ body) -> pure $ liftFun3 (f val) body
                   (NormImplProd var _ body) -> pure $ liftFun3 (f val) body)
     ty
+
+
 

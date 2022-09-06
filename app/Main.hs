@@ -44,7 +44,9 @@ args = Args
        <> help "Whether to run in interactive mode (REPL)")
 
 main :: IO ()
-main =
+main = do
+  hSetEncoding stdin utf8
+  hSetEncoding stdout utf8
   process =<< execParser opts
     where
       opts = info (args <**> helper)
@@ -64,7 +66,7 @@ main =
                else do
                  handle <- openFile f ReadMode
                  contents <- hGetContents handle
-                 (env', state') <- runInteractively contents env state (IOpts {tc=False})
+                 (env', state') <- runInteractively contents env state (IOpts {tc=True})
                  repl env' state' (IOpts {tc=True})
              Nothing -> 
                putStrLn "error in initialisation"
@@ -105,22 +107,21 @@ repl env state opts = do
           print "parse error"
           repl env state opts
         Right val -> do
-          (env', state') <- runExprs [val] env state opts True
+          (env', state') <- runExprs [val] env state opts
           repl env' state' opts
           
 
 
-runInteractively :: String -> Environment -> ProgState -> IOpts
-                 -> IO (Environment, ProgState)
+runInteractively :: String -> Environment -> ProgState -> IOpts -> IO (Environment, ProgState)
 runInteractively str env state opts =
   case parseFile "file" (pack str) of
       Left err -> print err >> pure (env, state)
-      Right vals -> runExprs vals env state opts False
+      Right vals -> runExprs vals env state opts
 
 -- runExprs takes in an AST list, a context
-runExprs :: [AST] -> Environment -> ProgState -> IOpts -> Bool -> IO (Environment, ProgState)
-runExprs [] env state _ _ = pure (env, state)
-runExprs (e : es) env state (IOpts {tc=tc}) b = do
+runExprs :: [AST] -> Environment -> ProgState -> IOpts -> IO (Environment, ProgState)
+runExprs [] env state _ = pure (env, state)
+runExprs (e : es) env state opts = do
   result <- evalToIO (macroExpand e) env state
   case result of 
     Just (expanded, state') ->
@@ -141,7 +142,7 @@ runExprs (e : es) env state (IOpts {tc=tc}) b = do
                       case mval of 
                         Just v -> print v
                         Nothing -> pure ()
-                      pure (fenv, fstate)
+                      runExprs es fenv fstate opts
                     Left err -> failWith ("toCore err: " <> err)
                 Nothing -> pure (env, state)
             Nothing -> pure (env, state)

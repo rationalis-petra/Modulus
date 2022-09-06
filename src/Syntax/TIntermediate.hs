@@ -41,7 +41,7 @@ data TArg ty
     Thus, definitions are realised here with --}
 data TDefinition ty
   --            name   id  params         index id  definitions
-  = TInductDef String  Int [(String, ty)] ty [(String, Int, ty)]
+  = TInductDef String  Int [(String, ty)] ty [(String, Int, ty)] (Maybe ty)
   | TEffectDef String [String] Int [(String, Int, [ty])]
   | TSingleDef String (TIntermediate ty) (Maybe ty)
   | TOpenDef (TIntermediate ty) (Maybe ty)
@@ -53,10 +53,9 @@ data TIntTop ty
   deriving Show
 
 data TPattern ty
-  = TWildCardPat 
+  = TWildPat 
   | TBindPat String
-  --        id1 id2 sub-patterns  constructor-type
-  | TVarPat Int Int [TPattern ty] ty
+  | TIMatch Int Int ty [TPattern ty]
   deriving Show
   
 

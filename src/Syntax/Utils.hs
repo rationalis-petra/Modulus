@@ -55,6 +55,16 @@ typeVal (PrimVal e) = pure (PrimType (typePrim e))
       Float _ -> FloatT
       Char _ -> CharT
       String _ -> StringT
+-- type of types
+
+-- TODO: this may not be correct! -- universe polymorphism!
+typeVal (NormIType _ _ _) = pure (NormUniv 0)
+typeVal (NormArr _ _) = pure (NormUniv 0)
+typeVal (NormProd _ _ _) = pure (NormUniv 0)
+typeVal (NormImplProd _ _ _) = pure (NormUniv 0)
+typeVal (NormSig _) = pure (NormUniv 0)
+
+
 typeVal (NormUniv k) = pure (NormUniv (k + 1))
 
 -- Functions
@@ -66,7 +76,7 @@ typeVal (NormMod m) = do
   fields <- mapM (\(s, v) -> typeVal v >>= \t -> pure (s, t)) m
   pure (NormSig fields)
 
--- typeVal (NormIType _ _ ty) = pure ty
+-- typeVal (NormIType _ _ _ ty) = pure ty
 typeVal (NormIVal _ _ _ _ ty) = pure ty
   
 typeVal e = throwError $ "untypable value: " <> show e
@@ -110,20 +120,42 @@ class Expression a where
   
 
 instance Expression (Normal' m) where 
+  free (Builtin _ _) = Set.empty
+  free (PrimType  _) = Set.empty
+  free (NormUniv  _) = Set.empty
+  free (PrimVal   _) = Set.empty
+
   free (Neu neutral) = free neutral
-  free (PrimVal _) = Set.empty
-  free (PrimType _) = Set.empty
-  free (NormUniv k) = Set.empty
   free (NormProd var a b) =
     Set.union (free a) (Set.delete var (free b))
   free (NormImplProd var a b) =
     Set.union (free a) (Set.delete var (free b))
   free (NormArr a b) =
     Set.union (free a) (free b)
+  free (NormIVal _ _ _ norms ty) = foldr (Set.union . free) Set.empty norms
+  free (NormIType _ _ norms) = foldr (Set.union . free) Set.empty norms
+
   -- free (NormSig fields) =
 
 instance Expression (Neutral' m) where
   free (NeuVar var) = Set.singleton var
-  free (NeuApp l r) = Set.union (free l) (free r)
+  free (NeuApp l r) = (free l) <> (free r)
   free (NeuDot sig field) = (free sig)
+  free (NeuIf cond e1 e2) = (free cond) <> (free e1) <> (free e2)
+  free (NeuMatch term alts) = free term <> (foldr (Set.union . altfree) Set.empty alts)
+    where
+      altfree (p, e) = foldr (Set.delete) (patVars p) (free e)
+    
+
+  free (NeuDot sig field) = (free sig)
+  free (NeuBuiltinApp _ _ _) = Set.empty
+  free (NeuBuiltinApp2 _ _ _) = Set.empty
+  free (NeuBuiltinApp3 _ _ _) = Set.empty
+  free (NeuBuiltinApp4 _ _ _) = Set.empty
+
+
+patVars :: Pattern -> Set.Set String
+patVars WildCard = Set.empty
+patVars (VarBind sym) = Set.singleton sym
+patVars (MatchInduct id1 id2 subpats) = foldr Set.union Set.empty (map patVars subpats)
 
