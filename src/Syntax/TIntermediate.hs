@@ -41,7 +41,7 @@ data TArg ty
     Thus, definitions are realised here with --}
 data TDefinition ty
   --            name   id  params         index id  definitions
-  = TInductDef String  Int [(String, ty)] ty [(String, Int, ty)] (Maybe ty)
+  = TInductDef String  Int [(String, ty)] ty [(String, Int, ty)]
   | TEffectDef String [String] Int [(String, Int, [ty])]
   | TSingleDef String (TIntermediate ty) (Maybe ty)
   | TOpenDef (TIntermediate ty) (Maybe ty)

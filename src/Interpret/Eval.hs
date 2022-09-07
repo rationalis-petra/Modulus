@@ -42,7 +42,7 @@ evalTop (TopDef def) = case def of
   OpenDef body sig -> do
     mdle <- eval body
     case mdle of 
-      NormMod m -> do
+      NormSct m -> do
         let m' = restrict m sig 
         pure (Right (\env -> foldr (\(k, val) env -> Env.insertCurrent k val env) env m'))
       _ -> throwError "cannot open non-module"
@@ -110,7 +110,7 @@ eval (CApp l r) = do
 
 eval (CSct defs) = do
   defs' <- foldDefs defs
-  pure $ NormMod $ defs'
+  pure $ NormSct $ defs'
   where
     foldDefs :: [Definition] -> EvalM  [(String, Normal)]
     foldDefs [] = pure []
@@ -131,7 +131,8 @@ eval (CSig defs) = do
       case def of
         SingleDef var core ty -> do
           val <- eval core
-          defs' <- localF (Env.insert var val) (foldDefs defs)
+  -- TODO: is this really the solution? perhaps. 
+          defs' <- localF (Env.insert var (Neu $ NeuVar var)) (foldDefs defs)
           pure ((var, val) : defs')
 
 eval (CDot ty field) = do
@@ -142,10 +143,10 @@ eval (CDot ty field) = do
     NormSig fields -> case getField field fields of
       Just val -> pure val
       Nothing -> throwError ("can't find field" <> field)
-    NormMod fields -> case getField field fields of 
+    NormSct fields -> case getField field fields of 
       Just val -> pure val
       Nothing -> throwError ("can't find field" <> field)
-    non -> throwError ("value does is not structure" <> show non)
+    non -> throwError ("value is not record-like" <> show non)
 
 eval (CMatch term alts) = do
   term' <- eval term
@@ -241,8 +242,8 @@ normSubst (val, var) ty = case ty of
       pure $ NormAbs var' body' ty'
 
 
-  NormMod fields -> do
-    NormMod <$> substFields (val, var) fields
+  NormSct fields -> do
+    NormSct <$> substFields (val, var) fields
   NormSig fields -> do
     NormSig <$> substFields (val, var) fields
 
@@ -290,6 +291,20 @@ neuSubst (val, var) neutral = case neutral of
       Neu n -> pure $ Neu (NeuApp n r')
       Builtin fn ty -> fn r'
       v -> throwError ("bad app:" <> show v)
+
+  NeuDot n field -> do
+    mdle <- neuSubst (val, var) n
+    case mdle of 
+      Neu n -> pure $ Neu (NeuDot n field)
+      NormSct fields ->
+        case (getField field fields) of
+          Just v -> pure v
+          Nothing -> throwError ("failed to find field " <> field <> " in signature")
+      NormSig fields ->
+        case (getField field fields) of
+          Just v -> pure v
+          Nothing -> throwError ("failed to find field " <> field <> " in structure")
+      v -> throwError ("bad field access: " <> show v)
 
   -- TODO: by "escaping" to the eval, we no longer have that Neu has no value -- bad?
   NeuMatch term pats -> do
@@ -345,15 +360,28 @@ neuSubst (val, var) neutral = case neutral of
 
   NeuBuiltinApp fn neu ty -> do
     arg <- neuSubst (val, var) neu
-    fn arg
+    case arg of 
+      Neu neu -> pure $ Neu $ NeuBuiltinApp fn neu ty
+      _ -> (fn arg)
       
   NeuBuiltinApp2 fn neu ty -> do
     arg <- neuSubst (val, var) neu
-    pure (liftFun (fn arg) ty)
+    case arg of 
+      Neu neu -> pure $ Neu $ NeuBuiltinApp2 fn neu ty
+      _ -> pure (liftFun (fn arg) ty)
 
   NeuBuiltinApp3 fn neu ty -> do
     arg <- neuSubst (val, var) neu
-    pure (liftFun2 (fn arg) ty)
+    case arg of 
+      Neu neu -> pure $ Neu $ NeuBuiltinApp3 fn neu ty
+      _ -> pure (liftFun2 (fn arg) ty)
+
+  NeuBuiltinApp4 fn neu ty -> do
+    arg <- neuSubst (val, var) neu
+    case arg of 
+      Neu neu -> pure $ Neu $ NeuBuiltinApp4 fn neu ty
+      _ -> pure (liftFun3 (fn arg) ty)
+
 
   -- NeuDot sig field -> do
   --   sig' <- neuSubst 

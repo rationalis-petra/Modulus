@@ -87,7 +87,7 @@ listStructureSource = "\
 
 
 listStructure :: EvalM Normal
-listStructure = pure (NormMod [])
+listStructure = pure (NormSct [])
 -- listModule = buildModule
 --                Map.empty
 --                listModuleSource

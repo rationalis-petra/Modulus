@@ -86,8 +86,8 @@ defaultContext = do
   dfm <- defaultStructure
   pure $ Environment {
   localCtx = Map.empty,
-  currentModule = NormMod dfm,
-  globalModule = NormMod [] }
+  currentModule = NormSct dfm,
+  globalModule = NormSct [] }
 
 data IOpts = IOpts { tc :: Bool }
   

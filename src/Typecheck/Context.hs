@@ -5,7 +5,7 @@ import qualified Data.Map as Map
 import Control.Monad.Except
 
 import Data (Normal,
-             Normal'(NormMod),
+             Normal'(NormSct),
              EvalM,
              Environment(..))
 import Syntax.Utils
@@ -37,7 +37,7 @@ lookup key (Context {tlocalCtx = lcl,
   case Map.lookup key lcl of 
     Just x -> pure x
     Nothing ->
-      let (NormMod m) = curr in
+      let (NormSct m) = curr in
       case getField key m of 
         Just v -> ((,) v) <$> typeVal v
         Nothing -> throwError ("couldn't lookup " <> key)

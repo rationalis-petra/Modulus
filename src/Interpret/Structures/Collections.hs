@@ -13,6 +13,6 @@ import Data
 collStructure :: EvalM [(String, Normal)]
 collStructure = do
   lm <- listStructure
-  pure $  [("String",  stringStructure),
-           ("List",    lm),
-           ("Vector",  arrayStructure)]
+  pure $  [("string",  stringStructure),
+           ("list",    lm),
+           ("array",  arrayStructure)]

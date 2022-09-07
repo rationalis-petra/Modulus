@@ -53,7 +53,7 @@ data Intermediate
   | ILambda [(IArg, Bool)] Intermediate
   | IProd (IArg, Bool) Intermediate
   | IMacro [IArg] Intermediate
-  | IModule [IDefinition] 
+  | IStructure [IDefinition] 
   | ISignature [IDefinition] 
   | IHandle Intermediate [(String, [String], Intermediate)]
   | IMkHandler [(String, [String], Intermediate)]
@@ -229,38 +229,76 @@ mkDef ast _ = throwError ("bad syntax in def: " ++ show ast)
 
 mkModule :: [AST] -> GlobCtx -> Except String Intermediate
 mkModule lst ctx = do
-  defs <- mapM getDef lst
-  return $ IModule defs
+  defs <- foldDefs lst ctx
+  return $ IStructure defs
   where
-    getDef :: AST -> Except String IDefinition
-    getDef (Cons (op : body)) = do
+    foldDefs :: [AST] -> GlobCtx -> Except String [IDefinition]
+    foldDefs [] _ = pure []
+    foldDefs ((Cons (op : body)) : tl) ctx = do
       mdef <- toIntermediateM op ctx
       case mdef of 
         -- TODO: shadow all variables...
-        (IValue (Special Def)) -> mkDef body ctx
-        (IValue (Special Induct)) -> mkInduct body ctx
-        (IValue (Special MkEffect)) -> mkEffect body ctx
-        (IValue (Special Open)) -> mkOpen body ctx
+        (IValue (Special Def)) -> do
+          def <- mkDef body ctx
+          let syms = getDefSyms def 
+          tl' <- foldDefs tl (foldr shadow ctx syms)
+          pure $ def : tl'
+        (IValue (Special Induct)) -> do
+          def <- mkInduct body ctx
+          let syms = getDefSyms def 
+          tl' <- foldDefs tl (foldr shadow ctx syms)
+          pure $ def : tl'
+        (IValue (Special MkEffect)) -> do
+          def <- mkEffect body ctx
+          let syms = getDefSyms def 
+          tl' <- foldDefs tl (foldr shadow ctx syms)
+          pure $ def : tl'
+        (IValue (Special Open)) -> do
+          def <- mkOpen body ctx
+          let syms = getDefSyms def 
+          tl' <- foldDefs tl (foldr shadow ctx syms)
+          pure $ def : tl'
         _ -> throwError "Modules should contain only definition terms"
-    getDef v = throwError ("bad term in module definition: " ++ show v)
+    foldDefs v _ = throwError ("bad term in module definition: " ++ show v)
 
 mkSig :: [AST] -> GlobCtx -> Except String Intermediate
 mkSig lst ctx = do
-  defs <- mapM getDef lst
+  defs <- foldDefs lst ctx
   return $ ISignature defs
   where
-    getDef :: AST -> Except String IDefinition
-    getDef (Cons (op : body)) = do
+    foldDefs :: [AST] -> GlobCtx -> Except String [IDefinition]
+    foldDefs [] _ = pure []
+    foldDefs ((Cons (op : body)) : tl) ctx = do
       mdef <- toIntermediateM op ctx
       case mdef of 
         -- TODO: shadow all variables...
-        (IValue (Special Def)) -> mkDef body ctx
-        (IValue (Special Annotate)) -> mkDef body ctx
-        (IValue (Special Induct)) -> mkInduct body ctx
-        (IValue (Special MkEffect)) -> mkEffect body ctx
-        (IValue (Special Open)) -> mkOpen body ctx
+        (IValue (Special Annotate)) -> do
+          def <- mkDef body ctx
+          let syms = getDefSyms def 
+          tl' <- foldDefs tl (foldr shadow ctx syms)
+          pure $ def : tl'
+        (IValue (Special Def)) -> do
+          def <- mkDef body ctx
+          let syms = getDefSyms def 
+          tl' <- foldDefs tl (foldr shadow ctx syms)
+          pure $ def : tl'
+        (IValue (Special Induct)) -> do
+          def <- mkInduct body ctx
+          let syms = getDefSyms def 
+          tl' <- foldDefs tl (foldr shadow ctx syms)
+          pure $ def : tl'
+        (IValue (Special MkEffect)) -> do
+          def <- mkEffect body ctx
+          let syms = getDefSyms def 
+          tl' <- foldDefs tl (foldr shadow ctx syms)
+          pure $ def : tl'
+        (IValue (Special Open)) -> do
+          def <- mkOpen body ctx
+          let syms = getDefSyms def 
+          tl' <- foldDefs tl (foldr shadow ctx syms)
+          pure $ def : tl'
         _ -> throwError "Signatures should contain only definition terms"
-    getDef v = throwError ("bad term in signature definition: " ++ show v)
+    foldDefs v _ = throwError ("bad term in signature definition: " ++ show v)
 
 
 mkInduct :: [AST] -> GlobCtx -> Except String IDefinition
@@ -545,3 +583,10 @@ spltLast [x] = pure ([], x)
 spltLast ((Atom (Symbol s)) : xs) = do
   (lst, end) <- spltLast xs
   pure ((s : lst), end)
+
+
+getDefSyms :: IDefinition -> [String]  
+getDefSyms (ISingleDef s ty) = [s]
+-- getDefSyms (IInductDef)
+-- getDefSyms (IEff)
+-- getDefSyms ()

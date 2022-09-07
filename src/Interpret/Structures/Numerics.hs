@@ -5,12 +5,21 @@ import Control.Monad.Except (throwError, catchError)
 import qualified Data.Map as Map
 
 import Data
+import Data.Text (pack)
 import Interpret.Eval (liftFun, liftFun2)
 import Interpret.Transform
 
 int_t = PrimType IntT
 bool_t = PrimType BoolT
 float_t = PrimType FloatT
+
+floatShow :: Normal  
+floatShow = liftFun newf (NormArr float_t (PrimType StringT))
+  where
+    newf :: Normal -> EvalM Normal
+    newf (PrimVal (Float f)) = pure (PrimVal (String (pack (show f))))
+    newf x =
+      lift $ throwError ("bad arg to inbuilt float function" <> show x)
 
 mkFloatUni :: (Float -> Float) -> Normal
 mkFloatUni f = 
@@ -42,9 +51,16 @@ mkFltCmp f =
     newf (PrimVal (Float n1)) (PrimVal (Float n2)) =
       pure $ PrimVal $ Bool $ f n1 n2
     newf x y =
-      lift $ throwError ("bad arg to inbuilt integer function" ++
-                         show x ++ ", " ++ show y)
+      lift $ throwError ("bad arg to inbuilt integer function " 
+                         <> show x <> ", " <> show y)
 
+intShow :: Normal  
+intShow = liftFun newf (NormArr int_t (PrimType StringT))
+  where
+    newf :: Normal -> EvalM Normal
+    newf (PrimVal (Int n1)) = pure (PrimVal (String (pack (show n1))))
+    newf x =
+      lift $ throwError ("bad arg to inbuilt float function" <> show x)
   
 mkIntUni :: (Integer -> Integer) -> Normal
 mkIntUni f = 
@@ -64,8 +80,8 @@ mkIntOp f =
     newf (PrimVal (Int n1)) (PrimVal (Int n2)) =
       pure $ PrimVal $ Int $ f n1 n2
     newf x y =
-      lift $ throwError ("bad arg to inbuilt integer function" ++
-                         show x ++ ", " ++ show y)
+      lift $ throwError ("bad arg to inbuilt integer function"
+                         <> show x <> ", " <> show y)
 
 mkCmpOp :: (Integer -> Integer -> Bool) -> Normal
 mkCmpOp f = 
@@ -75,8 +91,8 @@ mkCmpOp f =
     newf (PrimVal (Int n1)) (PrimVal (Int n2)) =
       pure $ PrimVal $ Bool $ f n1 n2
     newf x y =
-      lift $ throwError ("bad arg to inbuilt integer function" ++
-                         show x ++ ", " ++ show y)
+      lift $ throwError ("bad arg to inbuilt integer function"
+                         <> show x <> ", " <> show y)
 
 mkBoolOp :: (Bool -> Bool -> Bool) -> Normal
 mkBoolOp f = 
@@ -86,8 +102,8 @@ mkBoolOp f =
     newf (PrimVal (Bool b1)) (PrimVal (Bool b2)) =
       pure $ PrimVal $ Bool $ f b1 b2
     newf x y =
-      lift $ throwError ("bad arg to inbuilt bool function" ++
-                         show x ++ ", " ++ show y)
+      lift $ throwError ("bad arg to inbuilt bool function"
+                         <> show x <> ", " <> show y)
 
 mkBoolSing :: (Bool -> Bool) -> Normal
 mkBoolSing f = 
@@ -97,8 +113,8 @@ mkBoolSing f =
     newf (PrimVal (Bool b)) =
       pure $ PrimVal $ Bool $ f b
     newf x =
-      lift $ throwError ("bad arg to inbuilt bool function" ++
-                         show x)
+      lift $ throwError ("bad arg to inbuilt bool function" <> show x)
+
 
 
 intStructure :: [(String, Normal)]
@@ -118,6 +134,8 @@ intStructure =
 
    ("e0", PrimVal (Int 0)),
    ("e1", PrimVal (Int 1)),
+
+   ("show", intShow),
 
    ("<", mkCmpOp (<)),
    ("≤", mkCmpOp (<=)),
@@ -161,8 +179,8 @@ boolStructure =
 
 numStructure :: [(String, Normal)]
 numStructure = 
-  [("int", NormMod intStructure),
-   ("float", NormMod floatStructure)
+  [("int", NormSct intStructure),
+   ("float", NormSct floatStructure)
    ]
 
 binfloat = NormArr float_t (NormArr float_t float_t)

@@ -77,7 +77,7 @@ mlsDefmac = BuiltinMac defMac
 
 --- Structures
 with :: Normal -> Normal -> EvalM Normal 
-with (NormMod fm1) (NormMod m2) = pure $ NormMod $ insertLeft fm1  m2
+with (NormSct fm1) (NormSct m2) = pure $ NormSct $ insertLeft fm1  m2
 with _ _ = lift $ throwError "bad args to with expected types"
 mlsWith = liftFun2 with (NormArr Undef (NormArr Undef Undef))
 
@@ -98,7 +98,7 @@ sig :: [AST] -> EvalM AST
 sig bindlist = do
   mldebdy <- toDefs bindlist 
   pure $ Cons (Atom (Special MkSig) : mldebdy)
-mlsSig = BuiltinMac struct
+mlsSig = BuiltinMac sig
 
 -- mlsNode = CustomCtor 1 [] nodeCtor nodeDtor Undef
 --   where
@@ -156,7 +156,7 @@ mlsMkTupleType = liftFun2 mkTupleType (NormArr (NormUniv 0) (NormArr (NormUniv 0
 -- TUPLES
 mkTuple :: Normal -> Normal -> Normal -> Normal -> EvalM Normal
 mkTuple _ _ e1 e2 = 
-  pure $ NormMod [("_1", e1), ("_2", e2)]
+  pure $ NormSct [("_1", e1), ("_2", e2)]
 mlsMkTuple = liftFun4 mkTuple (NormImplProd "a" (NormUniv 0)
                                  (NormImplProd "b" (NormUniv 0)
                                   (NormArr (Neu (NeuVar "a"))
@@ -166,9 +166,9 @@ mlsMkTuple = liftFun4 mkTuple (NormImplProd "a" (NormUniv 0)
   
 -- CONSTRAINTS
 doConstrain :: Normal -> Normal -> EvalM Normal
-doConstrain (NormMod mod) (NormSig sig) = 
+doConstrain (NormSct mod) (NormSig sig) = 
   case constrain mod sig of 
-    Just x -> pure $ NormMod x
+    Just x -> pure $ NormSct x
     Nothing -> lift $ throwError ("could not constrain structure " <> show mod <> " with signature " <> show sig)
   where
     constrain m ((l, _) : xs) = 

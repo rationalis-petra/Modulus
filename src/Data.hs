@@ -123,7 +123,7 @@ data Normal' m
   | Builtin (Normal' m -> m (Normal' m)) (Normal' m)
   
   -- Structures & Signatures
-  | NormMod [(String, Normal' m)]
+  | NormSct [(String, Normal' m)]
   | NormSig [(String, Normal' m)]
 
   -- Inductive (later. Coinductive) datatypes
@@ -146,7 +146,6 @@ data Neutral' m
   = NeuVar String 
   -- an inbuilt function waiting on a netural term
   | NeuApp (Neutral' m) (Normal' m)
-  | NeuImplApp (Neutral' m) (Normal' m)
   | NeuDot (Neutral' m) String
   | NeuIf (Neutral' m) (Normal' m) (Normal' m)
   | NeuMatch (Neutral' m) [(Pattern, Normal)]
@@ -158,40 +157,6 @@ data Neutral' m
   
 
   
--- m is the type of monad inside the object
--- c is the type of the interpreted "code"
--- data Value m
---   -- Inbuilt Datatypes 
---   = PrimValue PrimVal
---   | Coll (CollE m) 
---   | Key String
---   | Variant String Int Int [Value m]
---   | Constructor String Int Int Int [Value m]
---   | CConstructor String Int Int Int [String] [Value m] Normal
---   | Module (Map.Map String (Value m))
-
---   -- Pattern matching on inbuilt data-types nargs currying
---   | CustomCtor Int [(Value m)]
---     -- constructor
---     ([Value m] -> m (Value m))
---     -- matcher
---     (Value m -> m (Maybe [(Value m)]))
---     -- type
---     Normal
---   -- TODO: pattern-matching on structures.
-
---   -- Syntax and macros
---   | AST AST
---   | Symbol String
---   | Sp Special
---   -- TODO: change to [String], figure out resultant errors in macroEval  
---   | CMacro String Core Environment Normal
---   | InbuiltMac ([AST] -> m AST)
-
---   -- EVALUATION & FUNCTIONS
---   | CFunction String Core Environment Normal 
---   | InbuiltFun (Value m -> m (Value m)) Normal
-
 --   -- ALGEBRAIC EFFECTS
 --   | IOEffect
 --   | IOAction Int Int ([Value m] -> IO (m (Value m))) [Value m]
@@ -232,7 +197,7 @@ instance Show (Normal' m) where
   show (Builtin _ ty) = show "(fnc : " <> show ty <> ")"
 
   
-  show (NormMod fields) =
+  show (NormSct fields) =
     "(structue" <> (foldr
                 (\(f, val) str -> str <> (" (def " <> f <> " " <> show val <> ")"))
                 "" (reverse fields)) <> ")"
@@ -242,11 +207,8 @@ instance Show (Normal' m) where
                 "" (reverse fields)) <> ")"
 
   
-  show (NormIType name id params) = 
-    if null params then 
-      name
-    else
-      name <> " : " <> show params
+  show (NormIType name id params) =
+    name <> (foldr (\p s -> " " <> show p <> s) "" params)
   show (NormIVal name tid id params ty) = 
     name <> (foldr (\p s -> " " <> show p <> s) "" (reverse params))
 
@@ -264,7 +226,6 @@ instance Show (Neutral' m) where
   show (NeuVar var) = var
   show (NeuApp neu (Neu (NeuApp n1 n2))) = show neu <> " (" <> show (Neu (NeuApp n1 n2)) <> ")"
   show (NeuApp neu norm) = show neu <> " " <> show norm
-  show (NeuImplApp neu norm) = show neu <> " {" <> show norm <> "}" 
   show (NeuDot neu field) = show neu <> "." <> field 
   show (NeuMatch neu pats) = "(match " <> show neu 
                              <> foldr (\(p, e) s -> s <> "\n" <> show p <> " → " <> show e) "" (reverse pats)

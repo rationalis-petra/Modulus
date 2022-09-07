@@ -71,7 +71,7 @@ typeVal (NormUniv k) = pure (NormUniv (k + 1))
 typeVal (Builtin _ ty) = pure ty
 typeVal (NormAbs _ _ ty) = pure ty
 
-typeVal (NormMod m) = do
+typeVal (NormSct m) = do
   -- TODO: is this dodgy?
   fields <- mapM (\(s, v) -> typeVal v >>= \t -> pure (s, t)) m
   pure (NormSig fields)

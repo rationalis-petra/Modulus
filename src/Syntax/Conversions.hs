@@ -40,7 +40,7 @@ toTIntermediateTop (IDefinition def) =
       ty' <- toTIntermediate ty
       alts' <- processAlts alts
       id <- fresh_id
-      pure $ TDefinition $ TInductDef sym id params' (TIntermediate' ty') alts' Nothing
+      pure $ TDefinition $ TInductDef sym id params' (TIntermediate' ty') alts'
       where
         processAlts :: [(String, Intermediate)] -> EvalM [(String, Int, TIntermediate')] 
         processAlts [] = pure []
@@ -53,15 +53,15 @@ toTIntermediateTop (IDefinition def) =
         processParams :: [IArg] -> EvalM [(String, TIntermediate')]
         processParams [] = pure []
         processParams (Sym sym : args) = do
-          args' <- processArgs args
+          args' <- processParams args
           pure $ ((sym, TIntermediate' (TValue (NormUniv 0))) : args')
 
-        processArgs (Annotation sym inter : args) = do
-          args' <- processArgs args
+        processParams (Annotation sym inter : args) = do
+          args' <- processParams args
           inter' <- toTIntermediate inter
           pure $ ((sym, TIntermediate' inter') : args')
 
-        processArgs (IWildCardArg inter : args) = do
+        processParams (IWildCardArg inter : args) = do
           throwError "inductive definitions do not accept wildcard parameters"
 
   
@@ -123,7 +123,7 @@ toTIntermediate (IProd arg bdy) = do
   pure $ TProd arg' body'
 
 
-toTIntermediate (IModule defList) = do
+toTIntermediate (IStructure defList) = do
   TStructure <$> getDefs defList 
   where
     getDefs :: [IDefinition] -> EvalM [TDefinition TIntermediate']
@@ -227,7 +227,7 @@ toTopCore (TDefinition def) = TopDef <$> fromDef def
       pure (OpenDef coreBody sig)
     fromDef (TOpenDef body Nothing) = err "definitions must be typed"
 
-    fromDef (TInductDef sym id params _ alts (Just ty)) = do
+    fromDef (TInductDef sym id params ty alts) = do
       pure (InductDef sym id params ty alts)
 
 

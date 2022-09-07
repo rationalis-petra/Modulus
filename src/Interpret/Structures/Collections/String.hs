@@ -39,8 +39,8 @@ mlsLength = liftFun len (NormArr (PrimType StringT) (PrimType IntT))
                                   
 
 stringStructure :: Normal
-stringStructure = NormMod $ [
-  ("string", PrimType StringT),
+stringStructure = NormSct $ [
+  ("String", PrimType StringT),
   ("t",      PrimType StringT),
   ("append", mlsConcat),
   ("⋅",       mlsConcat),

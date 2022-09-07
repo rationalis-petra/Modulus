@@ -1,7 +1,7 @@
 module Interpret.Structures.BuildStructure where
 
 import Data(Environment(..),
-            Normal'(NormMod),
+            Normal'(NormSct),
             Normal,
             EvalM)
 
@@ -26,8 +26,8 @@ import qualified Data.Map as Map
 
 moduleContext = Environment {
   localCtx = Map.empty,
-  currentModule = NormMod coreStructure,
-  globalModule = NormMod []}
+  currentModule = NormSct coreStructure,
+  globalModule = NormSct []}
 
   
 buildModule :: Map.Map String Normal -> String -> EvalM Normal
