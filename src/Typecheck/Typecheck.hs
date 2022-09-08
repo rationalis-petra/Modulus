@@ -614,20 +614,21 @@ constrain' t1 t2 =
 
 
 
-derive :: TIntermediate Normal -> Normal -> Subst -> EvalM (TIntermediate Normal, Normal, Subst)
-derive tint (NormImplProd s t1 t2) subst = 
-  case t1 of 
-    (NormUniv 0) -> case findStrSubst s subst of 
-      -- TODO: the toMls feels dodgy...
-      Just ty -> do
-        fnlTy <- Eval.normSubst (ty, s) t2
-        pure (TImplApply tint (TValue ty), fnlTy, rmSubst s subst)
-      Nothing -> throwError ("unable to find type substitution in type: " <> show (NormImplProd s t1 t2))
-    (NormSig sig) -> 
-      throwError "inference for signatures not implemented yet!"
-    _ -> throwError ("implicit argument only supported for type Type and Signature, not for " <> show t1)
--- if not implicit application, ignore!
-derive tint ty subst = pure (tint, ty, subst)
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
 
 findStrSubst :: String -> Subst -> Maybe Normal
 findStrSubst str ((ty, str') : ss) =
@@ -786,8 +787,16 @@ occurs' v (NormImplProd str t1 t2) = -- remember: dependent type binding can
   else
     occurs' v t1 || occurs' v t2
 
-occurs' v (NormSig fields) = foldr (\(_, ty) b -> b || occurs' v ty) False fields
-occurs' v (NormSct fields) = foldr (\(_, ty) b -> b || occurs' v ty) False fields
+occurs' v (NormSig fields) = occursFields fields
+  where
+    occursFields [] = False
+    occursFields ((v', ty) : fields) =
+      if v == v' then False else (occurs' v ty) || (occursFields fields)
+occurs' v (NormSct fields) = occursFields fields
+  where
+    occursFields [] = False
+    occursFields ((v', val) : fields) =
+      if v == v' then False else (occurs' v val) || (occursFields fields)
 
 occurs' v (NormIType _ _ params) = foldr (\ty b -> b || occurs' v ty) False params
 occurs' v (NormIVal _ _ _ params _) = -- TODO: check if we need to ask about free vars in the type??

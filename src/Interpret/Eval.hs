@@ -397,7 +397,7 @@ instance Eq (Normal' m) where
   a == b = norm_equiv a b (Set.empty, 0) (Map.empty, Map.empty)
 
 
--- TODO: add η reductions to the equality check
+-- TODO: add Î· reductions to the equality check
 norm_equiv :: (Normal' m) -> (Normal' m) -> Generator -> (Map.Map String String, Map.Map String String) -> Bool 
 norm_equiv (NormUniv n1) (NormUniv n2) gen rename = n1 == n2
 norm_equiv (Neu n1) (Neu n2) gen rename = neu_equiv n1 n2 gen rename

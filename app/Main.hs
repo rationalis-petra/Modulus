@@ -6,9 +6,11 @@ import Parse (parseFile, parseRepl)
 import Data
 import Interpret.Eval (evalToIO, evalTop)
 import Syntax.Macroexpand 
-import Syntax.Intermediate (toIntermediate) 
-import Syntax.Conversions (toTIntermediateTop, toCore, toTopCore) 
--- import Typecheck.Typecheck
+import Syntax.Intermediate () 
+import Syntax.Conversions (toIntermediate,
+                           toTIntermediateTop,
+                           toCore,
+                           toTopCore) 
 
 import Typecheck.Typecheck
 import qualified Typecheck.Context as Ctx

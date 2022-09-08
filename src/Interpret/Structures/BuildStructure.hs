@@ -11,8 +11,7 @@ import Data.Text (pack, unpack)
 import Parse (parseModule)
 import Syntax.Macroexpand
 import Syntax.Intermediate(Intermediate(..),
-                           IDefinition(..),
-                           toIntermediate)
+                           IDefinition(..))
 import Syntax.Conversions
 import Typecheck.Typecheck (typeCheck)
 import qualified Typecheck.Context as Ctx
