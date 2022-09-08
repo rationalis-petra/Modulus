@@ -339,10 +339,12 @@ typeCheck expr ctx = case expr of
                  -> EvalM ([TDefinition Normal], [(String, Normal)], Subst)
         foldDefs [] _ = pure ([], [], [])
         foldDefs (def : defs) ctx = do
-          (def', var, val, subst) <- typeCheckDef def ctx
-          (defs', fields, subst') <- foldDefs defs (Ctx.insert var (Neu $ NeuVar var) val ctx)
+          (def', deflist, subst) <- typeCheckDef def ctx
+          (defs', fields, subst') <- foldDefs defs (foldr (\(var, val) ctx ->
+                                                             Ctx.insert var (Neu $ NeuVar var) val ctx)
+                                                     ctx deflist)
           fnlSubst <- compose subst subst'
-          pure (def' : defs',  (var, val) : fields, fnlSubst)
+          pure (def' : defs',  deflist <> fields, fnlSubst)
           
     (defs', fields, subst) <- foldDefs defs ctx
 
@@ -353,10 +355,12 @@ typeCheck expr ctx = case expr of
                  -> EvalM ([TDefinition Normal], [(String, Normal)], Subst)
         foldDefs [] _ = pure ([], [], [])
         foldDefs (def : defs) ctx = do
-          (def', var, val, subst) <- typeCheckDef def ctx
-          (defs', fields, subst') <- foldDefs defs (Ctx.insert var (Neu $ NeuVar var) val ctx)
+          (def', deflist, subst) <- typeCheckDef def ctx
+          (defs', fields, subst') <- foldDefs defs (foldr (\(var, val) ctx ->
+                                                             Ctx.insert var (Neu $ NeuVar var) val ctx)
+                                                     ctx deflist)
           fnlSubst <- compose subst subst'
-          pure (def' : defs',  (var, val) : fields, fnlSubst)
+          pure (def' : defs',  deflist <> fields, fnlSubst)
           
     (defs', fields, subst) <- foldDefs defs ctx
 
@@ -441,15 +445,82 @@ typeCheck expr ctx = case expr of
 
 
 typeCheckDef :: TDefinition TIntermediate' -> Ctx.Context
-             -> EvalM (TDefinition Normal, String, Normal, Subst)
+             -> EvalM (TDefinition Normal, [(String, Normal)], Subst)
 typeCheckDef (TSingleDef name body ty) ctx = do 
   bnd <- case ty of 
     Nothing -> freshVar
     Just (TIntermediate' ty) -> evalTIntermediate ty ctx
   (body', ty', subst) <- typeCheck body (Ctx.insert name (Neu $ NeuVar name) bnd ctx)
-  pure (TSingleDef name body' (Just ty'), name, ty', subst)
+  pure (TSingleDef name body' (Just ty'), [(name, ty')], subst)
+
+typeCheckDef (TInductDef sym id params (TIntermediate' ty) alts) ctx = do
+  -- TODO: check alternative definitions are well-formed (positive, return
+  -- correct Constructor) 
+  ty' <- evalTIntermediate ty ctx
+  index <- readIndex ty'
+  (ctx', params') <- updateFromParams params ctx
+  (indCtor, indTy) <- mkIndexTy params' index ty' id
+  alts' <- processAlts alts params' (Ctx.insert sym indCtor indTy ctx')
+
+  let defs = ((sym, indCtor) : mkAltDefs alts')
+      mkAltDefs :: [(String, Int, Normal)] -> [(String, Normal)]
+      mkAltDefs [] = []
+      mkAltDefs ((sym, altid, ty) : alts) =
+          let alt = NormIVal sym id altid [] ty
+              alts' = mkAltDefs alts
+          in ((sym, alt) : alts')
+  pure $ (TInductDef sym id params' indCtor alts', defs, [])
+  where
+    processAlts :: [(String, Int, TIntermediate')] -> [(String, Normal)] -> Ctx.Context
+                -> EvalM [(String, Int, Normal)]
+    processAlts [] params ctx = pure []
+    processAlts ((sym, id, (TIntermediate' ty)) : alts) ps ctx = do
+      -- TODO: check for well-formedness!!
+      -- TODO: positivity check
+      ty' <- evalTIntermediate ty ctx
+      alts' <- processAlts alts ps ctx
+      pure $ (sym, id, (captureParams ps ty')) : alts'
+      where
+        captureParams [] ty = ty
+        captureParams ((sym, ty) : ps) tl = NormImplProd sym ty (captureParams ps tl)
+
+    updateFromParams :: [(String, TIntermediate')] -> Ctx.Context -> EvalM (Ctx.Context, [(String, Normal)])
+    updateFromParams [] ctx = pure (ctx, [])
+    updateFromParams ((sym, TIntermediate' ty) : args) ctx = do
+      ty' <- evalTIntermediate ty ctx
+      (ctx', args') <- updateFromParams args (Ctx.insert sym (Neu $ NeuVar sym) ty' ctx)
+      pure (Ctx.insert sym (Neu $ NeuVar sym) ty' ctx', ((sym, ty') : args'))
+
+    readIndex :: Normal -> EvalM [(String, Normal)]
+    readIndex (NormUniv n) = pure []
+    readIndex (NormProd sym a b) = do 
+      tl  <- readIndex b
+      pure ((sym, a) : tl)
+    readIndex (NormArr a b) = do
+      id <- freshVar
+      tl  <- readIndex b
+      pure ((show id, a) : tl)
+    readIndex _ = throwError "bad inductive type annotation"
+
+    -- take first the parameters, then and the index, along with the index's type.  
+    -- return a constructor for the type, and the type of the constructor
+    mkIndexTy :: [(String, Normal)] -> [(String, Normal)] -> Normal -> Int -> EvalM (Normal, Normal)
+    mkIndexTy params index ty id = mkIndexTy' params index (ty, id) []
+    mkIndexTy' :: [(String, Normal)] -> [(String, Normal)] -> (Normal, Int) -> [String] -> EvalM (Normal, Normal) 
+    mkIndexTy' [] [] (ty, id) args = do 
+      pure (NormIType sym id (reverse (map (Neu . NeuVar) args)), ty)
+
+    mkIndexTy' ((sym, ty) : params) index body args = do
+      (ctor, ctorty) <- mkIndexTy' params index body (sym : args)
+      let fty = NormProd sym ty ctorty
+      pure $ (NormAbs sym ctor fty, fty)
+
+    mkIndexTy' [] ((sym, ty) : ids) index args = do
+      (ctor, ctorty) <- mkIndexTy' [] ids index (sym : args)
+      pure $ (NormAbs sym ctor ctorty, ctorty)
+  
 typeCheckDef def _ = do
-  throwError ("")
+  throwError ("typeCheckDef not implemented for")
 
 
 
@@ -765,15 +836,15 @@ occurs v t = occurs' v t
 -- occurs' is true for variable v and type t if v = t or occurs' is
 -- true for v any subterms in t
 occurs' :: String -> Normal -> Bool
+occurs' v1 (Neu neu) = occursNeu v1 neu
   -- Primitive types and values
-occurs' _ (NormUniv _) = False
-occurs' _ (PrimType _) = False
 occurs' _ (PrimVal _) = False
+occurs' _ (PrimType _) = False
+occurs' _ (NormUniv _) = False
 
   -- Builtin compound types (arrays, etc.)
 occurs' v (NormArrTy ty) = occurs' v ty
 
-occurs' v1 (Neu neu) = occursNeu v1 neu
 occurs' v (NormArr t1 t2) = occurs' v t1 || occurs' v t2
 occurs' v (NormProd str t1 t2) = -- remember: dependent type binding can shadow!
   if v == str then
@@ -782,10 +853,9 @@ occurs' v (NormProd str t1 t2) = -- remember: dependent type binding can shadow!
     occurs' v t1 || occurs' v t2
 occurs' v (NormImplProd str t1 t2) = -- remember: dependent type binding can
   -- shadow!
-  if v == str then
-    occurs' v t1
-  else
-    occurs' v t1 || occurs' v t2
+  if v == str then occurs' v t1 else occurs' v t1 || occurs' v t2
+occurs' v (NormAbs var a b) =
+  if v == var then occurs' v a else occurs' v a || occurs' v b
 
 occurs' v (NormSig fields) = occursFields fields
   where

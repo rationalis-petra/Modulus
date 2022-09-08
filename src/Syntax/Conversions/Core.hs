@@ -135,20 +135,10 @@ toCore (TStructure map) = do
       bdy' <- toCore bdy
       pure (OpenDef bdy' sig)
       
-    defToCore (TOpenDef bdy Nothing) = err "open not typed"
-    -- defToCore (TVariantDef nme [String] Int [(String, Int, [Normal])]
-    -- defToCore (TEffectDef  nme [String] Int [(String, Int, [Normal])]
+    defToCore (TInductDef sym id params ty alts) = 
+      pure (InductDef sym id params ty alts)
 
   
-  -- = SingleDef String Core Normal
-  -- | VariantDef String [String] [(String, [Core])] 
-  -- | EffectDef  String [String] [(String, [Core])]
-  -- | OpenDef Core SigDefn
-
-  
-  -- = TVariantDef String [String] Int [(String, Int, [Normal])]
-  -- | TEffectDef  String [String] Int [(String, Int, [Normal])]
-  -- | TSingleDef  String TIntermediate (Maybe Normal)
   -- | TOpenDef TIntermediate (Maybe Normal)
 
   

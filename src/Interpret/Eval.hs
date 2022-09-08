@@ -120,6 +120,13 @@ eval (CSct defs) = do
           val <- eval core
           defs' <- localF (Env.insert var val) (foldDefs defs)
           pure ((var, val) : defs')
+        InductDef sym indid params ty alts -> do
+          let mkAlts [] = []
+              mkAlts ((sym, id, ty) : alts) =
+                let alt = NormIVal sym indid id [] ty
+                    alts' = mkAlts alts
+                in ((sym, alt) : alts')
+          pure ((sym, ty) : mkAlts alts)
 
 eval (CSig defs) = do
   defs' <- foldDefs defs
@@ -134,6 +141,7 @@ eval (CSig defs) = do
   -- TODO: is this really the solution? perhaps. 
           defs' <- localF (Env.insert var (Neu $ NeuVar var)) (foldDefs defs)
           pure ((var, val) : defs')
+        _ -> throwError ("eval foldDefs not implemented for def: " <> show def)
 
 eval (CDot ty field) = do
   ty' <- eval ty
@@ -475,7 +483,7 @@ evalToIO (ActionMonadT inner_mnd) ctx state =
       putStrLn $ "Action Called Without Being Handled: ("  ++ show id2 ++ "," ++ show id2 ++ ")"
       return Nothing
     (Left err, state') -> do
-      putStrLn $ "error: " ++ err
+      putStrLn $ "err: " <> err
       return Nothing
   where
     accumEffects :: EvalM Normal -> (Normal -> EvalM a) -> ProgState -> IO (Maybe (a, ProgState))
@@ -490,7 +498,7 @@ evalToIO (ActionMonadT inner_mnd) ctx state =
           putStrLn $ "Action Called Without Default" ++ show (id1, id2)
           return Nothing
         (Left err, state') -> do
-          putStrLn $ "error: " ++ err
+          putStrLn $ "error: " <> err
           return Nothing
 
 

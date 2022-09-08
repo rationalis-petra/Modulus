@@ -5,7 +5,7 @@ module Syntax.Intermediate where
 
 import Prelude hiding (lookup)
 
-import Control.Monad.Except (Except, runExcept, throwError) 
+import Control.Monad.Except (Except, runExcept) 
 import qualified Data.Set as Set
 import qualified Interpret.Environment as Env
 import Data (AST(..),

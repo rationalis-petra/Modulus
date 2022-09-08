@@ -26,44 +26,7 @@ import qualified Interpret.Eval as Eval
 
 
 toTIntermediateTop :: Intermediate -> EvalM (TIntTop TIntermediate')
-toTIntermediateTop (IDefinition def) =    
-  case def of 
-    ISingleDef s i -> do
-      t <- toTIntermediate i
-      pure (TDefinition $ TSingleDef s t Nothing)
-    IOpenDef i -> do
-      t <- toTIntermediate i
-      pure (TDefinition $ TOpenDef t Nothing)
-    IInductDef sym params ty alts -> do 
-      params' <- processParams params
-      ty' <- toTIntermediate ty
-      alts' <- processAlts alts
-      id <- fresh_id
-      pure $ TDefinition $ TInductDef sym id params' (TIntermediate' ty') alts'
-      where
-        processAlts :: [(String, Intermediate)] -> EvalM [(String, Int, TIntermediate')] 
-        processAlts [] = pure []
-        processAlts ((str, inter) : params) = do
-          tint' <- toTIntermediate inter
-          id <- fresh_id
-          rest <- processAlts params
-          pure $ ((str, id, (TIntermediate' tint')) : rest)
-
-        processParams :: [IArg] -> EvalM [(String, TIntermediate')]
-        processParams [] = pure []
-        processParams (Sym sym : args) = do
-          args' <- processParams args
-          pure $ ((sym, TIntermediate' (TValue (NormUniv 0))) : args')
-
-        processParams (Annotation sym inter : args) = do
-          args' <- processParams args
-          inter' <- toTIntermediate inter
-          pure $ ((sym, TIntermediate' inter') : args')
-
-        processParams (IWildCardArg inter : args) = do
-          throwError "inductive definitions do not accept wildcard parameters"
-
-  
+toTIntermediateTop (IDefinition def) = TDefinition <$> toTDef def
 toTIntermediateTop i = TExpr <$> toTIntermediate i
 
 -- TODO: make sure to update the context with typeLookup
@@ -122,45 +85,8 @@ toTIntermediate (IProd arg bdy) = do
   pure $ TProd arg' body'
 
 
-toTIntermediate (IStructure defList) = do
-  TStructure <$> getDefs defList 
-  where
-    getDefs :: [IDefinition] -> EvalM [TDefinition TIntermediate']
-    getDefs [] = pure []
-    getDefs (x:xs) = case x of
-      ISingleDef s i -> do
-        hd <- toTIntermediate i
-        tl <- getDefs xs 
-        pure $ TSingleDef s hd Nothing : tl
-      -- TODO: types of variants
-      IInductDef nme params ty alts -> -- String[String][(String,[Intermediate])]
-        throwError "variants not implemented yet..."
-      IEffectDef nme args effects ->   -- String [String] [(String, [Intermediate])]
-        throwError "effects not implemented yet..."
-      IOpenDef i -> do
-        opn <- TOpenDef <$> (toTIntermediate i) <*> pure Nothing
-        rest <- getDefs xs
-        pure $ opn : rest
-
-toTIntermediate (ISignature defList) = do
-  TSignature <$> getDefs defList
-  where
-    getDefs :: [IDefinition] -> EvalM [TDefinition TIntermediate']
-    getDefs [] = pure []
-    getDefs (x:xs) = case x of
-      ISingleDef s i -> do
-        hd <- toTIntermediate i
-        tl <- getDefs xs 
-        pure $ TSingleDef s hd Nothing : tl
-      -- TODO: types of variants
-      IInductDef nme params ty alts ->
-        throwError "variants in signatures not implemented yet..."
-      IEffectDef nme args effects -> -- String [String] [(String, [Intermediate])]
-        throwError "effects in signatures not implemented yet..."
-      IOpenDef i -> do
-        opn <- TOpenDef <$> (toTIntermediate i) <*> pure Nothing
-        rest <- getDefs xs
-        pure $ opn : rest
+toTIntermediate (IStructure defList) = TStructure <$> mapM toTDef defList 
+toTIntermediate (ISignature defList) = TSignature <$> mapM toTDef defList
   
 toTIntermediate (IIF cond e1 e2) = do
   cond' <- toTIntermediate cond 
@@ -197,3 +123,41 @@ toTIntermediate (IMatch e1 cases) = do
 
 
 toTIntermediate x = throwError ("toTIntermediate not implemented for: "  <> show x)
+
+
+toTDef :: IDefinition -> EvalM (TDefinition TIntermediate')
+toTDef (ISingleDef s i) = do
+  t <- toTIntermediate i
+  pure (TSingleDef s t Nothing)
+toTDef (IOpenDef i) = do
+  t <- toTIntermediate i
+  pure (TOpenDef t Nothing)
+
+toTDef (IInductDef sym params ty alts) = do
+  params' <- processParams params
+  ty' <- toTIntermediate ty
+  alts' <- processAlts alts
+  id <- fresh_id
+  pure $ TInductDef sym id params' (TIntermediate' ty') alts'
+  where
+    processAlts :: [(String, Intermediate)] -> EvalM [(String, Int, TIntermediate')] 
+    processAlts [] = pure []
+    processAlts ((str, inter) : params) = do
+      tint' <- toTIntermediate inter
+      id <- fresh_id
+      rest <- processAlts params
+      pure $ ((str, id, (TIntermediate' tint')) : rest)
+
+    processParams :: [IArg] -> EvalM [(String, TIntermediate')]
+    processParams [] = pure []
+    processParams (Sym sym : args) = do
+      args' <- processParams args
+      pure $ ((sym, TIntermediate' (TValue (NormUniv 0))) : args')
+
+    processParams (Annotation sym inter : args) = do
+      args' <- processParams args
+      inter' <- toTIntermediate inter
+      pure $ ((sym, TIntermediate' inter') : args')
+
+    processParams (IWildCardArg inter : args) = do
+      throwError "inductive definitions do not accept wildcard parameters"

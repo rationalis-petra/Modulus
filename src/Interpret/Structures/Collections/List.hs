@@ -17,4 +17,5 @@ listStructureSource = "\
 
 
 listStructure :: EvalM Normal
-listStructure = buildModule Map.empty listStructureSource
+listStructure = 
+  buildModule Map.empty listStructureSource
