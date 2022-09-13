@@ -22,7 +22,7 @@ import Interpret.Transform
                                 
 
 arrayStructure :: Normal
-arrayStructure = NormSct []
+arrayStructure = NormSct [] (NormSig [])
   -- -- Types
   -- ("concat",  mlsConcat),
   -- ("⋅", mlsConcat)

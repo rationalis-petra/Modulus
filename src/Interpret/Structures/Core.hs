@@ -77,7 +77,8 @@ mlsDefmac = BuiltinMac defMac
 
 --- Structures
 with :: Normal -> Normal -> EvalM Normal 
-with (NormSct fm1) (NormSct m2) = pure $ NormSct $ insertLeft fm1  m2
+  -- TODO: constrain based on type
+with (NormSct fm1 ty1) (NormSct m2 ty2) = pure $ NormSct (insertLeft fm1 m2) ty1
 with _ _ = lift $ throwError "bad args to with expected types"
 mlsWith = liftFun2 with (NormArr Undef (NormArr Undef Undef))
 
@@ -155,8 +156,8 @@ mlsMkTupleType = liftFun2 mkTupleType (NormArr (NormUniv 0) (NormArr (NormUniv 0
 
 -- TUPLES
 mkTuple :: Normal -> Normal -> Normal -> Normal -> EvalM Normal
-mkTuple _ _ e1 e2 = 
-  pure $ NormSct [("_1", e1), ("_2", e2)]
+mkTuple t1 t2 e1 e2 = 
+  pure $ NormSct [("_1", e1), ("_2", e2)] (NormSig [("_1", t1), ("_2", t2)])
 mlsMkTuple = liftFun4 mkTuple (NormImplProd "a" (NormUniv 0)
                                  (NormImplProd "b" (NormUniv 0)
                                   (NormArr (Neu (NeuVar "a"))
@@ -165,10 +166,11 @@ mlsMkTuple = liftFun4 mkTuple (NormImplProd "a" (NormUniv 0)
              
   
 -- CONSTRAINTS
+-- TODO: update the ty in NormSct
 doConstrain :: Normal -> Normal -> EvalM Normal
-doConstrain (NormSct mod) (NormSig sig) = 
+doConstrain (NormSct mod ty) (NormSig sig) = 
   case constrain mod sig of 
-    Just x -> pure $ NormSct x
+    Just x -> pure $ NormSct x ty
     Nothing -> lift $ throwError ("could not constrain structure " <> show mod <> " with signature " <> show sig)
   where
     constrain m ((l, _) : xs) = 

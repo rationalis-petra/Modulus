@@ -15,6 +15,14 @@ getField key ((key', val) : fields) =
   else 
     getField key fields
 
+hasField :: Eq a => a -> [(a, b)] -> Bool
+hasField _ [] = False
+hasField key ((key', _) : fields) = 
+  if key == key' then
+    True
+  else 
+    hasField key fields
+
 delete :: Eq a => a -> [(a, b)] -> [(a, b)]
 delete key [] = []
 delete key ((k, v) : tl) =
@@ -55,61 +63,25 @@ typeVal (PrimVal e) = pure (PrimType (typePrim e))
       Float _ -> FloatT
       Char _ -> CharT
       String _ -> StringT
--- type of types
 
--- TODO: this may not be correct! -- universe polymorphism!
+-- type of types
+typeVal (NormUniv k) = pure (NormUniv (k + 1))
 typeVal (NormIType _ _ _) = pure (NormUniv 0)
 typeVal (NormArr _ _) = pure (NormUniv 0)
 typeVal (NormProd _ _ _) = pure (NormUniv 0)
 typeVal (NormImplProd _ _ _) = pure (NormUniv 0)
 typeVal (NormSig _) = pure (NormUniv 0)
 
-
-typeVal (NormUniv k) = pure (NormUniv (k + 1))
-
 -- Functions
 typeVal (Builtin _ ty) = pure ty
 typeVal (NormAbs _ _ ty) = pure ty
-
-typeVal (NormSct m) = do
-  -- TODO: is this dodgy?
-  fields <- mapM (\(s, v) -> typeVal v >>= \t -> pure (s, t)) m
-  pure (NormSig fields)
+typeVal (NormSct m ty) = pure ty
 
 -- typeVal (NormIType _ _ _ ty) = pure ty
 typeVal (NormIVal _ _ _ _ ty) = pure ty
-  
 typeVal e = throwError $ "untypable value: " <> show e
 
 
-
-
-t_hasType :: Normal -> Normal -> Bool
-t_hasType val ty = 
-  case ty of
-    NormUniv k -> inUniverse val k
-    NormSig fields -> hasFields val fields
-    _ -> False
-
-  where
-    -- TODO: recursive definitions in type??
-    hasFields :: Normal -> [(String, Normal)] -> Bool
-    hasFields norm fields = 
-      case norm of 
-        NormSig fields' -> foldr (\(field, ty) bl ->
-                                case getField field fields of 
-                                  Just ty' -> t_hasType ty ty' && bl
-                                  Nothing -> False) True fields'
-        _ -> False
-
-    
-    inUniverse :: Normal -> Int -> Bool
-    inUniverse norm k =
-      case norm of  
-        -- TODO: is this correct??
-        --   TODO: dependent pair/signature, take max/min??
-        NormUniv k' -> k' < k
-        _ -> True 
         
 
 

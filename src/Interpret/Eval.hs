@@ -6,6 +6,8 @@ module Interpret.Eval (Normal,
                        normSubst,
                        tyApp,
 
+                       neu_equiv,
+
                        liftFun,
                        liftFun2,
                        liftFun3,
@@ -42,8 +44,8 @@ evalTop (TopDef def) = case def of
   OpenDef body sig -> do
     mdle <- eval body
     case mdle of 
-      NormSct m -> do
-        let m' = restrict m sig 
+      NormSct m (NormSig ty) -> do
+        let m' = (restrict (restrict m ty) sig)
         pure (Right (\env -> foldr (\(k, val) env -> Env.insertCurrent k val env) env m'))
       _ -> throwError "cannot open non-module"
   InductDef sym indid params ty alts -> do 
@@ -108,9 +110,9 @@ eval (CApp l r) = do
       _ -> throwError ("tried to apply to non-function: " <> show l')
     other -> throwError ("tried to apply to non-function: " <> show other)
 
-eval (CSct defs) = do
+eval (CSct defs ty) = do
   defs' <- foldDefs defs
-  pure $ NormSct $ defs'
+  pure $ NormSct defs' ty
   where
     foldDefs :: [Definition] -> EvalM  [(String, Normal)]
     foldDefs [] = pure []
@@ -151,7 +153,8 @@ eval (CDot ty field) = do
     NormSig fields -> case getField field fields of
       Just val -> pure val
       Nothing -> throwError ("can't find field" <> field)
-    NormSct fields -> case getField field fields of 
+  -- TODO: restrict by field
+    NormSct fields ty -> case getField field fields of 
       Just val -> pure val
       Nothing -> throwError ("can't find field" <> field)
     non -> throwError ("value is not record-like" <> show non)
@@ -250,8 +253,8 @@ normSubst (val, var) ty = case ty of
       pure $ NormAbs var' body' ty'
 
 
-  NormSct fields -> do
-    NormSct <$> substFields (val, var) fields
+  NormSct fields ty -> do
+    NormSct <$> substFields (val, var) fields <*> normSubst (val, var) ty
   NormSig fields -> do
     NormSig <$> substFields (val, var) fields
 
@@ -304,7 +307,8 @@ neuSubst (val, var) neutral = case neutral of
     mdle <- neuSubst (val, var) n
     case mdle of 
       Neu n -> pure $ Neu (NeuDot n field)
-      NormSct fields ->
+  -- TODO: restrict by ty
+      NormSct fields ty ->
         case (getField field fields) of
           Just v -> pure v
           Nothing -> throwError ("failed to find field " <> field <> " in signature")
@@ -441,7 +445,8 @@ neu_equiv :: (Neutral' m) -> (Neutral' m) -> Generator -> (Map.Map String String
         -> Bool 
 neu_equiv (NeuVar v1) (NeuVar v2) used (lrename, rrename) =
   case (Map.lookup v1 lrename, Map.lookup v2 rrename) of
-    (Just v1', Just v2') -> v1 == v2
+    (Just v1', Just v2') -> v1' == v2'
+    (Nothing, Nothing) -> v1 == v2
     (_, _) -> False
 neu_equiv (NeuApp l1 r1) (NeuApp l2 r2) used rename = 
   (neu_equiv l1 l2 used rename) && (norm_equiv r1 r2 used rename)

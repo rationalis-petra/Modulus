@@ -1,4 +1,4 @@
-module Interpret.Structures.Numerics (numStructure) where
+module Interpret.Structures.Numerics (numStructure, numSignature) where
 
 import Control.Monad.Except (throwError, catchError)
 
@@ -116,6 +116,35 @@ mkBoolSing f =
       lift $ throwError ("bad arg to inbuilt bool function" <> show x)
 
 
+intSignature :: Normal
+intSignature =
+  let binIntTy = NormArr (Neu (NeuVar "t")) (NormArr (Neu (NeuVar "t")) (Neu (NeuVar "t")))
+      binIntCmp = NormArr (Neu (NeuVar "t")) (NormArr (Neu (NeuVar "t")) (PrimType BoolT))
+        in
+    NormSig [("t", NormUniv 0),
+             ("Int", NormUniv 0),
+             ("+", binIntTy),
+             ("-", binIntTy),
+             ("*", binIntTy),
+             -- TODO: divide does not belong in a ring; but we want int to be a ring
+             -- maybe?? 
+             ("quot", binIntTy),
+             ("rem", binIntTy),
+             ("add-inv", NormArr (Neu $ NeuVar "t") (Neu $ NeuVar "t")),
+           
+             ("^", mkIntOp (^)),
+           
+             ("e0", (Neu (NeuVar "t"))),
+             ("e1", (Neu (NeuVar "t"))),
+           
+             ("show", NormArr (Neu $ NeuVar "t") (PrimType StringT)),
+           
+             ("<", binIntCmp),
+             ("≤", binIntCmp),
+             (">", binIntCmp),
+             ("≥", binIntCmp),
+             ("=", binIntCmp),
+             ("≠", binIntCmp)]
 
 intStructure :: [(String, Normal)]
 intStructure = 
@@ -144,6 +173,32 @@ intStructure =
    ("=", mkCmpOp (==)),
    ("≠", mkCmpOp (/=))
   ]
+
+floatSignature :: Normal
+floatSignature =
+  let binFltTy = NormArr (Neu (NeuVar "t")) (NormArr (Neu (NeuVar "t")) (Neu (NeuVar "t")))
+      binFltCmp = NormArr (Neu (NeuVar "t")) (NormArr (Neu (NeuVar "t")) (PrimType BoolT))
+        in
+    NormSig [("t", NormUniv 0),
+             ("Float", NormUniv 0),
+             ("+", binFltTy),
+             ("-", binFltTy),
+             ("*", binFltTy),
+             ("/", binFltTy),
+             ("^", binFltTy),
+             ("^", binFltTy),
+           
+             ("e0", (Neu (NeuVar "t"))),
+             ("e1", (Neu (NeuVar "t"))),
+           
+             ("show", NormArr (Neu $ NeuVar "ty") (PrimType StringT)),
+           
+             ("<", binFltCmp),
+             ("≤", binFltCmp),
+             (">", binFltCmp),
+             ("≥", binFltCmp),
+             ("=", binFltCmp),
+             ("≠", binFltCmp)]
 
 floatStructure :: [(String, Normal)] 
 floatStructure =
@@ -177,11 +232,18 @@ boolStructure =
    ("⊻", mkBoolOp (/=)),
    ("not", mkBoolSing not)]
 
+numSignature :: Normal  
+numSignature = NormSig [
+  ("int", intSignature),
+  ("float", floatSignature)]
+
 numStructure :: [(String, Normal)]
 numStructure = 
-  [("int", NormSct intStructure),
-   ("float", NormSct floatStructure)
+  [("int", NormSct intStructure intSignature),
+   ("float", NormSct floatStructure floatSignature)
    ]
+
+  
 
 binfloat = NormArr float_t (NormArr float_t float_t)
 unifloat = NormArr float_t float_t

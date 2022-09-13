@@ -120,9 +120,9 @@ toCore (TProd (arg, bl) body) = do
   
   
 
-toCore (TStructure map) = do
+toCore (TStructure map (Just ty)) = do
   coreDefs <- mapM defToCore map
-  pure (CSct coreDefs)
+  pure (CSct coreDefs ty)
   where
     defToCore (TSingleDef nme bdy (Just ty)) = do
       bdy' <- toCore bdy

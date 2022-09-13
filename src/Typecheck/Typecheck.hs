@@ -16,19 +16,16 @@ import Data (PrimType(..),
              EvalM)
 import Syntax.TIntermediate
 
-import qualified Typecheck.Context as Ctx
 import qualified Interpret.Environment as Env
 import qualified Syntax.Conversions as Conv 
 import Interpret.EvalM
 import qualified Interpret.Eval as Eval
 import Syntax.Utils (typeVal, free, getField)
 
+import qualified Typecheck.Context as Ctx
+import Typecheck.Constrain
+
  -- TODO: check - types are expressions, or values ?!?
-
-
-
-type LRSubst = ([(Normal, String)], [(Normal, String)], [(Normal, String)])
-type Subst = [(Normal, String)]
 
 err = throwError  
 
@@ -44,7 +41,7 @@ typeCheckTop (TDefinition def) ctx =
     TSingleDef name expr Nothing -> do
       recTy <- freshVar
       (expr', ty, vsubst) <- typeCheck expr (Ctx.insert name (Neu $ NeuVar name) recTy ctx)
-      (_, app, csubst) <- constrain recTy ty
+      (_, app, csubst) <- constrain recTy ty ctx
       let fnlSubst = rmSubst (show recTy) csubst
       ty' <- tyApp ty app
       if (null fnlSubst)
@@ -143,7 +140,7 @@ typeCheck expr ctx = case expr of
     substboth <- compose substl substr
     case tl of  
       NormImplProd var t1 t2 -> do
-        (lapp, rapp, substcomb) <- constrain t1 tr 
+        (lapp, rapp, substcomb) <- constrain t1 tr ctx
         subst <- compose substcomb substboth
         appTy <- evalNIntermediate r' ctx
         retTy <- Eval.normSubst (appTy, var) t2
@@ -156,12 +153,12 @@ typeCheck expr ctx = case expr of
     substboth <- compose substl substr
     case tl of  
       NormArr t1 t2 -> do 
-        (_, app, substcomb) <- constrain t1 tr  
+        (_, app, substcomb) <- constrain t1 tr ctx
         let r'' = mkApp r' app
         subst <- compose substcomb substboth
         pure (TApply l' r'', t2, subst)
       NormProd var a t2 -> do 
-        (_, app, substcomb) <- constrain a tr 
+        (_, app, substcomb) <- constrain a tr ctx
         subst <- compose substcomb substboth
         depApp <- evalNIntermediate r' ctx
         let r'' = mkApp r' app -- TODO: use depApp instead of r'?? (possibly just an optimisation?)
@@ -191,23 +188,24 @@ typeCheck expr ctx = case expr of
                   -- lhs/ty  rhs/ty     rhs
       deriveFn :: Normal -> Normal -> TIntermediate Normal
                -> EvalM ([(Bool, TIntermediate Normal)], [(Normal, String)], Subst, Normal)
-      deriveFn (NormImplProd var _ t2) tr r = do
+      deriveFn (NormImplProd var a t2) tr r = do
         (args, unbnd, subst, rettype) <- deriveFn t2 tr r
         case findStrSubst var subst of 
-          Just ty -> do
-            retTy <- Eval.normSubst (ty, var) rettype
-            pure (((True, (TValue ty)) : args),
+          Just val -> do
+            val' <- inferVar val a ctx
+            retTy <- Eval.normSubst (val', var) rettype
+            pure (((True, (TValue val')) : args),
                            unbnd,
                            rmSubst var subst,
                            retTy)
           Nothing -> pure ((True, TValue (Neu $ NeuVar var)) : args, ((NormUniv 0, var):unbnd),
                            rmSubst var subst, rettype)
       deriveFn (NormArr t1 t2) tr r = do
-        (app, _, subst) <- constrain tr t1
+        (app, _, subst) <- constrain tr t1 ctx
         pure ([(False, mkApp r app)], [], subst, t2)
       deriveFn t tr r = do
         var' <- freshVar 
-        (lapp, rapp, subst) <- constrain (NormArr tr var') t 
+        (lapp, rapp, subst) <- constrain (NormArr tr var') t ctx
         -- TODO
         -- if not (null lapp && null rapp) then err "unsure of how to handle non-empty l/rapp in deriveFn"
         -- else
@@ -320,8 +318,8 @@ typeCheck expr ctx = case expr of
     (cond', tcond, substcond) <- typeCheck cond ctx
     (e1', te1, subste1) <- typeCheck e1 ctx
     (e2', te2, subste2) <- typeCheck e2 ctx
-    (capp, _, substcnd') <- constrain tcond (PrimType BoolT)
-    (lapp, rapp, substterms) <- constrain te1 te2
+    (capp, _, substcnd') <- constrain tcond (PrimType BoolT) ctx
+    (lapp, rapp, substterms) <- constrain te1 te2 ctx
 
     let cond'' = mkApp cond' capp
         e1'' = mkApp e1' lapp
@@ -334,7 +332,7 @@ typeCheck expr ctx = case expr of
     fnlTy <- doSubst s4 te1
     pure (TIF cond'' e1'' e2'', fnlTy, s4)
 
-  (TStructure defs) -> do  
+  (TStructure defs Nothing) -> do  
     let foldDefs :: [TDefinition TIntermediate'] -> Ctx.Context
                  -> EvalM ([TDefinition Normal], [(String, Normal)], Subst)
         foldDefs [] _ = pure ([], [], [])
@@ -348,7 +346,7 @@ typeCheck expr ctx = case expr of
           
     (defs', fields, subst) <- foldDefs defs ctx
 
-    pure (TStructure defs', NormSig fields, subst)
+    pure (TStructure defs' (Just (NormSig fields)), NormSig fields, subst)
 
   (TSignature defs) -> do  
     let foldDefs :: [TDefinition TIntermediate'] -> Ctx.Context
@@ -391,8 +389,8 @@ typeCheck expr ctx = case expr of
 
         -- TODO: ensure that the constrains are right way round...
         -- TODO: what to do with lapp1, lapp2 etc...
-        (lapp1, rapp1, restMatchSubst) <- constrain matchty matchty'
-        (lapp2, rapp2, restRetSubst) <- constrain retty eret
+        (lapp1, rapp1, restMatchSubst) <- constrain matchty matchty' ctx
+        (lapp2, rapp2, restRetSubst) <- constrain retty eret ctx
         (ps', pssubst) <- checkPatterns ps matchty retty
   
         -- TODO: make sure composition is right way round...
@@ -524,176 +522,6 @@ typeCheckDef def _ = do
 
 
 
--- Constrain: similar to unification, but with significant enough differences
--- that I've renamed it for clarity. The differences are:
---   + Instead of t1[subst] = t2[subst], we have t1[subst] <: t2[subst]. 
---   + It returns a two list of applications l1, l2, which should be applied to
---     the corresponding in order which h
-
--- In constrainl(constrainr), we unify variables we are inferring (integers),
--- but the substitution of dependently-bound (string) variables occurs only on
--- the left(right) side
-
-constrain :: Normal -> Normal -> EvalM ([Normal], [Normal], Subst)
-constrain n1 n2 = do
-  (lapp, rapp, subst) <- constrainLRApp n1 n2
-  pure (lapp, rapp, toSing subst)
-
-
--- constrainLRApp :: Normal -> Normal -> EvalM ([Normal], [Normal], LRSubst)
--- TODO: If they are both an implicit apply, may need to re-abstract and
---   substitute in neutral variables (as done in TApply). For now, just move straight to constrain' 
--- TODO: we need to perform a renaming in variable-capturing forms, so that we can constrain, e.g.  
--- List [A] and {A} → List A by first renaming List [A] & {S} → List S then performing application
--- ({S} → List S) {A} to get List [A] and List [A]!!
-
-constrainLRApp (NormImplProd s a b) (NormImplProd s' a' b') = do
-  subst <- constrain' b b'
-  pure ([], [], subst)
-constrainLRApp (NormImplProd s a b) (Neu (NeuVar v)) = do
-  if occurs v (NormImplProd s a b) then  
-    err "occurs check failed"
-  else 
-    pure ([], [], rightsubst (NormImplProd s a b) v)
-constrainLRApp (NormImplProd s a b)    r = do
-  (a1, a2, subst) <- constrainLRApp b r
-  appval <- case findLStrSubst s subst of  
-    Just v -> pure v
-    Nothing -> err ("cannot LRconstrain terms with different forms: "
-                    <> show (NormImplProd s a b) <> " "
-                    <> show r)
-  pure ((appval:a1), a2, rmLSubst s subst)
-
-  
-constrainLRApp (Neu (NeuVar v))(NormImplProd s' a' b') = do
-  if occurs v (NormImplProd s' a' b') then  
-    err "occurs check failed"
-  else 
-    pure ([], [], leftsubst (NormImplProd s' a' b') v)
-constrainLRApp l (NormImplProd s' a' b') = do
-  (a1, a2, subst) <- constrainLRApp b' l
-  appval <- case findRStrSubst s' subst of  
-    Just v -> pure v
-    Nothing -> err ("cannot LRconstrain terms with different forms: "
-                    <> show l <> " "
-                    <> show (NormImplProd s' a' b'))
-  pure (a1, (appval:a2), rmRSubst s' subst)
-constrainLRApp l r = do
-  subst <- constrain' l r
-  pure ([], [], subst)
-
-  
-constrain' :: Normal -> Normal -> EvalM LRSubst
-constrain' (Neu (NeuVar v1)) (Neu (NeuVar v2)) =
-    if v1 == v2 then pure lrnosubst
-    else pure (rightsubst (Neu $ NeuVar v1) v2)
-constrain' (Neu (NeuVar v)) ty =
-  if occurs v ty then 
-    err "occurs check failed"
-  else
-    pure (leftsubst ty v)
-constrain' ty (Neu (NeuVar v)) =
-  if occurs v ty then 
-    err "occurs check failed"
-  else
-    pure (rightsubst ty v)
-constrain' (PrimVal p1) (PrimVal p2) =
-  if p1 == p2 then pure lrnosubst else err ("non-equal primitives in constrain: "
-                                            <> show p1 <> " and " <> show p2)
-constrain' (PrimType p1) (PrimType p2) =
-  if p1 == p2 then pure lrnosubst else err ("non-equal primitives in constrain: "
-                                            <> show p1 <> " and " <> show p2)
-constrain' (NormUniv n1) (NormUniv n2) =
-  if n1 == n2 then pure lrnosubst else err ("non-equal primitives in constrain"
-                                            <> show (NormUniv n1) <> " and " <> show (NormUniv n2))
-
-constrain' (NormArr l1 r1) (NormArr l2 r2) = do
-  -- remember: function subtyping is contravaraiant in the argument and
-  -- covariant in the return type
-  s1 <- constrain' l2 l1
-  s2 <- constrain' r1 r2
-  composelr s1 s2
-
-constrain' (NormProd str l1 r1) (NormProd str' l2 r2) =
-  -- TODO: is dependent subtyping is contravaraiant in the argument and
-  -- covariant in the return type
-  if str == str' then do
-    s1 <- constrain' l2 l1
-    checkSubst "error: constrain attempting substitution for dependently bound type" str s1
-    s2 <- constrain' r1 r2 
-    composelr s1 s2
-  else
-    err "cannot constrain dependent types with unequal arg"
-
-constrain' (NormImplProd str l1 r1) (NormImplProd str' l2 r2) =
-  -- TODO: same as above (dependent)
-  if str == str' then do
-    s1 <- constrain' l2 l1
-    checkSubst "error: constrain attempting substitution for implicit dependently bound type" str s1
-    s2 <- constrain' r1 r2 
-    composelr s1 s2
-  else
-    err "cannot constrain dependent types with unequal arg"
-
-constrain' (NormSig m1) (NormSig m2) = 
-  -- TODO: look out for binding of field-names to strings!!
-  foldr (\(k, ty1) mnd ->
-                      case getField k m2 of
-                        Just ty2 -> do
-                          s1 <- mnd
-                          s2 <- constrain' ty1 ty2
-                          composelr s1 s2 
-                        Nothing -> err ("cannot constrain types, as rhs does not have field " <> k))
-    (pure lrnosubst) m1
-
-  
-constrain' (NormSct m1) (NormSct m2) = 
-  -- TODO: look out for binding of field-names to strings!!
-  foldr (\(k, ty1) mnd ->
-                      case getField k m2 of
-                        Just ty2 -> do
-                          s1 <- mnd
-                          s2 <- constrain' ty1 ty2
-                          composelr s1 s2 
-                        Nothing -> err ("cannot constrain structures, as rhs does not have field " <> k))
-    (pure lrnosubst) m1
-
-
-constrain' (NormIVal name1 tyid1 id1 vals1 norm1) (NormIVal name2 tyid2 id2 vals2 norm2) =
-  if tyid1 == tyid2 && id1 == id2 then
-    foldr (\(n1, n2) mnd -> do
-              s1 <- mnd
-              s2 <- constrain' n1 n2
-              composelr s1 s2)
-      (pure lrnosubst) (zip vals1 vals2)
-  else
-    err "cannot constrain inductive values of non-equal constructors"
-
-constrain' (NormIType name1 id1 vals1) (NormIType name2 id2 vals2) =
-  if id1 == id2 then
-    foldr (\(n1, n2) mnd -> do
-              s1 <- mnd
-              s2 <- constrain' n1 n2
-              composelr s1 s2)
-      (pure lrnosubst) (zip vals1 vals2)
-  else
-    err "cannot constrain inductive datatypes of non-equal constructors"
-  
-
-constrain' t1 t2 =   
-  err ("cannot constrain terms " <> show t1 <> " and " <> show t2 <> " as they have different forms")
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -701,118 +529,10 @@ constrain' t1 t2 =
   
 
 
-findStrSubst :: String -> Subst -> Maybe Normal
-findStrSubst str ((ty, str') : ss) =
-  if str == str' then Just ty
-  else findStrSubst str ss
-findStrSubst _ [] = Nothing
-
-rmSubst :: String -> Subst -> Subst
-rmSubst str ((ty, str') : ss)=
-  if str == str' then rmSubst str ss
-  else let ss' = rmSubst str ss in ((ty, str') : ss')
-rmSubst str [] = []
 
 
 
-findLStrSubst :: String -> LRSubst -> Maybe Normal
-findLStrSubst str (_, l, _) = findStrSubst str l
-
-findRStrSubst :: String -> LRSubst -> Maybe Normal
-findRStrSubst str (_, _, r) = findStrSubst str r
-
-rmLSubst :: String -> LRSubst -> LRSubst
-rmLSubst str (s, l, r) = (s, rmSubst str l, r)
-
-rmRSubst :: String -> LRSubst -> LRSubst
-rmRSubst str (s, l, r) = (s, l, rmSubst str r)
-
-
--- Substitution Utilities  
--- recall 
--- Subst = (Map.Map Int Normal, Map.Map String Normal)
--- we need to be able to join and query these substitutions
-
-nosubst :: Subst
-nosubst = []
-
-lrnosubst :: LRSubst
-lrnosubst = ([], [], [])
-leftsubst :: Normal -> String -> LRSubst
-leftsubst ty s = ([], [(ty, s)], [])
-rightsubst :: Normal -> String -> LRSubst
-rightsubst ty s =  ([], [], [(ty, s)])
-
-
--- composition of substitutions: For HM substitutions, they are run in order,
--- while for the string-based substitutions, we don't know in what order they
--- are run
--- thus, to compose s1 with s2
--- 1: we apply all of s1's HM substitutions to s2
--- 2: we append  of s1's string substitutions to s2's string substitutions
-compose :: Subst -> Subst -> EvalM Subst
-  -- TODO SEEMS DODGY!!
-compose str1 str2 = pure $ str1 <> str2
--- compose (s : ss, str1) (s2, str2) =
---   let iter :: (Normal, String) -> [(Normal, a)] -> EvalM [(Normal, a)]
---       iter s [] = pure []
---       iter s ((ty, vr) : ss) = do
---         ty' <- Type.normSubst s ty
---         tl <- iter s ss
---         pure $ (ty', vr) : tl
---   in do
---     -- perform substitution s within s2 
---     tl <- iter s s2 
---     compose (ss, str1) (s : tl)
-
-composeList [] = pure nosubst
-composeList (s:ss) = do
-  cmp <- composeList ss
-  compose s cmp
-
-composelr :: LRSubst -> LRSubst -> EvalM LRSubst
-composelr ([], l1, r1) (s2, l2, r2) = pure (s2, l1 <> l2, r1 <> r2)
-composelr (s : ss, l1, r1) (s2, l2, r2) =
-  let iter :: (Normal, String) -> [(Normal, a)] -> EvalM [(Normal, a)]
-      iter s [] = pure []
-      iter s ((ty, vr) : ss) = do
-        hd <- Eval.normSubst s ty
-        tl <- iter s ss
-        pure $ (hd, vr) : tl
-  in do
-    s2' <- iter s s2
-    l2' <- iter s l2
-    r2' <- iter s r2
-    -- perform substitution s within s2 
-    composelr (ss, l1, r1) (s : s2', l2', r2)
-
--- convert a lr substitution to a single substitution
--- TODO: this is BAD - we need to check for redundancy!
-toSing  :: LRSubst -> Subst
-toSing (s, left, right) = (s <> left <> right)
-
--- Perform substitution
--- TODO: do what about order of string substitution? rearranging??
-doSubst :: Subst -> Normal  -> EvalM Normal 
-doSubst subst ty = case subst of 
-  [] -> pure ty 
-  ((sty, s) : ss) -> do
-    ty' <- Eval.normSubst (sty, s) ty
-    doSubst ss ty'
-
--- Throw an error if a variable (string) is contained in a substitution
-checkSubst :: String -> String -> LRSubst -> EvalM ()
-checkSubst msg str (_, l, r) = checkSubst' str (l <> r)
-  where
-    checkSubst' _ [] = pure ()
-    checkSubst' str ((ty, str') : ss) = 
-      if str == str' then 
-        err msg
-      else 
-        checkSubst' str ss
       
-
-
 -- Apply a term to a list of normal values
 mkApp :: TIntermediate Normal -> [Normal] -> TIntermediate Normal
 mkApp term [] = term
@@ -823,61 +543,6 @@ tyApp ty [] = pure ty
 tyApp (NormArr l r) (v:vs) = tyApp r vs
 tyApp (NormProd s a b) (v:vs) = Eval.normSubst (v, s) b >>= (\n -> tyApp n vs)
 tyApp (NormImplProd s a b) (v:vs) = Eval.normSubst (v, s) b >>= (\n -> tyApp n vs)
-
-  
--- TODO: we need to shadow bound variables!!
--- Occurs Check: given a variable x and a type t, x occurs in t 
--- if some subterm of t is equal to x and x is not equal to t
-occurs :: String -> Normal -> Bool
-occurs _ (Neu (NeuVar _)) = False
-occurs v t = occurs' v t
-
--- OccursCheck': Subtly different from occurs, this algorithm is recursive:
--- occurs' is true for variable v and type t if v = t or occurs' is
--- true for v any subterms in t
-occurs' :: String -> Normal -> Bool
-occurs' v1 (Neu neu) = occursNeu v1 neu
-  -- Primitive types and values
-occurs' _ (PrimVal _) = False
-occurs' _ (PrimType _) = False
-occurs' _ (NormUniv _) = False
-
-  -- Builtin compound types (arrays, etc.)
-occurs' v (NormArrTy ty) = occurs' v ty
-
-occurs' v (NormArr t1 t2) = occurs' v t1 || occurs' v t2
-occurs' v (NormProd str t1 t2) = -- remember: dependent type binding can shadow!
-  if v == str then
-    occurs' v t1
-  else
-    occurs' v t1 || occurs' v t2
-occurs' v (NormImplProd str t1 t2) = -- remember: dependent type binding can
-  -- shadow!
-  if v == str then occurs' v t1 else occurs' v t1 || occurs' v t2
-occurs' v (NormAbs var a b) =
-  if v == var then occurs' v a else occurs' v a || occurs' v b
-
-occurs' v (NormSig fields) = occursFields fields
-  where
-    occursFields [] = False
-    occursFields ((v', ty) : fields) =
-      if v == v' then False else (occurs' v ty) || (occursFields fields)
-occurs' v (NormSct fields) = occursFields fields
-  where
-    occursFields [] = False
-    occursFields ((v', val) : fields) =
-      if v == v' then False else (occurs' v val) || (occursFields fields)
-
-occurs' v (NormIType _ _ params) = foldr (\ty b -> b || occurs' v ty) False params
-occurs' v (NormIVal _ _ _ params _) = -- TODO: check if we need to ask about free vars in the type??
-  foldr (\ty b -> b || occurs' v ty) False params
-
-
-occursNeu :: String -> Neutral -> Bool   
-occursNeu v1 (NeuVar v2) = v1 == v2
-occursNeu v (NeuApp l r) = occursNeu v l || occurs' v r
-occursNeu v (NeuDot m _) = occursNeu v m
-occursNeu v (NeuIf c e1 e2) = occursNeu v c || occurs' v e1 || occurs' v e2
 
   
 freshVar :: EvalM Normal  

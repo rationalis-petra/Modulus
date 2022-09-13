@@ -1,4 +1,4 @@
-module Interpret.Structures.Collections.String (stringStructure) where
+module Interpret.Structures.Collections.String (stringStructure, stringSignature) where
 
 import Control.Monad.Except (throwError, catchError)
 
@@ -36,14 +36,35 @@ mlsLength = liftFun len (NormArr (PrimType StringT) (PrimType IntT))
     len (PrimVal (String s)) =
       pure $ PrimVal $ Int (toInteger (Text.length s))
     len _ = lift $ throwError "length expects string as an argument"
+
+strShow :: Normal  
+strShow = liftFun sshow (NormArr (PrimType StringT) (PrimType StringT))
+  where
+    sshow :: Normal -> EvalM Normal
+    sshow (PrimVal (String s)) = pure (PrimVal (String s))
+    sshow _ = lift $ throwError "length expects string as an argument"
                                   
 
+
+stringSignature :: Normal  
+stringSignature = NormSig [
+  ("String",  NormUniv 0),
+  ("t",       NormUniv 0),
+  ("append",  (NormArr t (NormArr t t))),
+  ("⋅",        (NormArr t (NormArr t t))),
+  ("show",    (NormArr t (PrimType StringT))),
+  ("!!",      (NormArr t (NormArr (PrimType IntT) (NormArr t t)))),
+  ("index",   (NormArr t (NormArr (PrimType IntT) (NormArr t t))))]
+  where
+    t = Neu $ NeuVar "t"
+
 stringStructure :: Normal
-stringStructure = NormSct $ [
+stringStructure = NormSct [
   ("String", PrimType StringT),
   ("t",      PrimType StringT),
   ("append", mlsConcat),
   ("⋅",       mlsConcat),
+  ("show",   strShow),
   ("!!",     mlsElement),
   ("index",  mlsElement)
-  ]
+  ] stringSignature

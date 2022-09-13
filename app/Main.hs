@@ -88,8 +88,8 @@ defaultContext = do
   dfm <- defaultStructure
   pure $ Environment {
   localCtx = Map.empty,
-  currentModule = NormSct dfm,
-  globalModule = NormSct [] }
+  currentModule = NormSct dfm (NormSig []),
+  globalModule = NormSct [] (NormSig [])}
 
 data IOpts = IOpts { tc :: Bool }
   
@@ -105,8 +105,7 @@ repl env state opts = do
     _ -> do
       case parseRepl "stdin" (pack lne) of
         Left err -> do
-          -- print err
-          print "parse error"
+          print err
           repl env state opts
         Right val -> do
           (env', state') <- runExprs [val] env state opts

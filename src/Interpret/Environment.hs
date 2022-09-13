@@ -16,7 +16,7 @@ lookup key (Environment {localCtx = lcl,
   case Map.lookup key lcl of 
     Just x -> Just x
     Nothing ->
-      let (NormSct m) = curr in
+      let (NormSct m ty) = curr in
       case getField key m of
         Just v -> Just v
         Nothing -> Nothing
@@ -35,10 +35,11 @@ insertAll lst context = context{localCtx = newCtx}
 insertCurrent :: String -> Normal -> Environment -> Environment
 insertCurrent key val context = context {currentModule = newModule}
   where
-    (NormSct oldModule) = currentModule context
-    newModule = NormSct $ (key, val) : oldModule -- TODO this is DODGY!!
+    -- TODO: insert type into ty
+    (NormSct oldFields ty) = currentModule context
+    newModule = NormSct ((key, val) : oldFields) ty
 
 empty :: Environment
 empty = Environment {localCtx = Map.empty,
-                     currentModule = NormSct [],
-                     globalModule = NormSct []}
+                     currentModule = NormSct [] (NormSig []),
+                     globalModule = NormSct [] (NormSig [])}

@@ -26,6 +26,7 @@ data Environment = Environment {
 data Definition
   = SingleDef String Core Normal
   | InductDef String Int [(String, Normal)] Normal [(String, Int, Normal)] 
+  | CoinductDef String Int [(String, Normal)] Normal [(String, Int, Normal)] 
   | EffectDef String [String] [(String, [Core])]
   | OpenDef Core [(String, Normal)]
   deriving Show
@@ -51,12 +52,13 @@ data Core
   | CLet [(String, Core)] Core       -- Local binding
   | CLetOpen [(Core, [(String, Core)])] Core  -- Local opens
   | CMatch Core [(Pattern, Core)]    -- Pattern-Match
+  | CCoMatch Core [(Pattern, Core)]  -- Pattern-Comatch (for coinductive types)
   -- TODO: remove this via lazy functions!
   | CIf Core Core Core
   -- | Hndl Core Core                       -- Handle with a handler
   -- | MkHndler [(String, [String], Core)]  -- Create a new handler
-  | CSct [Definition]                -- Structure Definition
-  | CSig [Definition]                -- Signature Definition (dependent sum)
+  | CSct [Definition] Normal         -- Structure Definition, with type
+  | CSig [Definition]                -- Signature Definition (similar to dependent sum)
   deriving Show
 
 
@@ -123,15 +125,18 @@ data Normal' m
   | Builtin (Normal' m -> m (Normal' m)) (Normal' m)
   
   -- Structures & Signatures
-  | NormSct [(String, Normal' m)]
+  | NormSct [(String, Normal' m)] Normal
   | NormSig [(String, Normal' m)]
 
-  -- Inductive (later. Coinductive) datatypes
+  -- Inductive and Coinductive Types and Values
   | NormIType String Int [Normal]
   | NormIVal String Int Int [Normal] Normal
+  | NormCoType String Int [Normal]
+  | NormCoVal String Int Int [String] Normal Normal
 
   -- Effects
   | IOAction Int Int ([Normal' m] -> IO (m (Normal' m))) [Normal' m]
+  -- TODO: non-toplevel effect
 
   -- Multi-Stage Programming
   | BuiltinMac ([AST] -> m AST)
@@ -197,7 +202,7 @@ instance Show (Normal' m) where
   show (Builtin _ ty) = show "(fnc : " <> show ty <> ")"
 
   
-  show (NormSct fields) =
+  show (NormSct fields ty) =
     "(structue" <> (foldr
                 (\(f, val) str -> str <> (" (def " <> f <> " " <> show val <> ")"))
                 "" (reverse fields)) <> ")"

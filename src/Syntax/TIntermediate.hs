@@ -65,7 +65,7 @@ data TIntermediate ty
   | TSymbol String
   | TApply (TIntermediate ty) (TIntermediate ty)
   | TImplApply (TIntermediate ty) (TIntermediate ty)
-  | TStructure [TDefinition ty]
+  | TStructure [TDefinition ty] (Maybe ty)
   | TSignature [TDefinition ty]
   | TLambda [(TArg ty, Bool)] (TIntermediate ty) (Maybe ty)
   | TProd (TArg ty, Bool) (TIntermediate ty)

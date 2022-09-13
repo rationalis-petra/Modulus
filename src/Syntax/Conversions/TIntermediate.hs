@@ -85,7 +85,7 @@ toTIntermediate (IProd arg bdy) = do
   pure $ TProd arg' body'
 
 
-toTIntermediate (IStructure defList) = TStructure <$> mapM toTDef defList 
+toTIntermediate (IStructure defList) = TStructure <$> mapM toTDef defList <*> pure Nothing
 toTIntermediate (ISignature defList) = TSignature <$> mapM toTDef defList
   
 toTIntermediate (IIF cond e1 e2) = do
