@@ -46,7 +46,7 @@ toIntermediateM (Atom e) _ = pure (IValue e)
 toIntermediateM (Cons (e : es)) ctx = do
   val <- toIntermediateM e ctx
   case val of  
-    (IValue (Special Def)) -> mkDef es ctx >>= (pure . IDefinition)
+    (IValue (Special Def)) -> mkDef es Nothing ctx >>= (pure . IDefinition)
     (IValue (Special Induct)) -> mkInduct es ctx >>= (pure . IDefinition)
     (IValue (Special MkEffect)) -> mkEffect es ctx >>= (pure . IDefinition)
     (IValue (Special Do)) -> mkDo es ctx
@@ -134,10 +134,8 @@ mkProd [arg, body] ctx =
     case var of    
       Just v -> IProd (arg'', impl) <$> toIntermediateM body (shadow v ctx) 
       Nothing -> IProd (arg'', impl) <$> toIntermediateM body ctx 
-
-
-
 mkProd ast _ = throwError ("bad syntax in product (→): " ++ show ast)
+
 
 mkMacro :: [AST] -> GlobCtx -> Except String Intermediate
 mkMacro [syms, body] ctx = do
@@ -168,47 +166,60 @@ mkLet lst ctx = do
     splitLast (x : xs) =
       splitLast xs >>= (\(l, last) -> pure (x : l, last))
 
-mkDef :: [AST] -> GlobCtx -> Except String IDefinition
-mkDef [(Atom (Symbol s)), body] ctx = 
-  let new_ctx = shadow s ctx in
-  do
+mkDef :: [AST] -> Maybe (String, Intermediate) -> GlobCtx -> Except String IDefinition
+mkDef [(Atom (Symbol s)), body] ann ctx = 
+  let new_ctx = shadow s ctx in do
     body' <- toIntermediateM body new_ctx
-    pure $ (ISingleDef s body')
-mkDef ast _ = throwError ("bad syntax in def: " ++ show ast)
+    case ann of 
+      Just (s', term) -> do
+        if s' == s then
+          pure $ (ISingleDef s body' (Just term))
+        else
+          throwError "annotation must match subsequent definition"
+      Nothing ->
+        pure $ (ISingleDef s body' Nothing)
+mkDef ast _ _ = throwError ("bad syntax in def: " ++ show ast)
 
 mkModule :: [AST] -> GlobCtx -> Except String Intermediate
 mkModule lst ctx = do
-  defs <- foldDefs lst ctx
+  defs <- foldDefs lst Nothing ctx 
   return $ IStructure defs
   where
-    foldDefs :: [AST] -> GlobCtx -> Except String [IDefinition]
-    foldDefs [] _ = pure []
-    foldDefs ((Cons (op : body)) : tl) ctx = do
+    foldDefs :: [AST] -> Maybe (String, Intermediate) -> GlobCtx ->  Except String [IDefinition]
+    foldDefs [] _ _ = pure []
+    foldDefs ((Cons (op : body)) : tl) ann ctx = do
       mdef <- toIntermediateM op ctx
       case mdef of 
         -- TODO: shadow all variables...
+        (IValue (Special Annotate)) -> do
+          case (body, ann) of
+            ([Atom (Symbol s), term], Nothing) -> do
+              term' <- toIntermediateM term ctx
+              foldDefs tl (Just (s, term')) ctx
+            (_, Just _) -> throwError "cannot have two sequential annotations"
+            (_, _) -> throwError "malformed module annotation"
         (IValue (Special Def)) -> do
-          def <- mkDef body ctx
+          def <- mkDef body ann ctx
           let syms = getDefSyms def 
-          tl' <- foldDefs tl (foldr shadow ctx syms)
+          tl' <- foldDefs tl Nothing (foldr shadow ctx syms)
           pure $ def : tl'
         (IValue (Special Induct)) -> do
           def <- mkInduct body ctx
           let syms = getDefSyms def 
-          tl' <- foldDefs tl (foldr shadow ctx syms)
+          tl' <- foldDefs tl Nothing (foldr shadow ctx syms)
           pure $ def : tl'
         (IValue (Special MkEffect)) -> do
           def <- mkEffect body ctx
           let syms = getDefSyms def 
-          tl' <- foldDefs tl (foldr shadow ctx syms)
+          tl' <- foldDefs tl Nothing (foldr shadow ctx syms)
           pure $ def : tl'
         (IValue (Special Open)) -> do
           def <- mkOpen body ctx
           let syms = getDefSyms def 
-          tl' <- foldDefs tl (foldr shadow ctx syms)
+          tl' <- foldDefs tl Nothing (foldr shadow ctx syms)
           pure $ def : tl'
         _ -> throwError "Modules should contain only definition terms"
-    foldDefs v _ = throwError ("bad term in module definition: " ++ show v)
+    foldDefs v _ _ = throwError ("bad term in module definition: " ++ show v)
 
 mkSig :: [AST] -> GlobCtx -> Except String Intermediate
 mkSig lst ctx = do
@@ -222,12 +233,12 @@ mkSig lst ctx = do
       case mdef of 
         -- TODO: shadow all variables...
         (IValue (Special Annotate)) -> do
-          def <- mkDef body ctx
+          def <- mkDef body Nothing ctx
           let syms = getDefSyms def 
           tl' <- foldDefs tl (foldr shadow ctx syms)
           pure $ def : tl'
         (IValue (Special Def)) -> do
-          def <- mkDef body ctx
+          def <- mkDef body Nothing ctx
           let syms = getDefSyms def 
           tl' <- foldDefs tl (foldr shadow ctx syms)
           pure $ def : tl'
@@ -529,7 +540,7 @@ spltLast ((Atom (Symbol s)) : xs) = do
 
 
 getDefSyms :: IDefinition -> [String]  
-getDefSyms (ISingleDef s ty) = [s]
+getDefSyms (ISingleDef s _ _) = [s]
 -- getDefSyms (IInductDef)
 -- getDefSyms (IEff)
 -- getDefSyms ()

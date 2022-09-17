@@ -139,12 +139,12 @@ intSignature =
            
              ("show", NormArr (Neu $ NeuVar "t") (PrimType StringT)),
            
+             ("=", binIntCmp),
+             ("≠", binIntCmp),
              ("<", binIntCmp),
              ("≤", binIntCmp),
              (">", binIntCmp),
-             ("≥", binIntCmp),
-             ("=", binIntCmp),
-             ("≠", binIntCmp)]
+             ("≥", binIntCmp)]
 
 intStructure :: [(String, Normal)]
 intStructure = 
@@ -186,19 +186,18 @@ floatSignature =
              ("*", binFltTy),
              ("/", binFltTy),
              ("^", binFltTy),
-             ("^", binFltTy),
            
              ("e0", (Neu (NeuVar "t"))),
              ("e1", (Neu (NeuVar "t"))),
            
              ("show", NormArr (Neu $ NeuVar "t") (PrimType StringT)),
            
+             ("=", binFltCmp),
+             ("≠", binFltCmp),
              ("<", binFltCmp),
              ("≤", binFltCmp),
              (">", binFltCmp),
-             ("≥", binFltCmp),
-             ("=", binFltCmp),
-             ("≠", binFltCmp)]
+             ("≥", binFltCmp)]
 
 floatStructure :: [(String, Normal)] 
 floatStructure =
@@ -217,13 +216,12 @@ floatStructure =
    ("mul-inv", mkFloatUni (\x -> 1/x)),
    ("show", floatShow),
 
+   ("=", mkFltCmp (==)),
+   ("≠", mkFltCmp (/=)),
    ("<", mkFltCmp (<)),
    ("≤", mkFltCmp (<=)),
    (">", mkFltCmp (>)),
-   ("≥", mkFltCmp (>=)),
-   ("=", mkFltCmp (==)),
-   ("≠", mkFltCmp (/=))
-  ]
+   ("≥", mkFltCmp (>=))]
 
   
 boolStructure :: [(String, Normal)] 

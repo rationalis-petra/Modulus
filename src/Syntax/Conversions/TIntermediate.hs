@@ -132,9 +132,13 @@ toTIntermediate x = throwError ("toTIntermediate not implemented for: "  <> show
 
 
 toTDef :: IDefinition -> EvalM (TDefinition TIntermediate')
-toTDef (ISingleDef s i) = do
+toTDef (ISingleDef s i mann) = do
   t <- toTIntermediate i
-  pure (TSingleDef s t Nothing)
+  ann' <- case mann of
+    Just ann -> Just . TIntermediate' <$> toTIntermediate ann
+    Nothing -> pure Nothing
+  pure (TSingleDef s t ann')
+
 toTDef (IOpenDef i) = do
   t <- toTIntermediate i
   pure (TOpenDef t Nothing)

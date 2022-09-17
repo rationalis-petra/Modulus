@@ -224,7 +224,10 @@ instance Show (Normal' m) where
     name <> (foldr (\p s -> " " <> show p <> s) "" (reverse params))
 
   show (IOAction _ _ _ _ ty) = "<action: " <> show ty <> ">"
-  show (NormEffect effSet ty) = "⟨" <> foldr (\eff str -> show eff <> ", " <> str) "⟩ " effSet <> show ty
+  show (NormEffect effSet ty) = case effSet of
+    [] -> "⟨⟩ " <> show ty
+    [e] -> "⟨"<> show e <> "⟩ " <> show ty
+    (e:es) -> "⟨" <> show e <> foldr (\eff str -> ", " <> show eff <> str) "⟩ " effSet <> show ty
 
   show (BuiltinMac _) = show "<inbuilt-macro>"
   show (Special sp) = show sp

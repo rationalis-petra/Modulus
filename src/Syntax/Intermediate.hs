@@ -27,7 +27,7 @@ data IArg
 
 
 data IDefinition
-  = ISingleDef String Intermediate
+  = ISingleDef String Intermediate (Maybe Intermediate)
   | IInductDef String [IArg] Intermediate [(String, Intermediate)]
   | IEffectDef String [String] [(String, [Intermediate])]
   | IOpenDef Intermediate
