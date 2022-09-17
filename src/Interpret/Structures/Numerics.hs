@@ -191,7 +191,7 @@ floatSignature =
              ("e0", (Neu (NeuVar "t"))),
              ("e1", (Neu (NeuVar "t"))),
            
-             ("show", NormArr (Neu $ NeuVar "ty") (PrimType StringT)),
+             ("show", NormArr (Neu $ NeuVar "t") (PrimType StringT)),
            
              ("<", binFltCmp),
              ("≤", binFltCmp),
@@ -215,6 +215,7 @@ floatStructure =
    
    ("add-inv", mkFloatUni (\x -> -x)),
    ("mul-inv", mkFloatUni (\x -> 1/x)),
+   ("show", floatShow),
 
    ("<", mkFltCmp (<)),
    ("≤", mkFltCmp (<=)),

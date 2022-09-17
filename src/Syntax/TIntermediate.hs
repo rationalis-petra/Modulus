@@ -70,9 +70,15 @@ data TIntermediate ty
   | TLambda [(TArg ty, Bool)] (TIntermediate ty) (Maybe ty)
   | TProd (TArg ty, Bool) (TIntermediate ty)
   | TIF (TIntermediate ty) (TIntermediate ty) (TIntermediate ty)
+  | TSeq [TSeqElem ty]
   | TAccess (TIntermediate ty) String
   | TMatch (TIntermediate ty) [(TPattern ty, TIntermediate ty)]
   deriving Show
 
 newtype TIntermediate' = TIntermediate' (TIntermediate TIntermediate')
+  deriving Show
+
+data TSeqElem ty
+  = TSeqBind String (TIntermediate ty)
+  | TSeqExpr (TIntermediate ty)
   deriving Show

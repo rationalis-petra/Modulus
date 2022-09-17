@@ -437,10 +437,7 @@ deduceVal v1 v2 _ = throwError ("deduce val used for non-struct values " <> show
 subType :: Normal -> Normal -> Bool
 subType (NormUniv n1) (NormUniv n2) = n1 <= n2
 subType (PrimType p1) (PrimType p2) = p1 == p2
-subType (NormArr n1 n2) (NormArr n1' n2') = 
-  subType n1' n1 && subType n2 n2'
-
-  
+subType (NormArr n1 n2) (NormArr n1' n2') = subType n1' n1 && subType n2 n2'
 subType (NormSig s1) (NormSig s2) =
    foldr (\(k, v) bl -> case getField k s2 of
              Just v' -> subType v v' && bl
@@ -448,7 +445,7 @@ subType (NormSig s1) (NormSig s2) =
 
 -- neutral terms
 -- TODO: THIS IS INCREDIBLY DODGY AND MAY BE RESPONSIBLE FOR ERRORS YOU CANT
--- FIGURE OUT!!
+-- FIGURE OUT!
 subType (Neu n1) (Neu n2) = Eval.neu_equiv n1 n2 (Set.empty, 0) (Map.empty, Map.empty)
 -- value forms  
 subType (PrimVal p1) (PrimVal p2) = p1 == p2

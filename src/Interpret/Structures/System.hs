@@ -1,4 +1,4 @@
-module Interpret.Structures.System where
+module Interpret.Structures.System (systemStructure, systemSignature) where
 
 import qualified Data.Map as Map
 
@@ -16,8 +16,14 @@ mlsPutLine [(PrimVal (String str))] = do
   putStrLn (unpack str)
   pure $ pure $ PrimVal Unit
 
+putType = NormArr  (PrimType StringT) (NormEffect [IOEffect] (PrimType UnitT))
+getType = NormArr (PrimType UnitT) (NormEffect [IOEffect] (PrimType StringT))
+
+systemSignature :: Normal  
+systemSignature = NormSig $ [("get-line", getType), ("put-line", putType)]
+
 systemStructure :: [(String, Normal)]
 systemStructure = [
-  ("getLine", IOAction 0 1 mlsGetLine []),
-  ("putLine", IOAction 1 1 mlsPutLine [])
+  ("get-line", IOAction 0 1 mlsGetLine [] getType),
+  ("put-line", IOAction 1 1 mlsPutLine [] putType)
   ]

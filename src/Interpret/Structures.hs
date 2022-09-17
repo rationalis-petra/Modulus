@@ -18,6 +18,7 @@ coreStructure    = Core.coreStructure
 numStructure     = Num.numStructure
 numSignature     = Num.numSignature
 systemStructure  = Sys.systemStructure
+systemSignature  = Sys.systemSignature
 collStructure    = Coll.collStructure
 collSignature    = Coll.collSignature
 
@@ -26,6 +27,6 @@ defaultStructure = do
   cm <- collStructure
   structs <- Sct.structStructure 
   pure $ insertLeft coreStructure [("num",     NormSct numStructure numSignature),
-                                   ("sys",     NormSct systemStructure (NormSig [])),
+                                   ("sys",     NormSct systemStructure systemSignature),
                                    ("coll",    NormSct cm collSignature),
                                    ("structs", NormSct structs (NormSig []))]

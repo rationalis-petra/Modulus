@@ -96,18 +96,21 @@ eval (CApp l r) = do
   r' <- eval r
   case l' of 
     Neu neu -> pure $ Neu (NeuApp neu r')
-    NormAbs var body ty -> do
-      normSubst (r', var) body
+    NormAbs var body ty -> normSubst (r', var) body
     Builtin fn ty -> fn r'
-    NormIVal name tyid altid params ty -> case ty of 
-      NormArr l r -> pure $ NormIVal name tyid altid (r' : params) r
-      NormProd sym a b -> do
-        b' <- normSubst (r', sym) b
-        pure $ NormIVal name tyid altid (r' : params) b'
-      NormImplProd sym a b -> do
-        b' <- normSubst (r', sym) b
-        pure $ NormIVal name tyid altid (r' : params) b'
-      _ -> throwError ("tried to apply to non-function: " <> show l')
+    NormIVal name tyid altid params ty -> do
+      ty' <- tyApp ty r'
+      pure $ NormIVal name tyid altid (r' : params) ty'
+
+    IOAction id count func params  ty
+      | count > 1 -> do
+          ty' <- tyApp ty r' 
+          pure $ IOAction id (count - 1) func (r' : params) ty'
+      | count == 1 -> do
+          ty' <- tyApp ty r' 
+          raise 0 id (r' : params) (Just func)
+      | otherwise -> throwError ("tried to apply to non-function: " <> show ty)
+
     other -> throwError ("tried to apply to non-function: " <> show other)
 
 eval (CSct defs ty) = do
@@ -212,6 +215,14 @@ eval (CIf cond e1 e2) = do
     PrimVal (Bool True) -> eval e1
     PrimVal (Bool False) -> eval e2
     _ -> throwError "eval expects condition to be bool"
+
+eval (CSeq lst) = foldSeq lst
+  where 
+    foldSeq [(SeqExpr e)] = eval e
+    foldSeq (s:ss) = case s of 
+      SeqExpr e -> eval e >> foldSeq ss
+      SeqBind sym e -> eval e >>= (\v -> localF (Env.insert sym v) (foldSeq ss))
+
 
 eval other = throwError ("eval not implemented for" <> show other)
 

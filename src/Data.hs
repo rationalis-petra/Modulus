@@ -48,7 +48,7 @@ data Core
   | CAbs String Core Normal          -- Function abstraction
   | CApp Core Core                   -- Function application 
   | CMAbs String Normal Core         -- Macro abstraction
-  | CSeq [Core]                      -- Sequence Effects
+  | CSeq [SeqTerm]                   -- Sequence Effects
   | CLet [(String, Core)] Core       -- Local binding
   | CLetOpen [(Core, [(String, Core)])] Core  -- Local opens
   | CMatch Core [(Pattern, Core)]    -- Pattern-Match
@@ -61,6 +61,10 @@ data Core
   | CSig [Definition]                -- Signature Definition (similar to dependent sum)
   deriving Show
 
+data SeqTerm
+  = SeqExpr Core
+  | SeqBind String Core 
+  deriving Show
 
 data TopCore = TopDef Definition | TopExpr Core
 
@@ -129,13 +133,15 @@ data Normal' m
   | NormSig [(String, Normal' m)]
 
   -- Inductive and Coinductive Types and Values
-  | NormIType String Int [Normal]
-  | NormIVal String Int Int [Normal] Normal
-  | NormCoType String Int [Normal]
-  | NormCoVal String Int Int [String] Normal Normal
+  | NormIType String Int [Normal' m]
+  | NormIVal String Int Int [Normal' m] (Normal' m)
+  | NormCoType String Int [(Normal' m)]
+  | NormCoVal String Int Int [String] (Normal' m) (Normal' m)
 
   -- Effects
-  | IOAction Int Int ([Normal' m] -> IO (m (Normal' m))) [Normal' m]
+  | IOAction Int Int ([Normal' m] -> IO (m (Normal' m))) [Normal' m] (Normal' m)
+  | NormAction Int Int [(Normal' m)] (Normal' m)
+  | NormEffect [Effect m] (Normal' m)
   -- TODO: non-toplevel effect
 
   -- Multi-Stage Programming
@@ -154,6 +160,7 @@ data Neutral' m
   | NeuDot (Neutral' m) String
   | NeuIf (Neutral' m) (Normal' m) (Normal' m)
   | NeuMatch (Neutral' m) [(Pattern, Normal)]
+  | NeuCoMatch (Neutral' m) [(Pattern, Normal)]
 
   | NeuBuiltinApp (Normal' m -> m (Normal' m)) (Neutral' m) (Normal' m)
   | NeuBuiltinApp2 (Normal' m -> Normal' m -> m (Normal' m)) (Neutral' m) (Normal' m)
@@ -163,11 +170,10 @@ data Neutral' m
 
   
 --   -- ALGEBRAIC EFFECTS
---   | IOEffect
---   | IOAction Int Int ([Value m] -> IO (m (Value m))) [Value m]
---   | Effect Int Int
---   | Action Int Int Int [Value m]
---   | CHandler [(Int, Int, [String], Core)]
+data Effect ty
+  = IOEffect
+  | UserEffect String Int [Normal' ty]
+
 
 
 -- data AST = Atom Expr | Cons AST 
@@ -217,7 +223,8 @@ instance Show (Normal' m) where
   show (NormIVal name tid id params ty) = 
     name <> (foldr (\p s -> " " <> show p <> s) "" (reverse params))
 
-  show (IOAction _ _ _ _) = "IO-Action"
+  show (IOAction _ _ _ _ ty) = "<action: " <> show ty <> ">"
+  show (NormEffect effSet ty) = "⟨" <> foldr (\eff str -> show eff <> ", " <> str) "⟩ " effSet <> show ty
 
   show (BuiltinMac _) = show "<inbuilt-macro>"
   show (Special sp) = show sp
@@ -232,9 +239,12 @@ instance Show (Neutral' m) where
   show (NeuApp neu (Neu (NeuApp n1 n2))) = show neu <> " (" <> show (Neu (NeuApp n1 n2)) <> ")"
   show (NeuApp neu norm) = show neu <> " " <> show norm
   show (NeuDot neu field) = show neu <> "." <> field 
-  show (NeuMatch neu pats) = "(match " <> show neu 
-                             <> foldr (\(p, e) s -> s <> "\n" <> show p <> " → " <> show e) "" (reverse pats)
-                             <> ")"
+  show (NeuMatch neu pats) = "(match " <> show neu
+    <> foldr (\(p, e) s -> s <> "\n" <> show p <> " → " <> show e) "" (reverse pats)
+    <> ")"
+  show (NeuCoMatch neu pats) = "(comatch " <> show neu
+    <> foldr (\(p, e) s -> s <> "\n" <> show p <> " → " <> show e) "" (reverse pats)
+    <> ")"
   show (NeuIf cond e1 e2) = "(if " <> show e1 <> " " <> show e2 <> ")"
 
   show (NeuBuiltinApp fn neu ty)  = "(fnc :" <> show ty  <> ") " <> show neu
@@ -246,7 +256,7 @@ instance Show (Neutral' m) where
 
 
   
-data PrimType = BoolT | CharT | IntT | FloatT | UnitT | StringT | AbsurdT
+data PrimType = BoolT | CharT | EffectSetT | IntT | FloatT | UnitT | StringT | AbsurdT
   deriving (Eq, Ord)
   
 
@@ -257,6 +267,10 @@ type EvalM = EvalEnvM Environment
 newtype ActionMonadT m a = ActionMonadT (m (MaybeEffect m a))
 
 data ProgState = ProgState { _uid_counter :: Int, _var_counter :: Int }  
+
+instance Show (Effect m) where
+  show IOEffect = "IO"
+  show (UserEffect str _ norms) = str <> (foldr (\norm str -> str <> " " <> show norm)) "" norms
 
 
   
@@ -291,5 +305,6 @@ instance Show AST where
       show_ast (Cons lst) = "(" <> foldr (\s1 s2 -> show_ast s1 <> " " <> s2) ")" lst   
       show_ast (Atom x) = show x 
   
+
 
 $(makeLenses ''ProgState)

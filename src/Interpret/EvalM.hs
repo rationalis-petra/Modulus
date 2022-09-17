@@ -44,3 +44,5 @@ liftExcept :: Except.Except String a -> EvalM a
 liftExcept e = case Except.runExcept e of 
   Right val -> pure val
   Left err -> throwError err
+
+ 

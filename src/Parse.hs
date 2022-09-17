@@ -35,6 +35,7 @@ pSym = (lexeme $ Symbol <$> pSymStr) <|> (try (between (symbol "`") (symbol "`")
   where
     pSymStr = (:) <$> (letterChar <|> char '_') <*> many (alphaNumChar <|> char '-' <|> char '_')
 
+
 pSpecial :: Parser Normal
 pSpecial = (lexeme $ Symbol <$> pSpecialStr)
   <|> (try (between (symbol "`") (symbol "`") pSym)) 

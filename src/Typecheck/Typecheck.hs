@@ -13,6 +13,7 @@ import Data (PrimType(..),
              Neutral,
              Neutral'(..),
              var_counter,
+             Effect(..),
              EvalM)
 import Syntax.TIntermediate
 
@@ -25,7 +26,6 @@ import Syntax.Utils (typeVal, free, getField)
 import qualified Typecheck.Context as Ctx
 import Typecheck.Constrain
 
- -- TODO: check - types are expressions, or values ?!?
 
 err = throwError  
 
@@ -131,7 +131,7 @@ typeCheck expr ctx = case expr of
   (TSymbol s) -> do
     case runExcept (Ctx.lookup s ctx) of 
       Right (_, ty) -> pure (TSymbol s, ty, nosubst)
-      Left _ -> throwError ("couldn't find type of symbol " <> s)
+      Left err -> throwError ("couldn't find type of symbol " <> s <> " err-msg: " <> err)
 
   
   (TImplApply l r) -> do 
@@ -420,8 +420,50 @@ typeCheck expr ctx = case expr of
           foldTyApp ty (n : ns) = do
             ty' <- Eval.tyApp ty n
             foldTyApp ty' ns
-      -- getPatternType (MatchModule fields) = do 
+      -- getPatternType (MatchModule fields) = do
+      
+  (TSeq elems) -> do
+    (elems', retty, effects, subst) <- checkSeq [] [] elems ctx
+    pure (TSeq elems', NormEffect effects retty, subst)
+    where
+      checkSeq :: [(TSeqElem Normal)] -> [Effect EvalM] -> [(TSeqElem TIntermediate')] -> Ctx.Context
+        -> EvalM ([(TSeqElem Normal)], Normal, [Effect EvalM], Subst)
+      checkSeq _ _ [] _ = throwError "empty sequence"
+      checkSeq seq effects [(TSeqExpr e)] ctx = do
+        (e', ty, subst) <- typeCheck e ctx
+        case ty of
+          NormEffect eff ty -> do
+            fnlEffects <- effectUnion effects eff
+            pure (reverse (TSeqExpr e' : seq), ty, effects, subst)
+          _ -> pure ([TSeqExpr e'], ty, effects, subst)
+      checkSeq _ _ [(TSeqBind _ _)] ctx =
+        throwError "cannot end a sequence with a bind expression"
+      checkSeq seq effects (TSeqBind sym e : tl) ctx = do
+        (e', ty, subst) <- typeCheck e ctx
+        case ty of
+          NormEffect effects' ty' -> do
+            fnlEffects <- effectUnion effects effects'
+            checkSeq (TSeqBind  sym e' : seq) fnlEffects tl (Ctx.insert sym (Neu $ NeuVar sym) ty' ctx) 
+          _ -> 
+             checkSeq (TSeqBind sym e' : seq) effects tl (Ctx.insert sym (Neu $ NeuVar sym) ty ctx)
+      checkSeq seq effects (TSeqExpr e : tl) ctx = do
+        (e', ty, subst) <- typeCheck e ctx
+        case ty of
+          NormEffect effects' ty -> do
+            fnlEffects <- effectUnion effects effects'
+            checkSeq (TSeqExpr e' : seq) fnlEffects tl ctx 
+          _ -> checkSeq (TSeqExpr e' : seq) effects tl ctx 
 
+
+      effectUnion :: [Effect m] -> [Effect m] -> EvalM [Effect m]
+      effectUnion e [] = pure e
+      effectUnion es (e':es') = effectInsert e' es >>= (\x -> effectUnion x es')
+      
+      effectInsert :: Effect m -> [Effect m] -> EvalM [Effect m]
+      effectInsert e [] = pure [e]
+      effectInsert IOEffect (IOEffect : es) = pure es
+      -- TODO: search for conflicts in the norm
+      effectInsert _ _ = throwError "cannot effectInsert UserEffect"
 
 
   other -> 
@@ -441,6 +483,9 @@ typeCheck expr ctx = case expr of
           pure (Ctx.insert str (Neu $ NeuVar str) (Neu $ NeuVar ("#" <> show id))  ctx',
                                (InfArg str id, bl) : args')
 
+
+
+  
 
 typeCheckDef :: TDefinition TIntermediate' -> Ctx.Context
              -> EvalM (TDefinition Normal, [(String, Normal)], Subst)
@@ -517,6 +562,8 @@ typeCheckDef (TInductDef sym id params (TIntermediate' ty) alts) ctx = do
       (ctor, ctorty) <- mkIndexTy' [] ids index (sym : args)
       pure $ (NormAbs sym ctor ctorty, ctorty)
   
+
+
 typeCheckDef def _ = do
   throwError ("typeCheckDef not implemented for")
 

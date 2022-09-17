@@ -435,29 +435,23 @@ mkDo es globctx = do
 -- ⟨e⟩ a >>= a → ⟨e'⟩ b -> ⟨e⊔e'⟩ b
 mkSeq :: [AST] -> GlobCtx -> Except String Intermediate
 mkSeq es globctx = do  
-  vals <- foldLet es globctx 
-  pure $ (IDo vals)
+  vals <- convSeq es globctx 
+  pure $ (ISeq vals)
   where
-    foldLet :: [AST] -> GlobCtx -> Except String [Intermediate]
-    foldLet [] _ = return []
-    foldLet [x] ctx = do
+    convSeq :: [AST] -> GlobCtx -> Except String [ISeqElem]
+    convSeq [] _ = return []
+    convSeq [x] ctx = do
       val <- toIntermediateM x ctx
-      return [val] 
-    foldLet (Cons [(Atom (Symbol s)), defs] : xs) ctx = 
-      case lookup s ctx of 
-        Just (Special Let) -> do
-          let newForm = [Cons [Atom (Symbol s), defs, newTl]]
-              newTl = Cons (Atom (Special Do) : xs)
-          foldLet newForm ctx 
-        _ -> do
-          result <- toIntermediateM (Cons [(Atom (Symbol s)), defs]) ctx
-          tail <- foldLet xs ctx
-          return $ result : tail
+      return [(ISeqExpr val)] 
+    convSeq (Cons [(Atom (Symbol "←")), (Atom (Symbol s)), def] : xs) ctx = do
+      seqElem <- ISeqBind s <$> toIntermediateM def ctx
+      tl <- convSeq xs (shadow s ctx)
+      pure $ seqElem : tl
 
-    foldLet (x : xs) ctx = do
+    convSeq (x : xs) ctx = do
       hd <- toIntermediateM x ctx
-      rest <- (foldLet xs ctx)
-      return $ hd : rest
+      rest <- (convSeq xs ctx)
+      return $ (ISeqExpr hd) : rest
 
 
 

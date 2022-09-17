@@ -41,7 +41,9 @@ instance (Monad m) => Monad (ActionMonadT m) where
 lift :: (Monad m) => m a -> ActionMonadT m a
 lift m = ActionMonadT (m >>= \x -> pure $ Value x)
 
--- raise :: (Monad m) => String -> [Object m] -> (ActionMonadT m (Object (ActionMonadT m)))
+raise :: (Monad m) => Int -> Int -> [Normal' (ActionMonadT m)]
+  -> (Maybe ([Normal' (ActionMonadT m)] -> IO ((ActionMonadT m) (Normal' (ActionMonadT m)))))
+  -> (ActionMonadT m (Normal' (ActionMonadT m))) 
 raise id1 id2 args def = 
   ActionMonadT $ pure $ RaiseAction pure id1 id2 args def
   

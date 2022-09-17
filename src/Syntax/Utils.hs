@@ -79,6 +79,7 @@ typeVal (NormSct m ty) = pure ty
 
 -- typeVal (NormIType _ _ _ ty) = pure ty
 typeVal (NormIVal _ _ _ _ ty) = pure ty
+typeVal (IOAction _ _ _ _ ty) = pure ty
 typeVal e = throwError $ "untypable value: " <> show e
 
 

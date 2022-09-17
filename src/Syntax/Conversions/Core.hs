@@ -3,6 +3,7 @@ module Syntax.Conversions.Core where
 import Data(EvalM,
             TopCore(..),
             Core (..),
+            SeqTerm(..),
             Pattern(..),
             Definition(..),
             Normal,
@@ -190,5 +191,10 @@ toCore (TMatch term patterns) = do
 
 
 
+toCore (TSeq elems) = do
+  CSeq <$> mapM toCoreElem elems
+  where
+    toCoreElem (TSeqBind sym e) = SeqBind sym <$> toCore e
+    toCoreElem (TSeqExpr e) = SeqExpr <$> toCore e
 
 toCore x = err ("unimplemented" <> show x)

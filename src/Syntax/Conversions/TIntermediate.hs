@@ -12,7 +12,8 @@ import Data(EvalM,
 import Syntax.Intermediate(Intermediate(..),
                            IDefinition(..),
                            IPattern(..),
-                           IArg(..))
+                           IArg(..),
+                           ISeqElem(..))
 
 import Interpret.EvalM (local, fresh_id, fresh_var, throwError)
 import Control.Monad.State (State, runState)
@@ -120,6 +121,11 @@ toTIntermediate (IMatch e1 cases) = do
           pure (TIMatch altid vid (TIntermediate' (TValue ty)) subPatterns)
         _ -> throwError ("couldn't extract pattern from val: " <> show val)
 
+
+toTIntermediate (ISeq actions) = TSeq <$> mapM toTSeq actions
+  where 
+    toTSeq (ISeqBind str term) = TSeqBind str <$> toTIntermediate term
+    toTSeq (ISeqExpr term) = TSeqExpr <$> toTIntermediate term
 
 
 toTIntermediate x = throwError ("toTIntermediate not implemented for: "  <> show x)

@@ -217,7 +217,6 @@ coreStructure = [
   ("if",          Special If),
   ("do",          Special Do),
   ("seq",         Special Seq),
-  ("lambda",      Special Lambda),
   ("quote",       Special MkQuote),
   ("λ",           Special Lambda),
   ("let",         Special Let),
