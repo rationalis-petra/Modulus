@@ -188,6 +188,9 @@ toCore (TMatch term patterns) = do
     toCorePat (TIMatch id1 id2 ty pats) = do
       pats' <- mapM toCorePat pats
       pure $ (MatchInduct id1 id2 pats')
+    toCorePat (TBuiltinMatch fn ty pats) = do
+      pats' <- mapM toCorePat pats
+      pure $ InbuiltMatch (fn pats')
 
 
 

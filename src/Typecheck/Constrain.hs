@@ -19,6 +19,8 @@ import Data (PrimType(..),
              Core(..),
              Neutral,
              Neutral'(..),
+             CollTy(..),
+             CollVal(..),
              var_counter,
              EvalM)
 
@@ -33,7 +35,7 @@ import qualified Data.Set as Set
 
 err = throwError  
 
-type LRSubst = ([(Normal, String)], [(Normal, String)], [(Normal, String)])
+type LRSubst = ([(Normal, String)], [(Normal, String)])
 type Subst = [(Normal, String)]
 
 -- NOTICE: this module will be deprecated in terms of unify
@@ -76,7 +78,7 @@ constrainLRApp (NormImplProd s a b)    r ctx = do
   appval <- case findLStrSubst s subst of  
     Just v -> inferVar v a ctx
     Nothing -> err ("cannot LRconstrain terms with different forms: "
-                    <> show (NormImplProd s a b) <> " "
+                    <> show (NormImplProd s a b) <> " and "
                     <> show r)
   pure ((appval:a1), a2, rmLSubst s subst)
 
@@ -87,12 +89,13 @@ constrainLRApp (Neu (NeuVar v)) (NormImplProd s' a' b') ctx = do
   else 
     pure ([], [], leftsubst (NormImplProd s' a' b') v)
 constrainLRApp l (NormImplProd s' a' b') ctx = do
-  (a1, a2, subst) <- constrainLRApp b' l ctx
+  (a1, a2, subst) <- constrainLRApp l b' ctx
   appval <- case findRStrSubst s' subst of  
     Just v -> inferVar v a' ctx
-    Nothing -> err ("cannot LRconstrain terms with different forms: "
-                    <> show l <> " "
-                    <> show (NormImplProd s' a' b'))
+    Nothing -> err ("cannot find implicit substitution for var " <> s' <> " constraining terms: " 
+                    <> show l <> " and "
+                    <> show (NormImplProd s' a' b')
+                    <> " in substitution: " <> show subst)
   pure (a1, (appval:a2), rmRSubst s' subst)
 constrainLRApp l r ctx = do
   subst <- constrain' l r
@@ -105,9 +108,9 @@ constrain' (Neu (NeuVar v1)) (Neu (NeuVar v2)) =
     else pure (rightsubst (Neu $ NeuVar v1) v2)
 constrain' (Neu n) ty = nnConstrain n ty
 constrain' ty (Neu n) = do
-  -- TODO: technically not respecting subtyping rules...
-  (l, r, s) <- nnConstrain n ty
-  pure (r, l, s)
+  -- TODO: technically not respecting subtyping rules ()
+  (l, r) <- nnConstrain n ty
+  pure (r, l)
 
 constrain' (PrimVal p1) (PrimVal p2) =
   if p1 == p2 then pure lrnosubst else err ("non-equal primitives in constrain: "
@@ -115,6 +118,9 @@ constrain' (PrimVal p1) (PrimVal p2) =
 constrain' (PrimType p1) (PrimType p2) =
   if p1 == p2 then pure lrnosubst else err ("non-equal primitives in constrain: "
                                             <> show p1 <> " and " <> show p2)
+constrain' (CollTy (ListTy a)) (CollTy (ListTy b)) = do
+  constrain' a b
+  
 constrain' (NormUniv n1) (NormUniv n2) =
   if n1 == n2 then pure lrnosubst else err ("non-equal primitives in constrain"
                                             <> show (NormUniv n1) <> " and " <> show (NormUniv n2))
@@ -221,11 +227,11 @@ nosubst :: Subst
 nosubst = []
 
 lrnosubst :: LRSubst
-lrnosubst = ([], [], [])
+lrnosubst = ([], [])
 leftsubst :: Normal -> String -> LRSubst
-leftsubst ty s = ([], [(ty, s)], [])
+leftsubst ty s = ([(ty, s)], [])
 rightsubst :: Normal -> String -> LRSubst
-rightsubst ty s =  ([], [], [(ty, s)])
+rightsubst ty s =  ([], [(ty, s)])
 
 
 findStrSubst :: String -> Subst -> Maybe Normal
@@ -241,16 +247,16 @@ rmSubst str ((ty, str') : ss)=
 rmSubst str [] = []
 
 findLStrSubst :: String -> LRSubst -> Maybe Normal
-findLStrSubst str (_, l, _) = findStrSubst str l
+findLStrSubst str (l, _) = findStrSubst str l
 
 findRStrSubst :: String -> LRSubst -> Maybe Normal
-findRStrSubst str (_, _, r) = findStrSubst str r
+findRStrSubst str (_, r) = findStrSubst str r
 
 rmLSubst :: String -> LRSubst -> LRSubst
-rmLSubst str (s, l, r) = (s, rmSubst str l, r)
+rmLSubst str (l, r) = (rmSubst str l, r)
 
 rmRSubst :: String -> LRSubst -> LRSubst
-rmRSubst str (s, l, r) = (s, l, rmSubst str r)
+rmRSubst str (l, r) = (l, rmSubst str r)
   
 
 -- composition of substitutions: For HM substitutions, they are run in order,
@@ -279,26 +285,26 @@ composeList (s:ss) = do
   cmp <- composeList ss
   compose s cmp
 
+  -- TODO: fix!
 composelr :: LRSubst -> LRSubst -> EvalM LRSubst
-composelr ([], l1, r1) (s2, l2, r2) = pure (s2, l1 <> l2, r1 <> r2)
-composelr (s : ss, l1, r1) (s2, l2, r2) =
-  let iter :: (Normal, String) -> [(Normal, a)] -> EvalM [(Normal, a)]
-      iter s [] = pure []
-      iter s ((ty, vr) : ss) = do
-        hd <- Eval.normSubst s ty
-        tl <- iter s ss
-        pure $ (hd, vr) : tl
-  in do
-    s2' <- iter s s2
-    l2' <- iter s l2
-    r2' <- iter s r2
-    -- perform substitution s within s2 
-    composelr (ss, l1, r1) (s : s2', l2', r2)
+composelr (l1, r1) (l2, r2) = pure (l1 <> l2, r1 <> r2)
+-- composelr (l1, r1) (l2, r2) =
+--   let iter :: (Normal, String) -> [(Normal, a)] -> EvalM [(Normal, a)]
+--       iter s [] = pure []
+--       iter s ((ty, vr) : ss) = do
+--         hd <- Eval.normSubst s ty
+--         tl <- iter s ss
+--         pure $ (hd, vr) : tl
+--   in do
+--     l' <- iter l1 l2
+--     r' <- iter r1 r2
+--     -- perform substitution s within s2 
+--     composelr (l', r')
 
 -- convert a lr substitution to a single substitution
 -- TODO: this is BAD - we need to check for redundancy!
 toSing  :: LRSubst -> Subst
-toSing (s, left, right) = (s <> left <> right)
+toSing (left, right) = (left <> right)
 
 -- Perform substitution
 -- TODO: do what about order of string substitution? rearranging??
@@ -311,7 +317,7 @@ doSubst subst ty = case subst of
 
 -- Throw an error if a variable (string) is contained in a substitution
 checkSubst :: String -> String -> LRSubst -> EvalM ()
-checkSubst msg str (_, l, r) = checkSubst' str (l <> r)
+checkSubst msg str (l, r) = checkSubst' str (l <> r)
   where
     checkSubst' _ [] = pure ()
     checkSubst' str ((ty, str') : ss) = 
@@ -336,10 +342,9 @@ occurs' v1 (Neu neu) = occursNeu v1 neu
   -- Primitive types and values
 occurs' _ (PrimVal _) = False
 occurs' _ (PrimType _) = False
-occurs' _ (NormUniv _) = False
 
-  -- Builtin compound types (arrays, etc.)
-occurs' v (NormArrTy ty) = occurs' v ty
+-- Universes   
+occurs' _ (NormUniv _) = False
 
 occurs' v (NormArr t1 t2) = occurs' v t1 || occurs' v t2
 occurs' v (NormProd str t1 t2) = -- remember: dependent type binding can shadow!

@@ -1,29 +1,43 @@
-module Interpret.Structures.Collections.Array (arrayStructure) where
-
-import Control.Monad.Except (throwError, catchError)
+module Interpret.Structures.Collections.Array (arrayStructure, arraySignature) where
 
 import qualified Data.Map as Map
-import Data.Vector
+import Data.Vector hiding (mapM)
 
 import Data
-import Interpret.Eval (liftFun3)
+import Interpret.EvalM 
+import Interpret.Eval (liftFun2,
+                       liftFun3)
 import qualified Interpret.Environment as Env
 import Interpret.Transform
 
 
-  
+mlsArr :: Normal
+mlsArr = liftFun2 mkArrTy (NormArr (NormUniv 0) (NormArr (CollTy (ListTy (PrimType IntT))) (NormUniv 0)))
+  where
+    mkArrTy :: Normal -> Normal -> EvalM Normal
+    mkArrTy ty (CollVal (ListVal dims _)) = do
+      dims' <- mapM asInt dims 
+      pure $ CollTy $ ArrayTy ty dims'
+    mkArrTy _ _ = throwError "Array type expects list of integers as shape"
+   
+    asInt :: Normal -> EvalM Integer
+    asInt (PrimVal (Int n)) = pure n
+    asInt _ = throwError "Array type expects list of integers as shape"
 
--- fnConcat :: Normal -> Normal -> Normal -> EvalM Normal  
--- fnConcat _ (Coll (Vector v1)) (Coll (Vector v2)) = pure $ Coll $ Vector (v1 <> v2)
--- fnConcat _ _ _ = lift $ throwError "concat expects strings as arguments"
--- mlsConcat = liftFun3 fnConcat (NormImplDep "a" (NormUniv 0) 
---                                (NormArr (NormVector (Neu (NeuVar "a")))
---                                 (NormArr (NormVector (Neu (NeuVar "a"))) (NormVector (Neu (NeuVar "a"))))))
+  
+arraySignature :: Normal
+arraySignature = NormSig [
+  ("Array", (NormArr (NormUniv 0) (NormArr (CollTy (ListTy (PrimType IntT))) (NormUniv 0))))]
                                 
 
 arrayStructure :: Normal
-arrayStructure = NormSct [] (NormSig [])
+arrayStructure = NormSct [
+  ("Array", mlsArr)]
+  arrayStructure
   -- -- Types
   -- ("concat",  mlsConcat),
-  -- ("⋅", mlsConcat)
+  -- (",", mlsConcat)
+  -- ¨, mlsMap
+  -- ⊂, mlsEnclose
+  -- ⊆, mlsPartition
   -- ]

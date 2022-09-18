@@ -11,13 +11,11 @@ import Syntax.Conversions (toIntermediate,
                            toTIntermediateTop,
                            toCore,
                            toTopCore) 
-
 import Typecheck.Typecheck
 import qualified Typecheck.Context as Ctx
 
 
 import System.IO
-
 import Interpret.Structures (defaultStructure)
 import qualified Interpret.Environment as Env
 

@@ -151,7 +151,6 @@ mlsSig = BuiltinMac sig
 mkTupleType :: Normal -> Normal -> EvalM Normal
 mkTupleType t1 t2 = 
   pure $ NormSig [("_1", t1), ("_2", t2)]
-mkTupleType _ _ = lift $ throwError "bad args to *: expected types"
 mlsMkTupleType = liftFun2 mkTupleType (NormArr (NormUniv 0) (NormArr (NormUniv 0) (NormUniv 0)))
 
 -- TUPLES

@@ -7,6 +7,7 @@ import Data(EvalM,
             Definition(..),
             Normal,
             Normal'(..),
+            Pattern,
             Core(..))
 import Syntax.Intermediate(Intermediate(..),
                            IDefinition(..),
@@ -56,7 +57,10 @@ data TPattern ty
   = TWildPat 
   | TBindPat String
   | TIMatch Int Int ty [TPattern ty]
-  deriving Show
+  | TBuiltinMatch ([Pattern] -> Normal -> (Normal -> Pattern -> EvalM (Maybe [(String, Normal)]))
+                          -> EvalM (Maybe [(String, Normal)]))
+    ty
+    [TPattern ty]
   
 
 {-- --}
@@ -82,3 +86,11 @@ data TSeqElem ty
   = TSeqBind String (TIntermediate ty)
   | TSeqExpr (TIntermediate ty)
   deriving Show
+
+
+instance Show ty => Show (TPattern ty) where
+  show (TWildPat) = "TWildPat"
+  show (TBindPat sym) = "TBindPat " <> show sym
+  show (TIMatch id1 id2 ty pats) = "TIMatch " <> show id1 <> " " <> show id2 <> " " <> show ty
+    <> " " <> show pats
+  show (TBuiltinMatch _ _ pats) = "TBuiltInMatch " <> show pats

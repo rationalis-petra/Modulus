@@ -26,6 +26,7 @@ import Interpret.EvalM
 import Data
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified Data.Vector as Vector
 import Interpret.Transform hiding (lift)
 
 
@@ -110,6 +111,8 @@ eval (CApp l r) = do
           ty' <- tyApp ty r' 
           raise 0 id (r' : params) (Just func)
       | otherwise -> throwError ("tried to apply to non-function: " <> show ty)
+    InbuiltCtor ctor -> case ctor of   
+      IndPat _ _ n _ -> eval (CApp (CNorm n) (CNorm r'))
 
     other -> throwError ("tried to apply to non-function: " <> show other)
 
@@ -189,6 +192,7 @@ eval (CMatch term alts) = do
                                 _ -> Nothing) (Just []) nestedBinds
         pure allBinds
       else pure Nothing
+    getBinds n (InbuiltMatch fun) = fun n getBinds
     getBinds _ _= pure Nothing
 
     neuMatch :: Neutral -> [(Pattern, Core)] -> EvalM Normal
@@ -231,6 +235,14 @@ normSubst (val, var) ty = case ty of
   Neu neu -> neuSubst (val, var) neu
   PrimType p -> pure $ PrimType p
   PrimVal p -> pure $ PrimVal p
+  CollTy cty -> case cty of 
+    ListTy a -> (CollTy . ListTy) <$> normSubst (val, var) a
+    ArrayTy a dims -> CollTy <$> (ArrayTy <$> normSubst (val, var) a <*> pure dims)
+  CollVal cvl -> case cvl of 
+    ListVal vals ty -> CollVal <$> (ListVal <$> mapM (normSubst (val, var)) vals <*> normSubst (val, var) ty)
+    ArrayVal vec ty shape -> CollVal <$> (ArrayVal <$> Vector.mapM (normSubst (val, var)) vec
+                                      <*> normSubst (val, var) ty <*> pure shape)
+  
   NormUniv n -> pure $ NormUniv n
 
   
@@ -284,6 +296,7 @@ normSubst (val, var) ty = case ty of
   Keyword key  -> pure $ Keyword key
   Symbol sym   -> pure $ Symbol sym
   AST ast      -> pure $ AST ast
+
 
   -- Undef 
   s -> throwError ("subst not implemented for: " <> show s)

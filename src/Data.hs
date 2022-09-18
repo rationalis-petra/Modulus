@@ -36,7 +36,8 @@ data Pattern
   | VarBind String 
   | MatchInduct Int Int [Pattern]
   | MatchModule [(String, Pattern)]
-  deriving Show
+  | InbuiltMatch (Normal -> (Normal -> Pattern -> EvalM (Maybe [(String, Normal)]))
+                         -> EvalM (Maybe [(String, Normal)]))
 
 data Core
   = CNorm Normal                     -- Normalised value
@@ -67,6 +68,12 @@ data SeqTerm
   deriving Show
 
 data TopCore = TopDef Definition | TopExpr Core
+
+instance Show Pattern where  
+  show WildCard = "_"
+  show (VarBind sym) = sym
+  show (MatchInduct _ _ _) = "inductive match"
+  show (InbuiltMatch _) = "inbuilt match"
 
 
 -- Contexts:   
@@ -102,10 +109,25 @@ data PrimVal
   deriving Eq
 
 
-data CollE m
-  = List [(Normal' m)]
-  | Vector (Vector (Normal' m))
+-- InternalPat :: allows defining a constructor match pair
+--                used for defining values (list List) that we
+--                want access to from haskell
+data InbuiltCtor m
+  --       name    pattern-match
+  = IndPat String
+           ([Pattern] -> Normal' m
+                      -> (Normal -> Pattern -> EvalM (Maybe [(String, Normal)]))
+                      -> EvalM (Maybe [(String, Normal' m)]))
+           -- ctor & type
+           (Normal' m) (Normal' m)
 
+data CollTy m
+  = ListTy (Normal' m)
+  | ArrayTy (Normal' m) [Integer]
+
+data CollVal m
+  = ListVal [(Normal' m)] (Normal' m)
+  | ArrayVal (Vector (Normal' m)) (Normal' m) [Integer]
 
 
 -- m is the type of monad inside the object
@@ -113,11 +135,16 @@ type Normal = Normal' EvalM
 type Neutral = Neutral' EvalM
   
 data Normal' m  
-  -- Basic Values and Types
+  -- Neutral term
   = Neu (Neutral' m)
+  -- Basic & Inbuilt Values and Types
   | PrimVal PrimVal 
   | PrimType PrimType
-  | NormArrTy (Normal' m)
+  | CollVal (CollVal m)
+  | CollTy (CollTy m)
+  | InbuiltCtor (InbuiltCtor m)
+
+  -- Universes
   | NormUniv Int 
 
   -- Dependent Products & Functions
@@ -195,18 +222,21 @@ data MaybeEffect m a
 
 
 instance Show (Normal' m) where
-  show (Neu neu) = show neu
-  show (PrimVal prim) = show prim
-  show (PrimType prim) = show prim
-  show (NormArrTy tn) = "Vector" <> show tn
+  show (Neu neu)        = show neu
+
+  show (PrimVal prim)   = show prim
+  show (PrimType prim)  = show prim
+  show (CollTy ty)      = show ty
+  show (CollVal val)    = show val
+  show (InbuiltCtor pat) = show pat
+  
   show (NormUniv n) = if n == 0 then "𝒰" else "𝒰" <> show n
 
   show (NormProd var a b) = "(" <> var <> ":" <> show a <> ")" <> " → " <> show b
   show (NormImplProd var a b) = "{" <> var <> ":" <> show a <> "}" <> " → " <> show b
   show (NormArr l r) = show l <> " → " <> show r
   show (NormAbs var body ty) = "(λ " <> var <> " . " <> show body <> ")"
-  show (Builtin _ ty) = show "(fnc : " <> show ty <> ")"
-
+  show (Builtin _ ty) = "(fnc : " <> show ty <> ")"
   
   show (NormSct fields ty) =
     "(structue" <> (foldr
@@ -297,16 +327,26 @@ instance Show PrimVal where
     String str -> show str
 
   
-instance Show (CollE m) where   
+instance Show (CollVal m) where   
   show e = case e of  
-    Data.List l -> show l
-    Data.Vector v -> show v
+    -- TODO: pretty-printing for lists & arrays
+    ListVal l _ -> show l
+    ArrayVal v _ _ -> show v
+
+instance Show (CollTy m) where   
+  show e = case e of  
+    ListTy ty -> "List " <> show ty
+    ArrayTy n1 n2 -> "Array " <> show n1 <> show n2
+
+instance Show (InbuiltCtor m) where
+  show (IndPat sym _ _ ty) = show sym <> " " <> show ty
 
 instance Show AST where
   show e = "AST: " <> show_ast e
     where
       show_ast (Cons lst) = "(" <> foldr (\s1 s2 -> show_ast s1 <> " " <> s2) ")" lst   
       show_ast (Atom x) = show x 
+  
   
 
 

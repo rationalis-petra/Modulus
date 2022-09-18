@@ -63,6 +63,8 @@ typeVal (PrimVal e) = pure (PrimType (typePrim e))
       Float _ -> FloatT
       Char _ -> CharT
       String _ -> StringT
+typeVal (InbuiltCtor ctor) = case ctor of 
+  IndPat _ _ _ ty -> pure ty
 
 -- type of types
 typeVal (NormUniv k) = pure (NormUniv (k + 1))
@@ -120,7 +122,6 @@ instance Expression (Neutral' m) where
       altfree (p, e) = foldr (Set.delete) (patVars p) (free e)
     
 
-  free (NeuDot sig field) = (free sig)
   free (NeuBuiltinApp _ _ _) = Set.empty
   free (NeuBuiltinApp2 _ _ _) = Set.empty
   free (NeuBuiltinApp3 _ _ _) = Set.empty

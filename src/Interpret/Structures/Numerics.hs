@@ -184,7 +184,7 @@ floatSignature =
              ("+", binFltTy),
              ("-", binFltTy),
              ("*", binFltTy),
-             ("/", binFltTy),
+             ("÷", binFltTy),
              ("^", binFltTy),
            
              ("e0", (Neu (NeuVar "t"))),
@@ -206,7 +206,7 @@ floatStructure =
    ("+", mkFloatOp (+)),
    ("-", mkFloatOp (-)),
    ("*", mkFloatOp (*)),
-   ("/", mkFloatOp (/)),
+   ("÷", mkFloatOp (/)),
    ("^", mkFloatOp (**)),
 
    ("e0", PrimVal (Float 0.0)),

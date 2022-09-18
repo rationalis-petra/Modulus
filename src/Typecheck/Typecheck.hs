@@ -27,7 +27,7 @@ import qualified Typecheck.Context as Ctx
 import Typecheck.Constrain
 
 
-err = throwError  
+err = throwError
 
 typeCheckTop :: TIntTop TIntermediate' -> Ctx.Context
              -> EvalM (Either (TIntTop Normal, Normal) (TIntTop Normal))
@@ -408,6 +408,18 @@ typeCheck expr ctx = case expr of
       getPatternType (TBindPat sym) = do
         ty <- freshVar
         pure $ (TBindPat sym, ty, [(sym, ty)])
+      getPatternType (TBuiltinMatch fnc (TIntermediate' ty) pats) = do
+        lst <- mapM getPatternType pats
+        let (subpatterns', norms, vars) =
+              foldr (\(s, n, v) (ss, ns, vs) -> (s:ss, n:ns, v <> vs)) ([], [], []) lst
+        ty' <- evalTIntermediate ty ctx
+        retty <- foldTyApp ty' norms
+        pure $ (TBuiltinMatch fnc ty' subpatterns', retty, vars)
+        where 
+          foldTyApp ty [] = pure ty
+          foldTyApp ty (n : ns) = do
+            ty' <- Eval.tyApp ty n
+            foldTyApp ty' ns
       getPatternType (TIMatch indid altid (TIntermediate' altTy) subpatterns) = do 
         lst <- mapM getPatternType subpatterns
         let (subpatterns', norms, vars) = foldr (\(s, n, v) (ss, ns, vs) -> (s:ss, n:ns, v <> vs)) ([], [], []) lst 

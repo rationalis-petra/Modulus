@@ -4,6 +4,7 @@ import Data(EvalM,
             TopCore(..),
             Core (..),
             Pattern(..),
+            InbuiltCtor(..),
             Definition(..),
             Normal,
             Normal'(..),
@@ -119,6 +120,8 @@ toTIntermediate (IMatch e1 cases) = do
       case val of 
         TValue (NormIVal name altid vid [] ty) ->
           pure (TIMatch altid vid (TIntermediate' (TValue ty)) subPatterns)
+        TValue (InbuiltCtor ctor) -> case ctor of
+          IndPat _ matcher _ ty -> pure $ TBuiltinMatch matcher (TIntermediate' (TValue ty)) subPatterns
         _ -> throwError ("couldn't extract pattern from val: " <> show val)
 
 

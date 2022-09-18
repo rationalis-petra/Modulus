@@ -24,9 +24,8 @@ collSignature    = Coll.collSignature
 
 defaultStructure :: EvalM [(String, Normal)]
 defaultStructure = do
-  cm <- collStructure
   structs <- Sct.structStructure 
   pure $ insertLeft coreStructure [("num",     NormSct numStructure numSignature),
                                    ("sys",     NormSct systemStructure systemSignature),
-                                   ("coll",    NormSct cm collSignature),
+                                   ("coll",    collStructure),
                                    ("structs", NormSct structs (NormSig []))]
