@@ -42,7 +42,6 @@ data Intermediate
   | IQuote AST
   | IAccess Intermediate String
   | IDo [Intermediate]
-  | ISeq [ISeqElem]
   | IProgn [Intermediate]
   | IIF Intermediate Intermediate Intermediate
   | ISymbol String
@@ -63,9 +62,4 @@ data IPattern
   = ISingPattern String
   | IWildCard
   | ICheckPattern Intermediate [IPattern]
-  deriving Show
-
-data ISeqElem
-  = ISeqBind String Intermediate
-  | ISeqExpr Intermediate
   deriving Show

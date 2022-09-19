@@ -50,7 +50,6 @@ toIntermediateM (Cons (e : es)) ctx = do
     (IValue (Special Induct)) -> mkInduct es ctx >>= (pure . IDefinition)
     (IValue (Special MkEffect)) -> mkEffect es ctx >>= (pure . IDefinition)
     (IValue (Special Do)) -> mkDo es ctx
-    (IValue (Special Seq)) -> mkSeq es ctx
     (IValue (Special Lambda)) -> mkLambda es ctx
     (IValue (Special Mac)) -> mkMacro es ctx
     (IValue (Special Let)) -> mkLet es ctx
@@ -333,8 +332,8 @@ mkMatch (expr : patterns) ctx = do
       case s of 
         "_" -> pure $ IWildCard
         _ -> case lookup s ctx of
-           Just (NormIVal name id1 id2 [] ty) ->
-             pure $ ICheckPattern (IValue (NormIVal name id1 id2 [] ty)) []
+           Just (NormIVal name id1 id2 strip [] ty) ->
+             pure $ ICheckPattern (IValue (NormIVal name id1 id2 strip [] ty)) []
            _ -> pure $ ISingPattern s
 
   
@@ -442,32 +441,6 @@ mkDo es globctx = do
       hd <- toIntermediateM x ctx
       rest <- (foldLet xs ctx)
       return $ hd : rest
-
--- ⟨e⟩ a >>= a → ⟨e'⟩ b -> ⟨e⊔e'⟩ b
-mkSeq :: [AST] -> GlobCtx -> Except String Intermediate
-mkSeq es globctx = do  
-  vals <- convSeq es globctx 
-  pure $ (ISeq vals)
-  where
-    convSeq :: [AST] -> GlobCtx -> Except String [ISeqElem]
-    convSeq [] _ = return []
-    convSeq [x] ctx = do
-      val <- toIntermediateM x ctx
-      return [(ISeqExpr val)] 
-    convSeq (Cons [(Atom (Symbol "←")), (Atom (Symbol s)), def] : xs) ctx = do
-      seqElem <- ISeqBind s <$> toIntermediateM def ctx
-      tl <- convSeq xs (shadow s ctx)
-      pure $ seqElem : tl
-
-    convSeq (x : xs) ctx = do
-      hd <- toIntermediateM x ctx
-      rest <- (convSeq xs ctx)
-      return $ (ISeqExpr hd) : rest
-
-
-
-
-
 
 
 

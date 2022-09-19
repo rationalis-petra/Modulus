@@ -56,11 +56,10 @@ data TIntTop ty
 data TPattern ty
   = TWildPat 
   | TBindPat String
-  | TIMatch Int Int ty [TPattern ty]
+  | TIMatch Int Int Int ty [TPattern ty]
   | TBuiltinMatch ([Pattern] -> Normal -> (Normal -> Pattern -> EvalM (Maybe [(String, Normal)]))
                           -> EvalM (Maybe [(String, Normal)]))
-    ty
-    [TPattern ty]
+    Int ty [TPattern ty]
   
 
 {-- --}
@@ -74,7 +73,6 @@ data TIntermediate ty
   | TLambda [(TArg ty, Bool)] (TIntermediate ty) (Maybe ty)
   | TProd (TArg ty, Bool) (TIntermediate ty)
   | TIF (TIntermediate ty) (TIntermediate ty) (TIntermediate ty)
-  | TSeq [TSeqElem ty]
   | TAccess (TIntermediate ty) String
   | TMatch (TIntermediate ty) [(TPattern ty, TIntermediate ty)]
   deriving Show
@@ -82,15 +80,10 @@ data TIntermediate ty
 newtype TIntermediate' = TIntermediate' (TIntermediate TIntermediate')
   deriving Show
 
-data TSeqElem ty
-  = TSeqBind String (TIntermediate ty)
-  | TSeqExpr (TIntermediate ty)
-  deriving Show
-
 
 instance Show ty => Show (TPattern ty) where
   show (TWildPat) = "TWildPat"
   show (TBindPat sym) = "TBindPat " <> show sym
-  show (TIMatch id1 id2 ty pats) = "TIMatch " <> show id1 <> " " <> show id2 <> " " <> show ty
-    <> " " <> show pats
-  show (TBuiltinMatch _ _ pats) = "TBuiltInMatch " <> show pats
+  show (TIMatch id1 id2 strip ty pats) = "TIMatch " <> show id1 <> " " <> show id2 <> " " <> show strip
+    <> " " <> show ty <> " " <> show pats
+  show (TBuiltinMatch _ _ _ pats) = "TBuiltInMatch " <> show pats

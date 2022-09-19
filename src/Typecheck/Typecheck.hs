@@ -380,7 +380,7 @@ typeCheck expr ctx = case expr of
                     -> EvalM ([(TPattern Normal, TIntermediate Normal)], Subst)
       checkPatterns [] _ _ = pure ([], nosubst)
       checkPatterns ((p, e) : ps) matchty retty = do
-        -- get the type of 
+        -- an updated pattern, and the type thereof  
         (p', matchty', ctxUpd) <- getPatternType p
         
   
@@ -399,7 +399,7 @@ typeCheck expr ctx = case expr of
       
       -- TODO: check for duplicate variable patterns!
       -- Get the type of a single pattern, to be constrained against.
-      -- Also, return a list of variables and their
+      -- Also, return a list of variables and their types
         
       getPatternType :: TPattern TIntermediate' -> EvalM (TPattern Normal, Normal, [(String, Normal)]) 
       getPatternType TWildPat = do
@@ -408,76 +408,39 @@ typeCheck expr ctx = case expr of
       getPatternType (TBindPat sym) = do
         ty <- freshVar
         pure $ (TBindPat sym, ty, [(sym, ty)])
-      getPatternType (TBuiltinMatch fnc (TIntermediate' ty) pats) = do
+      getPatternType (TBuiltinMatch fnc strip (TIntermediate' ty) pats) = do
         lst <- mapM getPatternType pats
         let (subpatterns', norms, vars) =
               foldr (\(s, n, v) (ss, ns, vs) -> (s:ss, n:ns, v <> vs)) ([], [], []) lst
         ty' <- evalTIntermediate ty ctx
-        retty <- foldTyApp ty' norms
-        pure $ (TBuiltinMatch fnc ty' subpatterns', retty, vars)
+        retty <- foldTyApp strip ty' norms
+        pure $ (TBuiltinMatch fnc strip ty' subpatterns', retty, vars)
         where 
-          foldTyApp ty [] = pure ty
-          foldTyApp ty (n : ns) = do
+          foldTyApp :: Int -> Normal -> [Normal] -> EvalM Normal
+          foldTyApp 0 ty [] = pure ty
+          foldTyApp 0 ty (n : ns) = do
             ty' <- Eval.tyApp ty n
-            foldTyApp ty' ns
-      getPatternType (TIMatch indid altid (TIntermediate' altTy) subpatterns) = do 
+            foldTyApp 0 ty' ns
+          foldTyApp n (NormImplProd sym a b) apps = do
+            b' <- foldTyApp (n - 1) b apps 
+            pure $ NormImplProd sym a b'
+      getPatternType (TIMatch indid altid strip (TIntermediate' altTy) subpatterns) = do 
         lst <- mapM getPatternType subpatterns
         let (subpatterns', norms, vars) = foldr (\(s, n, v) (ss, ns, vs) -> (s:ss, n:ns, v <> vs)) ([], [], []) lst 
         altTy' <- evalTIntermediate altTy ctx
-        retty <- foldTyApp altTy' norms
-        pure $ (TIMatch indid altid altTy' subpatterns', retty, vars)
+        retty <- foldTyApp strip altTy' norms
+        pure $ (TIMatch indid altid strip altTy' subpatterns', retty, vars)
 
         where 
-          foldTyApp ty [] = pure ty
-          foldTyApp ty (n : ns) = do
+          foldTyApp :: Int -> Normal -> [Normal] -> EvalM Normal
+          foldTyApp 0 ty [] = pure ty
+          foldTyApp 0 ty (n : ns) = do
             ty' <- Eval.tyApp ty n
-            foldTyApp ty' ns
+            foldTyApp 0 ty' ns
+          foldTyApp n (NormImplProd sym a b) apps = do
+            b' <- foldTyApp (n - 1) b apps 
+            pure $ NormImplProd sym a b'
       -- getPatternType (MatchModule fields) = do
-      
-  (TSeq elems) -> do
-    (elems', retty, effects, subst) <- checkSeq [] [] elems ctx
-    pure (TSeq elems', NormEffect effects retty, subst)
-    where
-      checkSeq :: [(TSeqElem Normal)] -> [Effect EvalM] -> [(TSeqElem TIntermediate')] -> Ctx.Context
-        -> EvalM ([(TSeqElem Normal)], Normal, [Effect EvalM], Subst)
-      checkSeq _ _ [] _ = throwError "empty sequence"
-      checkSeq seq effects [(TSeqExpr e)] ctx = do
-        (e', ty, subst) <- typeCheck e ctx
-        case ty of
-          NormEffect eff ty -> do
-            fnlEffects <- effectUnion effects eff
-            pure (reverse (TSeqExpr e' : seq), ty, effects, subst)
-          _ -> pure ([TSeqExpr e'], ty, effects, subst)
-      checkSeq _ _ [(TSeqBind _ _)] ctx =
-        throwError "cannot end a sequence with a bind expression"
-      checkSeq seq effects (TSeqBind sym e : tl) ctx = do
-        (e', ty, subst) <- typeCheck e ctx
-        case ty of
-          NormEffect effects' ty' -> do
-            fnlEffects <- effectUnion effects effects'
-            checkSeq (TSeqBind  sym e' : seq) fnlEffects tl (Ctx.insert sym (Neu $ NeuVar sym) ty' ctx) 
-          _ -> 
-             checkSeq (TSeqBind sym e' : seq) effects tl (Ctx.insert sym (Neu $ NeuVar sym) ty ctx)
-      checkSeq seq effects (TSeqExpr e : tl) ctx = do
-        (e', ty, subst) <- typeCheck e ctx
-        case ty of
-          NormEffect effects' ty -> do
-            fnlEffects <- effectUnion effects effects'
-            checkSeq (TSeqExpr e' : seq) fnlEffects tl ctx 
-          _ -> checkSeq (TSeqExpr e' : seq) effects tl ctx 
-
-
-      effectUnion :: [Effect m] -> [Effect m] -> EvalM [Effect m]
-      effectUnion e [] = pure e
-      effectUnion es (e':es') = effectInsert e' es >>= (\x -> effectUnion x es')
-      
-      effectInsert :: Effect m -> [Effect m] -> EvalM [Effect m]
-      effectInsert e [] = pure [e]
-      effectInsert IOEffect (IOEffect : es) = pure es
-      -- TODO: search for conflicts in the norm
-      effectInsert _ _ = throwError "cannot effectInsert UserEffect"
-
-
   other -> 
     throwError ("typecheck unimplemented for intermediate term " <> show other)
 
@@ -521,7 +484,7 @@ typeCheckDef (TInductDef sym id params (TIntermediate' ty) alts) ctx = do
       mkAltDefs :: [(String, Int, Normal)] -> [(String, Normal)]
       mkAltDefs [] = []
       mkAltDefs ((sym, altid, ty) : alts) =
-          let alt = NormIVal sym id altid [] ty
+          let alt = NormIVal sym id altid (length params) [] ty
               alts' = mkAltDefs alts
           in ((sym, alt) : alts')
   pure $ (TInductDef sym id params' indCtor alts', defs, [])

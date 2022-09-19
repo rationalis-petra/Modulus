@@ -3,27 +3,35 @@ module Interpret.Structures.System (systemStructure, systemSignature) where
 import qualified Data.Map as Map
 
 import Data
+import Interpret.Eval (liftFun)
+  
 import Data.Text(pack, unpack)
 import Interpret.Transform
 
-mlsGetLine :: [Normal] -> IO (EvalM Normal)
-mlsGetLine [x] = do
-  line <- getLine
-  pure $ pure $ PrimVal $ String (pack line)
+mlsGetLine :: Normal
+mlsGetLine = CollVal (IOAction m getType)
+  where m = do
+          line <- getLine
+          pure $ PrimVal $ String (pack line)
 
-mlsPutLine :: [Normal] -> IO (EvalM Normal)
-mlsPutLine [(PrimVal (String str))] = do
-  putStrLn (unpack str)
-  pure $ pure $ PrimVal Unit
+mlsPutLine :: Normal
+mlsPutLine = liftFun f putType  
+  where f :: Normal -> EvalM Normal
+        f (PrimVal (String str)) = pure $ CollVal $ IOAction (do
+          putStrLn (unpack str)
+          pure $ PrimVal Unit) putType
 
-putType = NormArr  (PrimType StringT) (NormEffect [IOEffect] (PrimType UnitT))
-getType = NormArr (PrimType UnitT) (NormEffect [IOEffect] (PrimType StringT))
+putType :: Normal
+putType = NormArr (PrimType StringT) (CollTy (IOMonadTy (PrimType UnitT)))
+
+getType :: Normal
+getType = CollTy (IOMonadTy (PrimType StringT))
 
 systemSignature :: Normal  
 systemSignature = NormSig $ [("get-line", getType), ("put-line", putType)]
 
 systemStructure :: [(String, Normal)]
 systemStructure = [
-  ("get-line", IOAction 0 1 mlsGetLine [] getType),
-  ("put-line", IOAction 1 1 mlsPutLine [] putType)
+  ("get-line", mlsGetLine),
+  ("put-line", mlsPutLine)
   ]

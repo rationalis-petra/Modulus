@@ -177,7 +177,7 @@ constrain' (NormSct m1 t1) (NormSct m2 t2) =
     (pure lrnosubst) m1
 
 
-constrain' (NormIVal name1 tyid1 id1 vals1 norm1) (NormIVal name2 tyid2 id2 vals2 norm2) =
+constrain' (NormIVal name1 tyid1 id1 _ vals1 norm1) (NormIVal name2 tyid2 id2 _ vals2 norm2) =
   if tyid1 == tyid2 && id1 == id2 then
     foldr (\(n1, n2) mnd -> do
               s1 <- mnd
@@ -370,7 +370,7 @@ occurs' v (NormSct fields _) = occursFields fields
       if v == v' then False else (occurs' v val) || (occursFields fields)
 
 occurs' v (NormIType _ _ params) = foldr (\ty b -> b || occurs' v ty) False params
-occurs' v (NormIVal _ _ _ params _) = -- TODO: check if we need to ask about free vars in the type??
+occurs' v (NormIVal _ _ _ _ params _) = -- TODO: check if we need to ask about free vars in the type??
   foldr (\ty b -> b || occurs' v ty) False params
 
 

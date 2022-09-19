@@ -3,7 +3,6 @@ module Syntax.Conversions.Core where
 import Data(EvalM,
             TopCore(..),
             Core (..),
-            SeqTerm(..),
             Pattern(..),
             Definition(..),
             Normal,
@@ -185,19 +184,12 @@ toCore (TMatch term patterns) = do
     toCorePat :: TPattern Normal -> Except String Pattern
     toCorePat TWildPat = pure WildCard
     toCorePat (TBindPat str) = pure (VarBind str)
-    toCorePat (TIMatch id1 id2 ty pats) = do
+    toCorePat (TIMatch id1 id2 _ ty pats) = do
       pats' <- mapM toCorePat pats
       pure $ (MatchInduct id1 id2 pats')
-    toCorePat (TBuiltinMatch fn ty pats) = do
+    toCorePat (TBuiltinMatch fn _ ty pats) = do
       pats' <- mapM toCorePat pats
       pure $ InbuiltMatch (fn pats')
 
-
-
-toCore (TSeq elems) = do
-  CSeq <$> mapM toCoreElem elems
-  where
-    toCoreElem (TSeqBind sym e) = SeqBind sym <$> toCore e
-    toCoreElem (TSeqExpr e) = SeqExpr <$> toCore e
 
 toCore x = err ("unimplemented" <> show x)

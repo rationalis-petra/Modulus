@@ -49,7 +49,6 @@ data Core
   | CAbs String Core Normal          -- Function abstraction
   | CApp Core Core                   -- Function application 
   | CMAbs String Normal Core         -- Macro abstraction
-  | CSeq [SeqTerm]                   -- Sequence Effects
   | CLet [(String, Core)] Core       -- Local binding
   | CLetOpen [(Core, [(String, Core)])] Core  -- Local opens
   | CMatch Core [(Pattern, Core)]    -- Pattern-Match
@@ -60,11 +59,6 @@ data Core
   -- | MkHndler [(String, [String], Core)]  -- Create a new handler
   | CSct [Definition] Normal         -- Structure Definition, with type
   | CSig [Definition]                -- Signature Definition (similar to dependent sum)
-  deriving Show
-
-data SeqTerm
-  = SeqExpr Core
-  | SeqBind String Core 
   deriving Show
 
 data TopCore = TopDef Definition | TopExpr Core
@@ -89,7 +83,7 @@ data Special
   -- Control Flow 
   | If | MkMatch
   -- Effects
-  | HandleAsync | Handle | HandleWith | MkEffect | Seq
+  | HandleAsync | Handle | HandleWith | MkEffect
   -- Value Constructors
   | Let | Lambda |  MkHandler | MkStructure 
   -- Type Constructors
@@ -118,16 +112,18 @@ data InbuiltCtor m
            ([Pattern] -> Normal' m
                       -> (Normal -> Pattern -> EvalM (Maybe [(String, Normal)]))
                       -> EvalM (Maybe [(String, Normal' m)]))
-           -- ctor & type
-           (Normal' m) (Normal' m)
+           -- strip, ctor & type
+           Int (Normal' m) (Normal' m)
 
 data CollTy m
   = ListTy (Normal' m)
   | ArrayTy (Normal' m) [Integer]
+  | IOMonadTy (Normal' m)
 
 data CollVal m
   = ListVal [(Normal' m)] (Normal' m)
   | ArrayVal (Vector (Normal' m)) (Normal' m) [Integer]
+  | IOAction (IO (Normal' m)) (Normal' m)
 
 
 -- m is the type of monad inside the object
@@ -161,15 +157,10 @@ data Normal' m
 
   -- Inductive and Coinductive Types and Values
   | NormIType String Int [Normal' m]
-  | NormIVal String Int Int [Normal' m] (Normal' m)
+  | NormIVal String Int Int Int [Normal' m] (Normal' m)
   | NormCoType String Int [(Normal' m)]
   | NormCoVal String Int Int [String] (Normal' m) (Normal' m)
 
-  -- Effects
-  | IOAction Int Int ([Normal' m] -> IO (m (Normal' m))) [Normal' m] (Normal' m)
-  | NormAction Int Int [(Normal' m)] (Normal' m)
-  | NormEffect [Effect m] (Normal' m)
-  -- TODO: non-toplevel effect
 
   -- Multi-Stage Programming
   | BuiltinMac ([AST] -> m AST)
@@ -250,14 +241,8 @@ instance Show (Normal' m) where
   
   show (NormIType name id params) =
     name <> (foldr (\p s -> " " <> show p <> s) "" params)
-  show (NormIVal name tid id params ty) = 
+  show (NormIVal name tid id strip params ty) = 
     name <> (foldr (\p s -> " " <> show p <> s) "" (reverse params))
-
-  show (IOAction _ _ _ _ ty) = "<action: " <> show ty <> ">"
-  show (NormEffect effSet ty) = case effSet of
-    [] -> "⟨⟩ " <> show ty
-    [e] -> "⟨"<> show e <> "⟩ " <> show ty
-    (e:es) -> "⟨" <> show e <> foldr (\eff str -> ", " <> show eff <> str) "⟩ " effSet <> show ty
 
   show (BuiltinMac _) = show "<inbuilt-macro>"
   show (Special sp) = show sp
@@ -332,14 +317,16 @@ instance Show (CollVal m) where
     -- TODO: pretty-printing for lists & arrays
     ListVal l _ -> show l
     ArrayVal v _ _ -> show v
+    IOAction _ ty -> "<IO action>" 
 
 instance Show (CollTy m) where   
   show e = case e of  
     ListTy ty -> "List " <> show ty
     ArrayTy n1 n2 -> "Array " <> show n1 <> show n2
+    IOMonadTy ty -> "IO " <> show ty
 
 instance Show (InbuiltCtor m) where
-  show (IndPat sym _ _ ty) = show sym <> " " <> show ty
+  show (IndPat sym _ _ _ ty) = show sym <> " " <> show ty
 
 instance Show AST where
   show e = "AST: " <> show_ast e

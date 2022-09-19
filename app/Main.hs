@@ -62,12 +62,12 @@ main = do
            case dfc of 
              Just (env, state) ->
                if null f then
-                 repl env state (IOpts {tc=True})
+                 repl env state
                else do
                  handle <- openFile f ReadMode
                  contents <- hGetContents handle
-                 (env', state') <- runInteractively contents env state (IOpts {tc=True})
-                 repl env' state' (IOpts {tc=True})
+                 (env', state') <- runInteractively contents env state
+                 repl env' state'
              Nothing -> 
                putStrLn "error in initialisation"
 
@@ -89,38 +89,37 @@ defaultContext = do
   currentModule = NormSct dfm (NormSig []),
   globalModule = NormSct [] (NormSig [])}
 
-data IOpts = IOpts { tc :: Bool }
-  
 
-repl :: Environment -> ProgState -> IOpts -> IO ()
-repl env state opts = do
+repl :: Environment -> ProgState -> IO ()
+repl env state = do
   putStr "> "
   hFlush stdout
   lne <- getLine
   case lne of 
     ":q" -> pure ()
-    ":t" -> repl env state (IOpts {tc = not (tc opts)})
+    ":t" -> repl env state
     _ -> do
       case parseRepl "stdin" (pack lne) of
         Left err -> do
           print err
-          repl env state opts
+          repl env state 
         Right val -> do
-          (env', state') <- runExprs [val] env state opts
-          repl env' state' opts
+          (env', state') <- runExprs [val] env state True
+          repl env' state'
           
 
 
-runInteractively :: String -> Environment -> ProgState -> IOpts -> IO (Environment, ProgState)
-runInteractively str env state opts =
+runInteractively :: String -> Environment -> ProgState -> IO (Environment, ProgState)
+runInteractively str env state =
   case parseFile "file" (pack str) of
       Left err -> print err >> pure (env, state)
-      Right vals -> runExprs vals env state opts
+      Right vals -> runExprs vals env state False
 
--- runExprs takes in an AST list, a context
-runExprs :: [AST] -> Environment -> ProgState -> IOpts -> IO (Environment, ProgState)
+-- runExprs takes in an AST list, an environment, a state and a flag (whether to
+-- run any IO actions encountered)
+runExprs :: [AST] -> Environment -> ProgState -> Bool -> IO (Environment, ProgState)
 runExprs [] env state _ = pure (env, state)
-runExprs (e : es) env state opts = do
+runExprs (e : es) env state runIO = do
   result <- evalToIO (macroExpand e) env state
   case result of 
     Just (expanded, state') ->
@@ -139,9 +138,12 @@ runExprs (e : es) env state opts = do
                     Right v -> do
                       (fenv, fstate, mval) <- evalTopCore v env state''
                       case mval of 
+                        Just (CollVal (IOAction action ty)) -> do
+                          r <- action
+                          print r
                         Just v -> print v
                         Nothing -> pure ()
-                      runExprs es fenv fstate opts
+                      runExprs es fenv fstate runIO
                     Left err -> failWith ("toCore err: " <> err)
                 Nothing -> pure (env, state)
             Nothing -> pure (env, state)

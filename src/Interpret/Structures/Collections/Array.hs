@@ -34,10 +34,19 @@ arrayStructure :: Normal
 arrayStructure = NormSct [
   ("Array", mlsArr)]
   arrayStructure
+
+  
   -- -- Types
   -- ("concat",  mlsConcat),
   -- (",", mlsConcat)
   -- ¨, mlsMap
   -- ⊂, mlsEnclose
   -- ⊆, mlsPartition
+  -- ⍴, mlsShape 
+  -- ⌹, mlsInverse
+  -- ⍠, Variant
+  -- ⌸, index key
+  -- ⌺, stencil
+  -- ⍬, empty array
+  -- array cons
   -- ]

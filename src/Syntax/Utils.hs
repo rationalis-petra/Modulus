@@ -64,7 +64,7 @@ typeVal (PrimVal e) = pure (PrimType (typePrim e))
       Char _ -> CharT
       String _ -> StringT
 typeVal (InbuiltCtor ctor) = case ctor of 
-  IndPat _ _ _ ty -> pure ty
+  IndPat _ _ _ _ ty -> pure ty
 
 -- type of types
 typeVal (NormUniv k) = pure (NormUniv (k + 1))
@@ -80,8 +80,11 @@ typeVal (NormAbs _ _ ty) = pure ty
 typeVal (NormSct m ty) = pure ty
 
 -- typeVal (NormIType _ _ _ ty) = pure ty
-typeVal (NormIVal _ _ _ _ ty) = pure ty
-typeVal (IOAction _ _ _ _ ty) = pure ty
+typeVal (NormIVal _ _ _ _ _ ty) = pure ty
+typeVal (CollTy _) = pure $ NormUniv 0
+typeVal (CollVal val) = case val of
+  IOAction _ ty -> pure ty
+
 typeVal e = throwError $ "untypable value: " <> show e
 
 
@@ -107,7 +110,7 @@ instance Expression (Normal' m) where
     Set.union (free a) (Set.delete var (free b))
   free (NormArr a b) =
     Set.union (free a) (free b)
-  free (NormIVal _ _ _ norms ty) = foldr (Set.union . free) Set.empty norms
+  free (NormIVal _ _ _ _ norms ty) = foldr (Set.union . free) Set.empty norms
   free (NormIType _ _ norms) = foldr (Set.union . free) Set.empty norms
 
   -- free (NormSig fields) =

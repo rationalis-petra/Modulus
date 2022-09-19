@@ -55,7 +55,7 @@ evalTop (TopDef def) = case def of
 
         mkAlts [] = pure []
         mkAlts ((sym, id, ty) : alts) = do
-          let alt = NormIVal sym indid id [] ty
+          let alt = NormIVal sym indid id (length params) [] ty
           alts' <- mkAlts alts
           pure ((sym, alt) : alts')
           
@@ -99,20 +99,11 @@ eval (CApp l r) = do
     Neu neu -> pure $ Neu (NeuApp neu r')
     NormAbs var body ty -> normSubst (r', var) body
     Builtin fn ty -> fn r'
-    NormIVal name tyid altid params ty -> do
+    NormIVal name tyid altid strip params ty -> do
       ty' <- tyApp ty r'
-      pure $ NormIVal name tyid altid (r' : params) ty'
-
-    IOAction id count func params  ty
-      | count > 1 -> do
-          ty' <- tyApp ty r' 
-          pure $ IOAction id (count - 1) func (r' : params) ty'
-      | count == 1 -> do
-          ty' <- tyApp ty r' 
-          raise 0 id (r' : params) (Just func)
-      | otherwise -> throwError ("tried to apply to non-function: " <> show ty)
+      pure $ NormIVal name tyid altid strip (r' : params) ty'
     InbuiltCtor ctor -> case ctor of   
-      IndPat _ _ n _ -> eval (CApp (CNorm n) (CNorm r'))
+      IndPat _ _ _ n _ -> eval (CApp (CNorm n) (CNorm r'))
 
     other -> throwError ("tried to apply to non-function: " <> show other)
 
@@ -131,7 +122,7 @@ eval (CSct defs ty) = do
         InductDef sym indid params ty alts -> do
           let mkAlts [] = []
               mkAlts ((sym, id, ty) : alts) =
-                let alt = NormIVal sym indid id [] ty
+                let alt = NormIVal sym indid id (length params) [] ty
                     alts' = mkAlts alts
                 in ((sym, alt) : alts')
           pure ((sym, ty) : mkAlts alts)
@@ -184,7 +175,7 @@ eval (CMatch term alts) = do
     getBinds :: Normal -> Pattern -> EvalM (Maybe [(String, Normal)])
     getBinds t WildCard = pure $ Just []
     getBinds t (VarBind sym) = pure $ Just [(sym, t)]
-    getBinds (NormIVal _ id1 id2 params _) (MatchInduct id1' id2' patterns) = do
+    getBinds (NormIVal _ id1 id2 _ params _) (MatchInduct id1' id2' patterns) = do
       if id1 == id1' && id2 == id2' then do
         nestedBinds <- mapM (uncurry getBinds) (zip params patterns)
         let allBinds = foldr (\b a -> case (a, b) of
@@ -219,14 +210,6 @@ eval (CIf cond e1 e2) = do
     PrimVal (Bool True) -> eval e1
     PrimVal (Bool False) -> eval e2
     _ -> throwError "eval expects condition to be bool"
-
-eval (CSeq lst) = foldSeq lst
-  where 
-    foldSeq [(SeqExpr e)] = eval e
-    foldSeq (s:ss) = case s of 
-      SeqExpr e -> eval e >> foldSeq ss
-      SeqBind sym e -> eval e >>= (\v -> localF (Env.insert sym v) (foldSeq ss))
-
 
 eval other = throwError ("eval not implemented for" <> show other)
 
@@ -284,10 +267,10 @@ normSubst (val, var) ty = case ty of
 
   NormIType name id params -> do
     NormIType name id <$> mapM (normSubst (val, var)) params 
-  NormIVal name tid id vals ty -> do
+  NormIVal name tid id strip vals ty -> do
     vals' <- mapM (normSubst (val, var)) vals
     ty' <- normSubst (val, var) ty
-    pure $ NormIVal name tid id vals' ty' 
+    pure $ NormIVal name tid id strip vals' ty' 
 
   -- IOAction
 
@@ -371,7 +354,7 @@ neuSubst (val, var) neutral = case neutral of
         getBinds :: Normal -> Pattern -> EvalM (Maybe [(String, Normal)])
         getBinds t WildCard = pure $ Just []
         getBinds t (VarBind sym) = pure $ Just [(sym, t)]
-        getBinds (NormIVal _ id1 id2 params _) (MatchInduct id1' id2' patterns) = do
+        getBinds (NormIVal _ id1 id2 _ params _) (MatchInduct id1' id2' patterns) = do
           if id1 == id1' && id2 == id2' then do
             nestedBinds <- mapM (uncurry getBinds) (zip params patterns)
             let allBinds = foldr (\b a -> case (a, b) of

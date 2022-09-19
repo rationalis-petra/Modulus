@@ -14,7 +14,7 @@ consType = NormImplProd "A" (NormUniv 0) (NormArr (Neu $ NeuVar "A")
                                           (NormArr (CollTy (ListTy (Neu $ NeuVar "A")))
                                            (CollTy (ListTy (Neu $ NeuVar "A")))))
 mlsCons :: Normal
-mlsCons = InbuiltCtor $ IndPat "cons" consMatch (liftFun3 consCtor consType) consType
+mlsCons = InbuiltCtor $ IndPat "cons" consMatch 1 (liftFun3 consCtor consType) consType
   where
     consMatch :: ([Pattern] -> Normal
                             -> (Normal -> Pattern -> EvalM (Maybe [(String, Normal)]))
@@ -34,7 +34,7 @@ mlsCons = InbuiltCtor $ IndPat "cons" consMatch (liftFun3 consCtor consType) con
 
 nilType = NormImplProd "A" (NormUniv 0) (CollTy (ListTy (Neu $ NeuVar ("A"))))
 mlsNil :: Normal
-mlsNil = InbuiltCtor $ IndPat "nil" nilMatch (liftFun nilCtor nilType) nilType
+mlsNil = InbuiltCtor $ IndPat "nil" nilMatch 1 (liftFun nilCtor nilType) nilType
   where
 
     nilMatch :: ([Pattern] -> Normal
