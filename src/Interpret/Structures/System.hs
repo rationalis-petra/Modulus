@@ -2,6 +2,7 @@ module Interpret.Structures.System (systemStructure, systemSignature) where
 
 import qualified Data.Map as Map
 
+import System.IO
 import Data
 import Interpret.Eval (liftFun)
   
@@ -10,16 +11,18 @@ import Interpret.Transform
 
 mlsGetLine :: Normal
 mlsGetLine = CollVal (IOAction m getType)
-  where m = do
+  where m :: IO (EvalM Normal)
+        m = do
           line <- getLine
-          pure $ PrimVal $ String (pack line)
+          pure $ pure $ PrimVal $ String (pack line)
 
 mlsPutLine :: Normal
 mlsPutLine = liftFun f putType  
   where f :: Normal -> EvalM Normal
         f (PrimVal (String str)) = pure $ CollVal $ IOAction (do
           putStrLn (unpack str)
-          pure $ PrimVal Unit) putType
+          hFlush stdout
+          pure $ pure $ PrimVal Unit) putType
 
 putType :: Normal
 putType = NormArr (PrimType StringT) (CollTy (IOMonadTy (PrimType UnitT)))

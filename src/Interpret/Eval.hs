@@ -11,7 +11,8 @@ module Interpret.Eval (Normal,
                        liftFun,
                        liftFun2,
                        liftFun3,
-                       liftFun4) where
+                       liftFun4,
+                       liftFun5) where
 
 import Prelude hiding (lookup)
 
@@ -175,9 +176,9 @@ eval (CMatch term alts) = do
     getBinds :: Normal -> Pattern -> EvalM (Maybe [(String, Normal)])
     getBinds t WildCard = pure $ Just []
     getBinds t (VarBind sym) = pure $ Just [(sym, t)]
-    getBinds (NormIVal _ id1 id2 _ params _) (MatchInduct id1' id2' patterns) = do
+    getBinds (NormIVal _ id1 id2 strip params _) (MatchInduct id1' id2' patterns) = do
       if id1 == id1' && id2 == id2' then do
-        nestedBinds <- mapM (uncurry getBinds) (zip params patterns)
+        nestedBinds <- mapM (uncurry getBinds) (zip (drop strip params) patterns)
         let allBinds = foldr (\b a -> case (a, b) of
                                 (Just a', Just b') -> Just (a' <> b')
                                 _ -> Nothing) (Just []) nestedBinds
@@ -221,11 +222,12 @@ normSubst (val, var) ty = case ty of
   CollTy cty -> case cty of 
     ListTy a -> (CollTy . ListTy) <$> normSubst (val, var) a
     ArrayTy a dims -> CollTy <$> (ArrayTy <$> normSubst (val, var) a <*> pure dims)
+    IOMonadTy a -> (CollTy . IOMonadTy) <$> normSubst (val, var) a
   CollVal cvl -> case cvl of 
     ListVal vals ty -> CollVal <$> (ListVal <$> mapM (normSubst (val, var)) vals <*> normSubst (val, var) ty)
     ArrayVal vec ty shape -> CollVal <$> (ArrayVal <$> Vector.mapM (normSubst (val, var)) vec
                                       <*> normSubst (val, var) ty <*> pure shape)
-  
+    IOAction fn ty -> (CollVal . IOAction fn) <$> normSubst (val, var) ty  
   NormUniv n -> pure $ NormUniv n
 
   
@@ -271,8 +273,6 @@ normSubst (val, var) ty = case ty of
     vals' <- mapM (normSubst (val, var)) vals
     ty' <- normSubst (val, var) ty
     pure $ NormIVal name tid id strip vals' ty' 
-
-  -- IOAction
 
   BuiltinMac m -> pure $ BuiltinMac m
   Special sp   -> pure $ Special sp
@@ -354,9 +354,9 @@ neuSubst (val, var) neutral = case neutral of
         getBinds :: Normal -> Pattern -> EvalM (Maybe [(String, Normal)])
         getBinds t WildCard = pure $ Just []
         getBinds t (VarBind sym) = pure $ Just [(sym, t)]
-        getBinds (NormIVal _ id1 id2 _ params _) (MatchInduct id1' id2' patterns) = do
+        getBinds (NormIVal _ id1 id2 strip params _) (MatchInduct id1' id2' patterns) = do
           if id1 == id1' && id2 == id2' then do
-            nestedBinds <- mapM (uncurry getBinds) (zip params patterns)
+            nestedBinds <- mapM (uncurry getBinds) (zip (drop strip params) patterns)
             let allBinds = foldr (\b a -> case (a, b) of
                                     (Just a', Just b') -> Just (a' <> b')
                                     _ -> Nothing) (Just []) nestedBinds
@@ -381,26 +381,7 @@ neuSubst (val, var) neutral = case neutral of
     arg <- neuSubst (val, var) neu
     case arg of 
       Neu neu -> pure $ Neu $ NeuBuiltinApp fn neu ty
-      _ -> (fn arg)
-      
-  NeuBuiltinApp2 fn neu ty -> do
-    arg <- neuSubst (val, var) neu
-    case arg of 
-      Neu neu -> pure $ Neu $ NeuBuiltinApp2 fn neu ty
-      _ -> pure (liftFun (fn arg) ty)
-
-  NeuBuiltinApp3 fn neu ty -> do
-    arg <- neuSubst (val, var) neu
-    case arg of 
-      Neu neu -> pure $ Neu $ NeuBuiltinApp3 fn neu ty
-      _ -> pure (liftFun2 (fn arg) ty)
-
-  NeuBuiltinApp4 fn neu ty -> do
-    arg <- neuSubst (val, var) neu
-    case arg of 
-      Neu neu -> pure $ Neu $ NeuBuiltinApp4 fn neu ty
-      _ -> pure (liftFun3 (fn arg) ty)
-
+      _ -> fn arg
 
   -- NeuDot sig field -> do
   --   sig' <- neuSubst 
@@ -482,36 +463,74 @@ genFresh (set, id) =
     else
       (var, (Set.insert var set, id+1))
 
-
 evalToIO :: EvalM a -> Environment -> ProgState -> IO (Maybe (a, ProgState))
-evalToIO (ActionMonadT inner_mnd) ctx state =
+evalToIO inner_mnd ctx state =
   case runState (runExceptT (runReaderT inner_mnd ctx)) state of
-    (Right (Value obj), state') -> do
+    (Right obj, state') -> do
       return $ Just (obj, state')
-    (Right (RaiseAction cnt id1 id2 args (Just f)), state') -> do
-      result <- f args
-      accumEffects result cnt state'
-    (Right (RaiseAction cnt id1 id2 args Nothing), state') -> do
-      putStrLn $ "Action Called Without Being Handled: ("  ++ show id2 ++ "," ++ show id2 ++ ")"
-      return Nothing
     (Left err, state') -> do
       putStrLn $ "err: " <> err
       return Nothing
-  where
-    accumEffects :: EvalM Normal -> (Normal -> EvalM a) -> ProgState -> IO (Maybe (a, ProgState))
-    accumEffects (ActionMonadT inner_mnd) cnt state = 
-      case runState (runExceptT (runReaderT inner_mnd ctx)) state of
-        (Right (RaiseAction cnt2 id1 id2 args (Just f)), state') -> do 
-          result <- f args
-          accumEffects result (\x -> cnt2 x >>= cnt) state'
-        (Right (Value obj), state') -> do
-          evalToIO (cnt obj) ctx state'
-        (Right (RaiseAction _ id1 id2 _ Nothing), state') -> do
-          putStrLn $ "Action Called Without Default" ++ show (id1, id2)
-          return Nothing
-        (Left err, state') -> do
-          putStrLn $ "error: " <> err
-          return Nothing
+
+-- evalToIO :: EvalM a -> Environment -> ProgState -> IO (Maybe (a, ProgState))
+-- evalToIO (ActionMonadT inner_mnd) ctx state =
+--   case runState (runExceptT (runReaderT inner_mnd ctx)) state of
+--     (Right (Value obj), state') -> do
+--       return $ Just (obj, state')
+--     (Right (RaiseAction cnt id1 id2 args (Just f)), state') -> do
+--       result <- f args
+--       accumEffects result cnt state'
+--     (Right (RaiseAction cnt id1 id2 args Nothing), state') -> do
+--       putStrLn $ "Action Called Without Being Handled: ("  ++ show id2 ++ "," ++ show id2 ++ ")"
+--       return Nothing
+--     (Left err, state') -> do
+--       putStrLn $ "err: " <> err
+--       return Nothing
+--   where
+--     accumEffects :: EvalM Normal -> (Normal -> EvalM a) -> ProgState -> IO (Maybe (a, ProgState))
+--     accumEffects (ActionMonadT inner_mnd) cnt state = 
+--       case runState (runExceptT (runReaderT inner_mnd ctx)) state of
+--         (Right (RaiseAction cnt2 id1 id2 args (Just f)), state') -> do 
+--           result <- f args
+--           accumEffects result (\x -> cnt2 x >>= cnt) state'
+--         (Right (Value obj), state') -> do
+--           evalToIO (cnt obj) ctx state'
+--         (Right (RaiseAction _ id1 id2 _ Nothing), state') -> do
+--           putStrLn $ "Action Called Without Default" ++ show (id1, id2)
+--           return Nothing
+--         (Left err, state') -> do
+--           putStrLn $ "error: " <> err
+--           return Nothing
+
+-- evalToIO :: EvalM a -> Environment -> ProgState -> IO (Maybe (a, ProgState))
+-- evalToIO (ActionMonadT inner_mnd) ctx state =
+--   case runState (runExceptT (runReaderT inner_mnd ctx)) state of
+--     (Right (Value obj), state') -> do
+--       return $ Just (obj, state')
+--     (Right (RaiseAction cnt id1 id2 args (Just f)), state') -> do
+--       result <- f args
+--       accumEffects result cnt state'
+--     (Right (RaiseAction cnt id1 id2 args Nothing), state') -> do
+--       putStrLn $ "Action Called Without Being Handled: ("  ++ show id2 ++ "," ++ show id2 ++ ")"
+--       return Nothing
+--     (Left err, state') -> do
+--       putStrLn $ "err: " <> err
+--       return Nothing
+--   where
+--     accumEffects :: EvalM Normal -> (Normal -> EvalM a) -> ProgState -> IO (Maybe (a, ProgState))
+--     accumEffects (ActionMonadT inner_mnd) cnt state = 
+--       case runState (runExceptT (runReaderT inner_mnd ctx)) state of
+--         (Right (RaiseAction cnt2 id1 id2 args (Just f)), state') -> do 
+--           result <- f args
+--           accumEffects result (\x -> cnt2 x >>= cnt) state'
+--         (Right (Value obj), state') -> do
+--           evalToIO (cnt obj) ctx state'
+--         (Right (RaiseAction _ id1 id2 _ Nothing), state') -> do
+--           putStrLn $ "Action Called Without Default" ++ show (id1, id2)
+--           return Nothing
+--         (Left err, state') -> do
+--           putStrLn $ "error: " <> err
+--           return Nothing
 
 
 interceptNeutral :: (Normal -> EvalM Normal) -> Normal -> Normal -> EvalM Normal
@@ -525,37 +544,44 @@ liftFun f ty = Builtin (interceptNeutral f ty) ty
 
 liftFun2 :: (Normal -> Normal -> EvalM Normal) -> Normal -> Normal
 liftFun2 f ty =
-  let f' = f in
-    Builtin (\val -> case val of
-                (Neu neu) -> pure $ Neu $ NeuBuiltinApp2 f neu ty
+  let f' val = case val of
+                (Neu neu) -> pure $ Neu $ NeuBuiltinApp f' neu ty
                 _ ->
                   case ty of
-                    (NormArr _ r) -> pure $ liftFun (f' val) r
-                    (NormProd var _ body) -> pure $ liftFun (f' val) body
-                    (NormImplProd var _ body) -> pure $ liftFun (f' val) body)
-    ty
+                    (NormArr _ r) -> pure $ liftFun (f val) r
+                    (NormProd var _ body) -> pure $ liftFun (f val) body
+                    (NormImplProd var _ body) -> pure $ liftFun (f val) body
+  in Builtin f' ty
 
 liftFun3 :: (Normal -> Normal -> Normal -> EvalM Normal) -> Normal -> Normal 
 liftFun3 f ty =
-  let f' = f in
-    Builtin (\val -> case val of
-                (Neu neu) -> pure $ Neu $ NeuBuiltinApp3 f neu ty
+  let f' val = case val of
+                (Neu neu) -> pure $ Neu $ NeuBuiltinApp f' neu ty
                 _ -> case ty of
-                  (NormArr _ r) -> pure $ liftFun2 (f' val) r
-                  (NormProd var _ body) -> pure $ liftFun2 (f' val) body
-                  (NormImplProd var _ body) -> do pure $ liftFun2 (f' val) body)
-    ty
+                  (NormArr _ r) -> pure $ liftFun2 (f val) r
+                  (NormProd var _ body) -> pure $ liftFun2 (f val) body
+                  (NormImplProd var _ body) -> do pure $ liftFun2 (f val) body
+  in Builtin f' ty
 
 liftFun4 :: (Normal -> Normal -> Normal -> Normal -> EvalM Normal) -> Normal -> Normal 
 liftFun4 f ty =
-  let f' = f in
-    Builtin (\val -> case val of
-                (Neu neu) -> pure $ Neu $ NeuBuiltinApp4 f neu ty
+  let f' val = case val of
+                (Neu neu) -> pure $ Neu $ NeuBuiltinApp f' neu ty
                 _ -> case ty of
                   (NormArr _ r) -> pure $ liftFun3 (f val) r
                   (NormProd var _ body) -> pure $ liftFun3 (f val) body
-                  (NormImplProd var _ body) -> pure $ liftFun3 (f val) body)
-    ty
+                  (NormImplProd var _ body) -> pure $ liftFun3 (f val) body
+  in Builtin f' ty
 
+
+liftFun5 :: (Normal -> Normal -> Normal -> Normal -> Normal -> EvalM Normal) -> Normal -> Normal 
+liftFun5 f ty =
+  let f' val = case val of
+                (Neu neu) -> pure $ Neu $ NeuBuiltinApp f' neu ty
+                _ -> case ty of
+                  (NormArr _ r) -> pure $ liftFun4 (f val) r
+                  (NormProd var _ body) -> pure $ liftFun4 (f val) body
+                  (NormImplProd var _ body) -> pure $ liftFun4 (f val) body
+    in Builtin f' ty
 
 

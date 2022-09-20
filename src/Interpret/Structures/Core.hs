@@ -1,12 +1,12 @@
 module Interpret.Structures.Core (coreStructure) where
 
-import Control.Monad.Except (throwError, catchError)
 
 import qualified Data.Map as Map
 
 import Data
 import Syntax.Utils
 import Interpret.Eval (liftFun2, liftFun4)
+import Interpret.EvalM (throwError)
 import Interpret.Transform
 import qualified Interpret.Environment as Env
 
@@ -34,44 +34,44 @@ toDefs (Cons [Atom (Symbol s), val] : tl) = do
   tl' <- toDefs tl
   pure (Cons [Atom (Special Def), Atom (Symbol s), val] : tl')
 toDefs [] = pure []
-toDefs _ = lift $ throwError "error: expected symbol value pair"
+toDefs _ = throwError "error: expected symbol value pair"
 
   
   -- MACROS
 opDot :: [AST] -> EvalM AST
 opDot [(Cons (op : xs)), rhs] = 
   pure $ (Cons [op, (Cons xs), rhs])
-opDot args =  lift $ (throwError $ "bad args to macro: dot " ++ show args)
+opDot args =  (throwError $ "bad args to macro: dot " ++ show args)
 mlsDot = BuiltinMac opDot
 
 defStructure :: [AST] -> EvalM AST
 defStructure (sym : bdy) = 
   pure $ Cons ([Atom (Special Def), sym, Cons (Atom (Special MkStructure) : bdy)])
-defStructure _ = lift $ throwError "Bad Number of to macro: module" 
+defStructure _ = throwError "Bad Number of to macro: module" 
 mlsDefStructure = BuiltinMac defStructure
 
 defStruct :: [AST] -> EvalM AST
 defStruct (sym : bdy) = 
   pure $ Cons ([Atom (Special Def), sym, Cons (Atom mlsStruct : bdy)])
-defStruct _ = lift $ throwError "Bad Number of to macro: module" 
+defStruct _ = throwError "Bad Number of to macro: module" 
 mlsDefStruct = BuiltinMac defStruct
 
 defSig :: [AST] -> EvalM AST
 defSig (sym : bdy) = 
   pure $ Cons ([Atom (Special Def), sym, Cons (Atom (Special MkSig) : bdy)])
-defSig _ = lift $ throwError "Bad Number of to macro: module" 
+defSig _ = throwError "Bad Number of to macro: module" 
 mlsDefSig = BuiltinMac defSig
 
 defFun :: [AST] -> EvalM AST
 defFun (sym : fncdef) = 
   pure $ (Cons [Atom (Special Def), sym, Cons (Atom (Special Lambda) : fncdef)])
-defFun args =  lift $ throwError $ "bad args to macro: defn" ++ show args
+defFun args =  throwError $ "bad args to macro: defn" ++ show args
 mlsDefun = BuiltinMac defFun
 
 defMac :: [AST] -> EvalM AST
 defMac [sym, symlist, bdy] = 
   pure $ Cons [Atom (Special Def), sym, Cons [Atom (Special Mac), symlist, bdy]]
-defMac args =  lift $ throwError $ "bad args to macro: defsyntax" ++ show args
+defMac args =  throwError $ "bad args to macro: defsyntax" ++ show args
 mlsDefmac = BuiltinMac defMac
 
 
@@ -79,14 +79,14 @@ mlsDefmac = BuiltinMac defMac
 with :: Normal -> Normal -> EvalM Normal 
   -- TODO: constrain based on type
 with (NormSct fm1 ty1) (NormSct m2 ty2) = pure $ NormSct (insertLeft fm1 m2) ty1
-with _ _ = lift $ throwError "bad args to with expected types"
+with _ _ = throwError "bad args to with expected types"
 mlsWith = liftFun2 with (NormArr Undef (NormArr Undef Undef))
 
 upd :: [AST] -> EvalM AST
 upd [mdle, Cons bindlist] = do
   mldebdy <- toDefs bindlist 
   pure $ Cons [(Atom mlsWith), mdle, Cons (Atom (Special MkStructure) : mldebdy)]
-upd _ = lift $ throwError "bad args to macro: | "
+upd _ = throwError "bad args to macro: | "
 mlsUpd = BuiltinMac upd
 
 struct :: [AST] -> EvalM AST
@@ -170,7 +170,7 @@ doConstrain :: Normal -> Normal -> EvalM Normal
 doConstrain (NormSct mod ty) (NormSig sig) = 
   case constrain mod sig of 
     Just x -> pure $ NormSct x ty
-    Nothing -> lift $ throwError ("could not constrain structure " <> show mod <> " with signature " <> show sig)
+    Nothing -> throwError ("could not constrain structure " <> show mod <> " with signature " <> show sig)
   where
     constrain m ((l, _) : xs) = 
       case getField l m of 
@@ -179,7 +179,7 @@ doConstrain (NormSct mod ty) (NormSig sig) =
           Nothing -> Nothing
         Nothing -> Nothing
     constrain _ [] = Just []
-doConstrain _ _ = lift $ throwError "bad args to <: expected structure and signature"
+doConstrain _ _ = throwError "bad args to <: expected structure and signature"
 mlsConstrain = liftFun2 doConstrain (NormArr Undef (NormArr Undef Undef))
 
 
@@ -217,6 +217,7 @@ coreStructure = [
   ("do",          Special Do),
   ("quote",       Special MkQuote),
   ("λ",           Special Lambda),
+  ("lambda",      Special Lambda),
   ("let",         Special Let),
   ("handle",      Special Handle),
   ("handler",     Special MkHandler),

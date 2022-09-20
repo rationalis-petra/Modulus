@@ -31,9 +31,9 @@ many1 :: Parser a -> Parser [a]
 many1 p = (:) <$> p <*> (many p)
   
 pSym :: Parser Normal
-pSym = (lexeme $ Symbol <$> pSymStr) <|> (try (between (symbol "`") (symbol "`") pSpecial))
+pSym = (lexeme $ Symbol <$> pSymStr) <|> (try (between (symbol "(") (symbol ")") pSpecial))
   where
-    pSymStr = (:) <$> (letterChar <|> char '_') <*> many (alphaNumChar <|> char '-' <|> char '_')
+    pSymStr = (:) <$> (letterChar <|> char '_') <*> many (alphaNumChar <|> char '_')
 
 
 pSpecial :: Parser Normal
@@ -140,7 +140,7 @@ pNormal =
 
   in
     let sml = mkBinTight pTerm (mkOpP pTightSym)
-        factor = mkBin sml (mkOp "∙" <|> mkOp "/")
+        factor = mkBin sml (mkOp "∙" <|> mkOp "÷")
         arith = mkBin factor (mkOp "+" <|> mkOp "-")
         ty = mkRBin factor (mkOp "→")
         expr = mkBin ty (mkOpP pSpecial)

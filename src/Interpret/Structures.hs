@@ -10,6 +10,7 @@ import qualified Interpret.Structures.Numerics as Num
 import qualified Interpret.Structures.System as Sys
 import qualified Interpret.Structures.Collections as Coll
 import qualified Interpret.Structures.Structures as Sct
+import qualified Interpret.Structures.Monad as Mnd
 
 import Data (Normal, Normal'(NormSct, NormSig), EvalM)
 import qualified Data.Map as Map
@@ -28,4 +29,6 @@ defaultStructure = do
   pure $ insertLeft coreStructure [("num",     NormSct numStructure numSignature),
                                    ("sys",     NormSct systemStructure systemSignature),
                                    ("coll",    collStructure),
-                                   ("structs", NormSct structs (NormSig []))]
+                                   ("monad",   Mnd.monadStructure),
+                                   ("structs", NormSct structs (NormSig []))
+                                  ]

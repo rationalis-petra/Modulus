@@ -101,7 +101,7 @@ repl env state = do
     _ -> do
       case parseRepl "stdin" (pack lne) of
         Left err -> do
-          print err
+          printFlush err
           repl env state 
         Right val -> do
           (env', state') <- runExprs [val] env state True
@@ -112,7 +112,7 @@ repl env state = do
 runInteractively :: String -> Environment -> ProgState -> IO (Environment, ProgState)
 runInteractively str env state =
   case parseFile "file" (pack str) of
-      Left err -> print err >> pure (env, state)
+      Left err -> printFlush err >> pure (env, state)
       Right vals -> runExprs vals env state False
 
 -- runExprs takes in an AST list, an environment, a state and a flag (whether to
@@ -132,26 +132,26 @@ runExprs (e : es) env state runIO = do
               case result of 
                 Just (cint, state''') -> do
                   cint' <- case cint of 
-                        Left (t, ty) -> (print ty) >> pure t
+                        Left (t, ty) -> (printFlush ty) >> pure t
                         Right t -> pure t
                   case runExcept (toTopCore cint') of 
                     Right v -> do
                       (fenv, fstate, mval) <- evalTopCore v env state''
-                      case mval of 
-                        Just (CollVal (IOAction action ty)) -> do
-                          r <- action
-                          print r
-                        Just v -> print v
-                        Nothing -> pure ()
-                      runExprs es fenv fstate runIO
+                      fstate' <- case mval of 
+                        Just mval -> do
+                          (val, state) <- loopAction mval fenv fstate
+                          printFlush val
+                          pure state
+                        Nothing -> pure fstate
+                      runExprs es fenv fstate' runIO
                     Left err -> failWith ("toCore err: " <> err)
                 Nothing -> pure (env, state)
             Nothing -> pure (env, state)
         Left err -> do
-          print err
+          printFlush err
           pure (env, state)
     Nothing -> do
-      print "macro-expansion err"
+      printFlush "macro-expansion err"
       pure (env, state)
   where
     failWith err = (putStrLn err) >> (pure (env, state))
@@ -165,3 +165,17 @@ evalTopCore core env state = do
       Right fnc -> pure (fnc env, state', Nothing)
     Nothing -> pure (env, state, Nothing)
   
+loopAction :: Normal -> Environment -> ProgState -> IO (Normal, ProgState)
+loopAction val env state =
+  case val of
+    (CollVal (IOAction action ty)) -> do
+      evalMAction <- action
+      result <- evalToIO evalMAction env state
+      case result of
+        Just (val, state') -> 
+          loopAction val env state'
+        Nothing -> pure (val, state)
+    _ -> pure (val, state)
+
+
+printFlush s = print s >> hFlush stdout   

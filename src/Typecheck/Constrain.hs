@@ -64,7 +64,7 @@ constrain n1 n2 ctx = do
 -- ({S} → List S) {A} to get List [A] and List [A]!!
 
 -- Note: constrainLRApp doesn't actually check the types!  
-
+constrainLRApp :: Normal -> Normal -> Ctx.Context -> EvalM ([Normal], [Normal], LRSubst)
 constrainLRApp (NormImplProd s a b) (NormImplProd s' a' b') ctx = do
   subst <- constrain' b b'
   pure ([], [], subst)
@@ -77,9 +77,10 @@ constrainLRApp (NormImplProd s a b)    r ctx = do
   (a1, a2, subst) <- constrainLRApp b r ctx
   appval <- case findLStrSubst s subst of  
     Just v -> inferVar v a ctx
-    Nothing -> err ("cannot LRconstrain terms with different forms: "
+    Nothing -> err ("cannot find implicit substitution for var " <> s <> " constraining terms: " 
                     <> show (NormImplProd s a b) <> " and "
-                    <> show r)
+                    <> show r
+                    <> " in substitution: " <> show subst)
   pure ((appval:a1), a2, rmLSubst s subst)
 
   
@@ -130,7 +131,7 @@ constrain' (NormArr l1 r1) (NormArr l2 r2) = do
   -- covariant in the return type
   s1 <- constrain' l2 l1
   s2 <- constrain' r1 r2
-  composelr s1 s2
+  composelr (swap s1) s2
 
 constrain' (NormProd str l1 r1) (NormProd str' l2 r2) =
   -- TODO: is dependent subtyping is contravaraiant in the argument and
@@ -139,7 +140,7 @@ constrain' (NormProd str l1 r1) (NormProd str' l2 r2) =
     s1 <- constrain' l2 l1
     checkSubst "error: constrain attempting substitution for dependently bound type" str s1
     s2 <- constrain' r1 r2 
-    composelr s1 s2
+    composelr (swap s1) s2
   else
     err "cannot constrain dependent types with unequal arg"
 
@@ -149,7 +150,7 @@ constrain' (NormImplProd str l1 r1) (NormImplProd str' l2 r2) =
     s1 <- constrain' l2 l1
     checkSubst "error: constrain attempting substitution for implicit dependently bound type" str s1
     s2 <- constrain' r1 r2 
-    composelr s1 s2
+    composelr (swap s1) s2
   else
     err "cannot constrain dependent types with unequal arg"
 
@@ -196,7 +197,10 @@ constrain' (NormIType name1 id1 vals1) (NormIType name2 id2 vals2) =
       (pure lrnosubst) (zip vals1 vals2)
   else
     err "cannot constrain inductive datatypes of non-equal constructors"
-  
+constrain' (CollTy t1) (CollTy t2) =   
+  case (t1, t2) of 
+    (IOMonadTy l, IOMonadTy r) -> constrain' l r
+
 constrain' t1 t2 =   
   err ("cannot constrain terms " <> show t1 <> " and " <> show t2 <> " as they have different forms")
 
@@ -207,6 +211,8 @@ nnConstrain n1 (Neu n2) = neuConstrain n1 n2
 nnConstrain (NeuDot neu field) norm = do
   normTy <- liftExcept $ typeVal norm 
   nnConstrain neu (NormSct [(field, norm)] normTy)
+nnConstrain n1 n2 = err ("nnConstrain incomplete OR terms " <> show n1 <> " and " <> show n2
+                          <> "have different forms")
 
 
 -- neuconstrain: constrain two neutral terms  
@@ -455,3 +461,5 @@ subType (Neu n1) (Neu n2) = Eval.neu_equiv n1 n2 (Set.empty, 0) (Map.empty, Map.
 -- value forms  
 subType (PrimVal p1) (PrimVal p2) = p1 == p2
 subType _ _ = False
+
+swap (a, b) = (b, a)

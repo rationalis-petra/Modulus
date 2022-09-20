@@ -7,7 +7,7 @@ module Data where
 import Data.Text (Text, pack, unpack)
 import Data.Vector (Vector)
 import Control.Lens hiding (Context)
-import Control.Monad.State (State) 
+import Control.Monad.State (StateT) 
 import Control.Monad.Except (ExceptT) 
 import Control.Monad.Reader (ReaderT) 
   
@@ -123,7 +123,7 @@ data CollTy m
 data CollVal m
   = ListVal [(Normal' m)] (Normal' m)
   | ArrayVal (Vector (Normal' m)) (Normal' m) [Integer]
-  | IOAction (IO (Normal' m)) (Normal' m)
+  | IOAction (IO (EvalM (Normal' m))) (Normal' m)
 
 
 -- m is the type of monad inside the object
@@ -181,9 +181,6 @@ data Neutral' m
   | NeuCoMatch (Neutral' m) [(Pattern, Normal)]
 
   | NeuBuiltinApp (Normal' m -> m (Normal' m)) (Neutral' m) (Normal' m)
-  | NeuBuiltinApp2 (Normal' m -> Normal' m -> m (Normal' m)) (Neutral' m) (Normal' m)
-  | NeuBuiltinApp3 (Normal' m -> Normal' m -> Normal' m -> m (Normal' m)) (Neutral' m) (Normal' m)
-  | NeuBuiltinApp4 (Normal' m -> Normal' m -> Normal' m -> Normal' m -> m (Normal' m)) (Neutral' m) (Normal' m)
   
 
   
@@ -266,11 +263,6 @@ instance Show (Neutral' m) where
   show (NeuIf cond e1 e2) = "(if " <> show e1 <> " " <> show e2 <> ")"
 
   show (NeuBuiltinApp fn neu ty)  = "(fnc :" <> show ty  <> ") " <> show neu
-  show (NeuBuiltinApp2 fn neu ty) = "(fnc :" <> show ty  <> ") "  <> show neu
-  show (NeuBuiltinApp3 fn neu ty) = "(fnc :" <> show ty  <> ") "  <> show neu
-  show (NeuBuiltinApp4 fn neu ty) = "(fnc :" <> show ty  <> ") "  <> show neu
--- TODO: effect type
-
 
 
   
@@ -278,8 +270,9 @@ data PrimType = BoolT | CharT | EffectSetT | IntT | FloatT | UnitT | StringT | A
   deriving (Eq, Ord)
   
 
-type EvalEnvM env = ActionMonadT (ReaderT env (ExceptT String (State ProgState)))
-type EvalM = EvalEnvM Environment
+type EvalEnvM env m = ReaderT env (ExceptT String (StateT ProgState m))
+type EvalM = EvalEnvM Environment Identity
+type EvalMIO = EvalEnvM Environment IO
   
 
 newtype ActionMonadT m a = ActionMonadT (m (MaybeEffect m a))

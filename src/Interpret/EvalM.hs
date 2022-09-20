@@ -11,22 +11,20 @@ import qualified Interpret.Transform as Action
 import qualified Control.Lens as Lens -- ((+=), use)
 import Data(EvalM, ActionMonadT(..), Environment, ProgState, uid_counter, var_counter)
 
-
 ask :: EvalM Environment
-ask = Action.lift $ Reader.ask
+ask = Reader.ask
 
 localF :: (Environment -> Environment) -> EvalM a -> EvalM a
-localF f (ActionMonadT mnd) =
-  ActionMonadT (Reader.local f mnd)
+localF f mnd = Reader.local f mnd
 
 local :: Environment -> EvalM a -> EvalM a
 local env m = localF (\_ -> env) m
 
 throwError :: String -> EvalM a
-throwError err = Action.lift $ Reader.lift $ Except.throwError err
+throwError err = Reader.lift $ Except.throwError err
 
-use v = Action.lift $ Reader.lift $ Except.lift $ Lens.use v
-a += b = Action.lift $ Reader.lift $ Except.lift $ a Lens.+= b
+use v = Reader.lift $ Except.lift $ Lens.use v
+a += b = Reader.lift $ Except.lift $ a Lens.+= b
 
 fresh_id :: EvalM Int
 fresh_id = do
@@ -44,5 +42,39 @@ liftExcept :: Except.Except String a -> EvalM a
 liftExcept e = case Except.runExcept e of 
   Right val -> pure val
   Left err -> throwError err
+
+ 
+-- ask :: EvalM Environment
+-- ask = Action.lift $ Reader.ask
+
+-- localF :: (Environment -> Environment) -> EvalM a -> EvalM a
+-- localF f (ActionMonadT mnd) =
+--   ActionMonadT (Reader.local f mnd)
+
+-- local :: Environment -> EvalM a -> EvalM a
+-- local env m = localF (\_ -> env) m
+
+-- throwError :: String -> EvalM a
+-- throwError err = Action.lift $ Reader.lift $ Except.throwError err
+
+-- use v = Action.lift $ Reader.lift $ Except.lift $ Lens.use v
+-- a += b = Action.lift $ Reader.lift $ Except.lift $ a Lens.+= b
+
+-- fresh_id :: EvalM Int
+-- fresh_id = do
+--   id <- use uid_counter
+--   uid_counter += 1
+--   pure id
+
+-- fresh_var :: EvalM Int
+-- fresh_var = do
+--   id <- use var_counter
+--   var_counter += 1
+--   pure id
+
+-- liftExcept :: Except.Except String a -> EvalM a
+-- liftExcept e = case Except.runExcept e of 
+--   Right val -> pure val
+--   Left err -> throwError err
 
  

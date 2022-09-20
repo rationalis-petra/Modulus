@@ -84,6 +84,8 @@ typeVal (NormIVal _ _ _ _ _ ty) = pure ty
 typeVal (CollTy _) = pure $ NormUniv 0
 typeVal (CollVal val) = case val of
   IOAction _ ty -> pure ty
+  ListVal _ ty -> pure (CollTy (ListTy ty))
+  ArrayVal _ ty dims -> pure (CollTy (ArrayTy ty dims))
 
 typeVal e = throwError $ "untypable value: " <> show e
 
@@ -102,6 +104,12 @@ instance Expression (Normal' m) where
   free (PrimType  _) = Set.empty
   free (NormUniv  _) = Set.empty
   free (PrimVal   _) = Set.empty
+  free (CollTy ty) = case ty of 
+    ListTy a -> free a
+    ArrayTy a _ -> free a
+    IOMonadTy a -> free a
+  free (CollVal val) = case val of 
+    IOAction _ ty -> free ty
 
   free (Neu neutral) = free neutral
   free (NormProd var a b) =
@@ -113,7 +121,6 @@ instance Expression (Normal' m) where
   free (NormIVal _ _ _ _ norms ty) = foldr (Set.union . free) Set.empty norms
   free (NormIType _ _ norms) = foldr (Set.union . free) Set.empty norms
 
-  -- free (NormSig fields) =
 
 instance Expression (Neutral' m) where
   free (NeuVar var) = Set.singleton var
@@ -126,10 +133,6 @@ instance Expression (Neutral' m) where
     
 
   free (NeuBuiltinApp _ _ _) = Set.empty
-  free (NeuBuiltinApp2 _ _ _) = Set.empty
-  free (NeuBuiltinApp3 _ _ _) = Set.empty
-  free (NeuBuiltinApp4 _ _ _) = Set.empty
-
 
 patVars :: Pattern -> Set.Set String
 patVars WildCard = Set.empty

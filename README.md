@@ -6,29 +6,34 @@ Modulus is a programming language which is currently under heavy development. As
 such, it is rife with bugs, idiosyncrasies and unimplemented features. However,
 you can still try it out if you're interested.
 
-## Features
+## Desired Features
++ **Structures** Tired of class hierarchy headaches? mechanism for packaging
+  type(s) and associated behaviour. They offer a compelling alternative to
+  object systems for implementing dynamic behaviour.
 
-+ **Structures** are a mechanism for packaging type(s) and associated
-  behaviour. They offer a compelling alternative to object systems for
-  implementing dynamic behaviour. 
++ **Dependent Types** A powerful generalisation of existing type-systems,
+  dependent types enable the type-system to express arbitrary properties, like
+  "a function which returns only even numbers" or "a function which outputs
+  strings containing only the letters a, b and c".
 
-+ **Algebraic Effects** allow you to define things like exceptions, state,
-  cooperative multithreading and more - all as libraries. As such, Modulus
-  doesn't actually implement any of these features! (They are available in the
-  standard library though). 
-
-+ **Dependent Types** are a powerful generalisation of existing type-systems,
-  enabling your types to express arbitrary properties, like "a function which
-  returns only even numbers" or "a function which outputs strings containing
-  only the letters a, b and c". 
-
-+ **Metaprogramming** allow you to write code which writes code. You can write
++ **Metaprogramming** Write code which writes code. You can write
   two types of macros, either modifying the parser, or rewriting syntax trees. 
+
++ **Powerful Libraries** Modulus has a powerful set of standard libraries which
+  implement not just collections, IO and networking, but also powerful parsing
+  and data-processing facilities. It also includes a JIT compiler for itself,
+  enabling you to write applications which are scriptable in Modulus.
 
 <!-- + The **Interative Enviroment** is not a feature of the language itself, but of -->
 <!--   this particular implementation. Break the compile-test-rewrite cycle by -->
 <!--   swapping function definitions, watch variable values, and more - all live as -->
 <!--   your code is running! -->
+
+## Currently Implemented 
++ Structures
++ Dependent Types
+
+
 
 
 ## Installation
