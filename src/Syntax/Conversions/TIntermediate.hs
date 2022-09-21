@@ -123,6 +123,7 @@ toTIntermediate (IMatch e1 cases) = do
           IndPat _ matcher n _ ty -> pure $ TBuiltinMatch matcher n (TIntermediate' (TValue ty)) subPatterns
         _ -> throwError ("couldn't extract pattern from val: " <> show val)
 
+toTIntermediate (IDefinition _) = throwError ("defs must be toplevel! ")
 toTIntermediate x = throwError ("toTIntermediate not implemented for: "  <> show x)
 
 
