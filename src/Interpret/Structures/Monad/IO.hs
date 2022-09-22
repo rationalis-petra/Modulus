@@ -3,14 +3,15 @@ module Interpret.Structures.Monad.IO (ioMonadStructure, ioMonadSignature) where
 import Data
 import Interpret.Eval (eval, liftFun2, liftFun4)
 
+mkVar s = (Neu (NeuVar s (NormUniv 0)) (NormUniv 0))
 
 -- Bind :: {A A} → M A → (A → M B) → M B
 ioBindTy :: Normal
 ioBindTy = NormImplProd "A" (NormUniv 0)
             (NormImplProd "B" (NormUniv 0)
-              (NormArr (CollTy (IOMonadTy (Neu $ NeuVar "A")))
-                (NormArr (NormArr (Neu $ NeuVar "A") (CollTy (IOMonadTy (Neu $ NeuVar "B"))))
-                 (CollTy (IOMonadTy (Neu $ NeuVar "B"))))))
+              (NormArr (CollTy (IOMonadTy (mkVar "A")))
+                (NormArr (NormArr (mkVar "A") (CollTy (IOMonadTy (mkVar "B"))))
+                 (CollTy (IOMonadTy (mkVar "B"))))))
 ioBind :: Normal
 ioBind = liftFun4 f ioBindTy
   where f :: Normal -> Normal -> Normal -> Normal -> EvalM Normal
@@ -25,8 +26,8 @@ ioBind = liftFun4 f ioBindTy
         
 ioPureTy :: Normal
 ioPureTy = NormImplProd "A" (NormUniv 0)
-             (NormArr (Neu $ NeuVar "A")
-               (CollTy (IOMonadTy (Neu $ NeuVar "A"))))
+             (NormArr (mkVar "A")
+               (CollTy (IOMonadTy (mkVar "A"))))
 
 ioPure :: Normal
 ioPure = liftFun2 f ioPureTy

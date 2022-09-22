@@ -12,6 +12,8 @@ int_t = PrimType IntT
 bool_t = PrimType BoolT
 float_t = PrimType FloatT
 
+mkVar s = (Neu (NeuVar s (NormUniv 0)) (NormUniv 0))
+
 floatShow :: Normal  
 floatShow = liftFun newf (NormArr float_t (PrimType StringT))
   where
@@ -117,10 +119,10 @@ mkBoolSing f =
 
 intSignature :: Normal
 intSignature =
-  let binIntTy = NormArr (Neu (NeuVar "t")) (NormArr (Neu (NeuVar "t")) (Neu (NeuVar "t")))
-      binIntCmp = NormArr (Neu (NeuVar "t")) (NormArr (Neu (NeuVar "t")) (PrimType BoolT))
+  let binIntTy = NormArr (mkVar "T") (NormArr (mkVar "T") (mkVar "T"))
+      binIntCmp = NormArr (mkVar "T") (NormArr (mkVar "T") (PrimType BoolT))
         in
-    NormSig [("t", NormUniv 0),
+    NormSig [("T", NormUniv 0),
              ("Int", NormUniv 0),
              ("+", binIntTy),
              ("-", binIntTy),
@@ -129,14 +131,14 @@ intSignature =
              -- maybe?? 
              ("quot", binIntTy),
              ("rem", binIntTy),
-             ("add-inv", NormArr (Neu $ NeuVar "t") (Neu $ NeuVar "t")),
+             ("add-inv", NormArr (mkVar "T") (mkVar "T")),
            
              ("^", mkIntOp (^)),
            
-             ("e0", (Neu (NeuVar "t"))),
-             ("e1", (Neu (NeuVar "t"))),
+             ("e0", (mkVar "T")),
+             ("e1", (mkVar "T")),
            
-             ("show", NormArr (Neu $ NeuVar "t") (PrimType StringT)),
+             ("show", NormArr (mkVar "T") (PrimType StringT)),
            
              ("=", binIntCmp),
              ("≠", binIntCmp),
@@ -175,8 +177,8 @@ intStructure =
 
 floatSignature :: Normal
 floatSignature =
-  let binFltTy = NormArr (Neu (NeuVar "t")) (NormArr (Neu (NeuVar "t")) (Neu (NeuVar "t")))
-      binFltCmp = NormArr (Neu (NeuVar "t")) (NormArr (Neu (NeuVar "t")) (PrimType BoolT))
+  let binFltTy = NormArr (mkVar "T") (NormArr (mkVar "T") (mkVar "T"))
+      binFltCmp = NormArr (mkVar "T") (NormArr (mkVar "T") (PrimType BoolT))
         in
     NormSig [("t", NormUniv 0),
              ("Float", NormUniv 0),
@@ -186,10 +188,10 @@ floatSignature =
              ("÷", binFltTy),
              ("^", binFltTy),
            
-             ("e0", (Neu (NeuVar "t"))),
-             ("e1", (Neu (NeuVar "t"))),
+             ("e0", (mkVar "T")),
+             ("e1", (mkVar "T")),
            
-             ("show", NormArr (Neu $ NeuVar "t") (PrimType StringT)),
+             ("show", NormArr (mkVar "T") (PrimType StringT)),
            
              ("=", binFltCmp),
              ("≠", binFltCmp),

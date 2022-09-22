@@ -43,7 +43,6 @@ data TArg ty
 data TDefinition ty
   --            name   id  params         index id  definitions
   = TInductDef String  Int [(String, ty)] ty [(String, Int, ty)]
-  | TEffectDef String [String] Int [(String, Int, [ty])]
   | TSingleDef String (TIntermediate ty) (Maybe ty)
   | TOpenDef (TIntermediate ty) (Maybe ty)
   deriving Show
@@ -55,7 +54,7 @@ data TIntTop ty
 
 data TPattern ty
   = TWildPat 
-  | TBindPat String
+  | TBindPat String (Maybe ty)
   | TIMatch Int Int Int ty [TPattern ty]
   | TBuiltinMatch ([Pattern] -> Normal -> (Normal -> Pattern -> EvalM (Maybe [(String, Normal)]))
                           -> EvalM (Maybe [(String, Normal)]))
@@ -72,9 +71,9 @@ data TIntermediate ty
   | TSignature [TDefinition ty]
   | TLambda [(TArg ty, Bool)] (TIntermediate ty) (Maybe ty)
   | TProd (TArg ty, Bool) (TIntermediate ty)
-  | TIF (TIntermediate ty) (TIntermediate ty) (TIntermediate ty)
+  | TIF (TIntermediate ty) (TIntermediate ty) (TIntermediate ty) (Maybe ty)
   | TAccess (TIntermediate ty) String
-  | TMatch (TIntermediate ty) [(TPattern ty, TIntermediate ty)]
+  | TMatch (TIntermediate ty) [(TPattern ty, TIntermediate ty)] (Maybe ty)
   deriving Show
 
 newtype TIntermediate' = TIntermediate' (TIntermediate TIntermediate')
@@ -83,7 +82,7 @@ newtype TIntermediate' = TIntermediate' (TIntermediate TIntermediate')
 
 instance Show ty => Show (TPattern ty) where
   show (TWildPat) = "TWildPat"
-  show (TBindPat sym) = "TBindPat " <> show sym
+  show (TBindPat sym _) = "TBindPat " <> show sym
   show (TIMatch id1 id2 strip ty pats) = "TIMatch " <> show id1 <> " " <> show id2 <> " " <> show strip
     <> " " <> show ty <> " " <> show pats
   show (TBuiltinMatch _ _ _ pats) = "TBuiltInMatch " <> show pats

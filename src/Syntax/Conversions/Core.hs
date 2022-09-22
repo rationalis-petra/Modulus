@@ -163,16 +163,16 @@ toCore (TSignature map) = do
     -- defToCore (TVariantDef nme [String] Int [(String, Int, [Normal])]
     -- defToCore (TEffectDef  nme [String] Int [(String, Int, [Normal])]
 
-toCore (TIF cond e1 e2) = do
+toCore (TIF cond e1 e2 (Just ty)) = do
   cond' <- toCore cond
   e1' <- toCore e1
   e2' <- toCore e2
-  pure (CIf cond' e1' e2')
+  pure (CIf cond' e1' e2' ty)
 
-toCore (TMatch term patterns) = do
+toCore (TMatch term patterns (Just ty)) = do
   term' <- toCore term
   patterns' <- toCoreCases patterns
-  pure $ CMatch term' patterns'
+  pure $ CMatch term' patterns' ty
   where
     toCoreCases [] = pure []
     toCoreCases ((p, e):ps) = do
@@ -183,7 +183,7 @@ toCore (TMatch term patterns) = do
 
     toCorePat :: TPattern Normal -> Except String Pattern
     toCorePat TWildPat = pure WildCard
-    toCorePat (TBindPat str) = pure (VarBind str)
+    toCorePat (TBindPat str (Just ty)) = pure (VarBind str ty)
     toCorePat (TIMatch id1 id2 _ ty pats) = do
       pats' <- mapM toCorePat pats
       pure $ (MatchInduct id1 id2 pats')
@@ -192,4 +192,4 @@ toCore (TMatch term patterns) = do
       pure $ InbuiltMatch (fn pats')
 
 
-toCore x = err ("unimplemented" <> show x)
+toCore x = err ("toCore: unimplemented for " <> show x)

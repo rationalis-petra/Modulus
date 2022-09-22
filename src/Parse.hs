@@ -113,12 +113,10 @@ pNormalNoFun =
       mkBin' :: Parser AST -> Parser ([AST] -> AST -> AST) -> Parser AST
       mkBin' = mkBin (((\v -> case v of Cons l -> Right l; x -> Right [x]) <$> larens pNormal)
                       <|> (\x -> Left x) <$> pTerm)
-  -- TODO: mkBinTight ++ mkRBin
 
-      sml    = mkBin' pTerm  (mkOpP pTightSym) -- (symbol "::" >> pure Annotation)
-      factor = mkBin' sml    (mkOp "⋅" <|> mkOp "÷")
-      arith  = mkBin' factor (mkOp "+" <|> mkOp "-")
-      expr   = mkBin' arith  (mkOpP pSpecial)
+      -- TODO: mkBinTight ++ mkRBin
+      sml    = mkBin' pTerm  (mkOpP pTightSym)
+      expr   = mkBin' sml    (mkOpP pSpecial)
     in expr
 
 pNormal :: Parser AST 
@@ -137,6 +135,8 @@ pNormal =
                            <*> many r) >>= go1),
                          return acc]
       mkBin = mkBin' pLeft
+      pLeft = (((\v -> case v of Cons l -> Right l; x -> Right [x]) <$> larens pNormal)
+                 <|> (\x -> Left x) <$> pTerm)
 
       mkBinTight' l r op = l >>= go0 where
         go0 :: Either AST [AST] -> Parser AST
@@ -145,28 +145,26 @@ pNormal =
         go1 :: AST -> Parser AST
         go1 acc = choice [(((\f x -> f [acc] x) <$> op <*> r) >>= go1), return acc]
       mkBinTight = mkBinTight' pLeft
+      pRLeft = (((\v -> case v of Cons l -> Right l; x -> Right [x]) <$> larens pNormal)
+                 <|> (\x -> Left x) <$> sml)
 
       mkRBin' :: Parser (Either AST [AST]) -> Parser AST -> Parser ([AST] -> AST -> AST) -> Parser AST
       mkRBin' l r op = l >>= go where
         go :: Either AST [AST] -> Parser AST
         go acc = choice [((\f x -> f (toLst acc) x) <$> op <*> mkRBin' l r op),
                          return (toVal acc)]
-      mkRBin = mkRBin' pLeft
+      mkRBin = mkRBin' pRLeft
 
       toLst v = case v of Left x -> [x]; Right lst -> lst
       toVal v = case v of Left x -> x;   Right lst -> Cons lst
-      pLeft = (((\v -> case v of Cons l -> Right l; x -> Right [x]) <$> larens pNormal)
-                 <|> (\x -> Left x) <$> pTerm)
 
       mkCall op arg args =
           Cons (op <> (arg : args))
 
-  in
-    let sml    = mkBinTight pTerm (mkOpP pTightSym)
-        factor = mkBin  sml       (mkOp "∙" <|> mkOp "÷")
-        arith  = mkBin  factor    (mkOp "+" <|> mkOp "-")
-        ty     = mkRBin arith     (mkOp "→")
-        expr   = mkBin  ty        (mkOpP pSpecial)
+  
+      sml    = mkBinTight pTerm (mkOp ".")
+      ty     = mkRBin sml     (mkOp "→")
+      expr   = mkBin  ty    (mkOpP pSpecial)
     in expr
 
  

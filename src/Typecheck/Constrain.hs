@@ -8,8 +8,7 @@ module Typecheck.Constrain (
   rmSubst,
   findStrSubst,
   doSubst,
-  inferVar)                          
-  
+  inferVar)
   where
 
 import Debug.Trace
@@ -27,7 +26,8 @@ import Data (PrimType(..),
 import qualified Typecheck.Context as Ctx
 import qualified Interpret.Eval as Eval
 import Interpret.EvalM
-import Syntax.Utils (typeVal, free, getField)
+import Interpret.Eval (normSubst)
+import Syntax.Utils (typeVal, free, getField, freshen)
 import Control.Monad.Except (Except, runExcept)
 
 import qualified Data.Map as Map  
@@ -64,38 +64,45 @@ constrain n1 n2 ctx = do
 -- ({S} → List S) {A} to get List [A] and List [A]!!
 
 -- Note: constrainLRApp doesn't actually check the types!  
+-- TODO: perform α-renaming on implicit products!  
 constrainLRApp :: Normal -> Normal -> Ctx.Context -> EvalM ([Normal], [Normal], LRSubst)
-constrainLRApp (NormImplProd s a b) (NormImplProd s' a' b') ctx = do
-  subst <- constrain' b b'
+constrainLRApp (NormImplProd s1 a1 b1) (NormImplProd s2 a2 b2) ctx = do
+  subst <- constrain' b1 b2
   pure ([], [], subst)
-constrainLRApp (NormImplProd s a b) (Neu (NeuVar v)) ctx = do
+constrainLRApp (NormImplProd s a b) (Neu (NeuVar v _) _) ctx = do
   if occurs v (NormImplProd s a b) then  
     err "occurs check failed"
   else 
     pure ([], [], rightsubst (NormImplProd s a b) v)
 constrainLRApp (NormImplProd s a b)    r ctx = do
-  (a1, a2, subst) <- constrainLRApp b r ctx
+  let s' = freshen (Set.union (free b) (free r)) s
+  b' <- normSubst ((Neu (NeuVar s' a) a), s) b
+  (a1, a2, subst) <- constrainLRApp b' r ctx
   appval <- case findLStrSubst s subst of  
     Just v -> inferVar v a ctx
-    Nothing -> err ("cannot find implicit substitution for var " <> s <> " constraining terms: " 
-                    <> show (NormImplProd s a b) <> " and "
+    Nothing -> err ("cannot find implicit substitution for var " <> s' <> " constraining terms: " 
+                    <> show (NormImplProd s' a b') <> " and "
                     <> show r
                     <> " in substitution: " <> show subst)
-  pure ((appval:a1), a2, rmLSubst s subst)
+  let subst' = rmLSubst s' subst
+  --fnlSubst = renameLSubst s s' subst'
+  pure ((appval:a1), a2, subst')
 
   
-constrainLRApp (Neu (NeuVar v)) (NormImplProd s' a' b') ctx = do
+constrainLRApp (Neu (NeuVar v _) _) (NormImplProd s' a' b') ctx = do
   if occurs v (NormImplProd s' a' b') then  
     err "occurs check failed"
   else 
     pure ([], [], leftsubst (NormImplProd s' a' b') v)
-constrainLRApp l (NormImplProd s' a' b') ctx = do
+constrainLRApp l (NormImplProd s a b) ctx = do
+  let s' = freshen (free l) s
+  b' <- normSubst ((Neu (NeuVar s' a) a), s) b
   (a1, a2, subst) <- constrainLRApp l b' ctx
   appval <- case findRStrSubst s' subst of  
-    Just v -> inferVar v a' ctx
+    Just v -> inferVar v a ctx
     Nothing -> err ("cannot find implicit substitution for var " <> s' <> " constraining terms: " 
                     <> show l <> " and "
-                    <> show (NormImplProd s' a' b')
+                    <> show (NormImplProd s' a b')
                     <> " in substitution: " <> show subst)
   pure (a1, (appval:a2), rmRSubst s' subst)
 constrainLRApp l r ctx = do
@@ -104,11 +111,11 @@ constrainLRApp l r ctx = do
 
   
 constrain' :: Normal -> Normal -> EvalM LRSubst
-constrain' (Neu (NeuVar v1)) (Neu (NeuVar v2)) =
+constrain' (Neu (NeuVar v1 t1) t2) (Neu (NeuVar v2 _) _) =
     if v1 == v2 then pure lrnosubst
-    else pure (rightsubst (Neu $ NeuVar v1) v2)
-constrain' (Neu n) ty = nnConstrain n ty
-constrain' ty (Neu n) = do
+    else pure (rightsubst (Neu (NeuVar v1 t1) t2) v2)
+constrain' (Neu n _) ty = nnConstrain n ty
+constrain' ty (Neu n _) = do
   -- TODO: technically not respecting subtyping rules ()
   (l, r) <- nnConstrain n ty
   pure (r, l)
@@ -134,8 +141,7 @@ constrain' (NormArr l1 r1) (NormArr l2 r2) = do
   composelr (swap s1) s2
 
 constrain' (NormProd str l1 r1) (NormProd str' l2 r2) =
-  -- TODO: is dependent subtyping is contravaraiant in the argument and
-  -- covariant in the return type
+  -- TODO: perform adequate α-renaming
   if str == str' then do
     s1 <- constrain' l2 l1
     checkSubst "error: constrain attempting substitution for dependently bound type" str s1
@@ -145,7 +151,6 @@ constrain' (NormProd str l1 r1) (NormProd str' l2 r2) =
     err "cannot constrain dependent types with unequal arg"
 
 constrain' (NormImplProd str l1 r1) (NormImplProd str' l2 r2) =
-  -- TODO: same as above (dependent)
   if str == str' then do
     s1 <- constrain' l2 l1
     checkSubst "error: constrain attempting substitution for implicit dependently bound type" str s1
@@ -206,8 +211,8 @@ constrain' t1 t2 =
 
 -- nn constrain: constrain a neutral and normal term  
 nnConstrain :: Neutral -> Normal -> EvalM LRSubst
-nnConstrain (NeuVar v) norm = pure $ leftsubst norm v
-nnConstrain n1 (Neu n2) = neuConstrain n1 n2
+nnConstrain (NeuVar v _) norm = pure $ leftsubst norm v
+nnConstrain n1 (Neu n2 _) = neuConstrain n1 n2
 nnConstrain (NeuDot neu field) norm = do
   normTy <- liftExcept $ typeVal norm 
   nnConstrain neu (NormSct [(field, norm)] normTy)
@@ -263,6 +268,11 @@ rmLSubst str (l, r) = (rmSubst str l, r)
 
 rmRSubst :: String -> LRSubst -> LRSubst
 rmRSubst str (l, r) = (l, rmSubst str r)
+
+-- rename all /origin/ strings in the lsubst from -> to 
+-- replace all strings within values /tosubstitutie/ in the rsubst
+-- renameLSubst :: String -> String -> LRSubst  
+-- renameLSubst from to (l, r) = 
   
 
 -- composition of substitutions: For HM substitutions, they are run in order,
@@ -337,14 +347,14 @@ checkSubst msg str (l, r) = checkSubst' str (l <> r)
 -- Occurs Check: given a variable x and a type t, x occurs in t 
 -- if some subterm of t is equal to x and x is not equal to t
 occurs :: String -> Normal -> Bool
-occurs _ (Neu (NeuVar _)) = False
+occurs _ (Neu (NeuVar _ _) _) = False
 occurs v t = occurs' v t
 
 -- OccursCheck': Subtly different from occurs, this algorithm is recursive:
 -- occurs' is true for variable v and type t if v = t or occurs' is
 -- true for v any subterms in t
 occurs' :: String -> Normal -> Bool
-occurs' v1 (Neu neu) = occursNeu v1 neu
+occurs' v1 (Neu neu _) = occursNeu v1 neu
   -- Primitive types and values
 occurs' _ (PrimVal _) = False
 occurs' _ (PrimType _) = False
@@ -381,10 +391,10 @@ occurs' v (NormIVal _ _ _ _ params _) = -- TODO: check if we need to ask about f
 
 
 occursNeu :: String -> Neutral -> Bool   
-occursNeu v1 (NeuVar v2) = v1 == v2
+occursNeu v1 (NeuVar v2 _) = v1 == v2
 occursNeu v (NeuApp l r) = occursNeu v l || occurs' v r
 occursNeu v (NeuDot m _) = occursNeu v m
-occursNeu v (NeuIf c e1 e2) = occursNeu v c || occurs' v e1 || occurs' v e2
+occursNeu v (NeuIf c e1 e2 _) = occursNeu v c || occurs' v e1 || occurs' v e2
 
 
 -- Given a type and a substitution (thus far), try and infer the variable
@@ -457,7 +467,7 @@ subType (NormSig s1) (NormSig s2) =
 -- neutral terms
 -- TODO: THIS IS INCREDIBLY DODGY AND MAY BE RESPONSIBLE FOR ERRORS YOU CANT
 -- FIGURE OUT!
-subType (Neu n1) (Neu n2) = Eval.neu_equiv n1 n2 (Set.empty, 0) (Map.empty, Map.empty)
+subType (Neu n1 _) (Neu n2 _) = Eval.neu_equiv n1 n2 (Set.empty, 0) (Map.empty, Map.empty)
 -- value forms  
 subType (PrimVal p1) (PrimVal p2) = p1 == p2
 subType _ _ = False

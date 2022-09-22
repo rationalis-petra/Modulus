@@ -13,7 +13,6 @@ import Data (PrimType(..),
              Neutral,
              Neutral'(..),
              var_counter,
-             Effect(..),
              EvalM)
 import Syntax.TIntermediate
 
@@ -21,7 +20,7 @@ import qualified Interpret.Environment as Env
 import qualified Syntax.Conversions as Conv 
 import Interpret.EvalM
 import qualified Interpret.Eval as Eval
-import Syntax.Utils (typeVal, free, getField)
+import Syntax.Utils (typeVal, free, getField, mkVar)
 
 import qualified Typecheck.Context as Ctx
 import Typecheck.Constrain
@@ -40,7 +39,8 @@ typeCheckTop (TDefinition def) ctx =
   case def of 
     TSingleDef name expr Nothing -> do
       recTy <- freshVar
-      (expr', ty, vsubst) <- typeCheck expr (Ctx.insert name (Neu $ NeuVar name) recTy ctx)
+      (expr', ty, vsubst) <- typeCheck expr
+          (Ctx.insert name (Neu (NeuVar name recTy) recTy) recTy ctx)
       (_, app, csubst) <- constrain recTy ty ctx
       let fnlSubst = rmSubst (show recTy) csubst
       ty' <- tyApp ty app
@@ -89,8 +89,9 @@ typeCheckTop (TDefinition def) ctx =
         updateFromParams [] ctx = pure (ctx, [])
         updateFromParams ((sym, TIntermediate' ty) : args) ctx = do
           ty' <- evalTIntermediate ty ctx
-          (ctx', args') <- updateFromParams args (Ctx.insert sym (Neu $ NeuVar sym) ty' ctx)
-          pure (Ctx.insert sym (Neu $ NeuVar sym) ty' ctx', ((sym, ty') : args'))
+          (ctx', args') <- updateFromParams args
+                             (Ctx.insert sym (Neu (NeuVar sym ty') ty') ty' ctx)
+          pure (Ctx.insert sym (Neu (NeuVar sym ty') ty') ty' ctx', ((sym, ty') : args'))
 
         readIndex :: Normal -> EvalM [(String, Normal)]
         readIndex (NormUniv n) = pure []
@@ -107,17 +108,17 @@ typeCheckTop (TDefinition def) ctx =
         -- return a constructor for the type, and the type of the constructor
         mkIndexTy :: [(String, Normal)] -> [(String, Normal)] -> Normal -> Int -> EvalM (Normal, Normal)
         mkIndexTy params index ty id = mkIndexTy' params index (ty, id) []
-        mkIndexTy' :: [(String, Normal)] -> [(String, Normal)] -> (Normal, Int) -> [String] -> EvalM (Normal, Normal) 
+        mkIndexTy' :: [(String, Normal)] -> [(String, Normal)] -> (Normal, Int) -> [(String, Normal)] -> EvalM (Normal, Normal) 
         mkIndexTy' [] [] (ty, id) args = do 
-          pure (NormIType sym id (reverse (map (Neu . NeuVar) args)), ty)
+          pure (NormIType sym id (reverse (map (\(var, ty) -> Neu (NeuVar var ty) ty) args)), ty)
 
         mkIndexTy' ((sym, ty) : params) index body args = do
-          (ctor, ctorty) <- mkIndexTy' params index body (sym : args)
+          (ctor, ctorty) <- mkIndexTy' params index body ((sym, ty) : args)
           let fty = NormProd sym ty ctorty
           pure $ (NormAbs sym ctor fty, fty)
 
         mkIndexTy' [] ((sym, ty) : ids) index args = do
-          (ctor, ctorty) <- mkIndexTy' [] ids index (sym : args)
+          (ctor, ctorty) <- mkIndexTy' [] ids index ((sym, ty) : args)
           pure $ (NormAbs sym ctor ctorty, ctorty)
           
 
@@ -198,10 +199,10 @@ typeCheck expr ctx = case expr of
                            unbnd,
                            rmSubst var subst,
                            retTy)
-          Nothing -> pure ((True, TValue (Neu $ NeuVar var)) : args, ((NormUniv 0, var):unbnd),
+          Nothing -> pure ((True, TValue (mkVar var)) : args, ((NormUniv 0, var):unbnd),
                            rmSubst var subst, rettype)
       deriveFn (NormArr t1 t2) tr r = do
-        (app, _, subst) <- constrain tr t1 ctx
+        (app, lapp, subst) <- constrain tr t1 ctx
         pure ([(False, mkApp r app)], [], subst, t2)
       deriveFn t tr r = do
         var' <- freshVar 
@@ -289,7 +290,7 @@ typeCheck expr ctx = case expr of
              -- TOOD: come up with a better solution to new names...
              InfArg nme id -> case findStrSubst ("#" <> show id) subst of
                Just ty -> (((BoundArg nme ty, isImpl) : args'), rmSubst ("#" <> show id) subst', impl)
-               Nothing -> ((BoundArg nme (Neu (NeuVar ("#" <> show id))), isImpl) : args',
+               Nothing -> ((BoundArg nme (mkVar ("#" <> show id)), isImpl) : args',
                            subst',
                            ("#" <> show id) : impl)
 
@@ -297,7 +298,7 @@ typeCheck expr ctx = case expr of
     case arg of  
       BoundArg var (TIntermediate' ty) -> do
         ty' <- evalTIntermediate ty ctx
-        (body', bodyTy, subst) <- typeCheck body (Ctx.insert var (Neu $ NeuVar var) ty' ctx)
+        (body', bodyTy, subst) <- typeCheck body (Ctx.insert var (Neu (NeuVar var ty') ty') ty' ctx)
         pure (TProd (BoundArg var ty', bl) body', NormUniv 0, subst)
       TWildCard (TIntermediate' ty) -> do
         ty' <- evalTIntermediate ty ctx
@@ -314,7 +315,7 @@ typeCheck expr ctx = case expr of
       t -> throwError ("expected signature, got " <> show t)
          
        
-  (TIF cond e1 e2) -> do 
+  (TIF cond e1 e2 Nothing) -> do 
     (cond', tcond, substcond) <- typeCheck cond ctx
     (e1', te1, subste1) <- typeCheck e1 ctx
     (e2', te2, subste2) <- typeCheck e2 ctx
@@ -330,7 +331,7 @@ typeCheck expr ctx = case expr of
     s3 <- compose s2 substcnd'
     s4 <- compose s3 substterms
     fnlTy <- doSubst s4 te1
-    pure (TIF cond'' e1'' e2'', fnlTy, s4)
+    pure (TIF cond'' e1'' e2'' (Just fnlTy), fnlTy, s4)
 
   (TStructure defs Nothing) -> do  
     let foldDefs :: [TDefinition TIntermediate'] -> Ctx.Context
@@ -339,7 +340,7 @@ typeCheck expr ctx = case expr of
         foldDefs (def : defs) ctx = do
           (def', deflist, subst) <- typeCheckDef def ctx
           (defs', fields, subst') <- foldDefs defs (foldr (\(var, val) ctx ->
-                                                             Ctx.insert var (Neu $ NeuVar var) val ctx)
+                                                             Ctx.insert var (Neu (NeuVar var val) val) val ctx)
                                                      ctx deflist)
           fnlSubst <- compose subst subst'
           pure (def' : defs',  deflist <> fields, fnlSubst)
@@ -355,7 +356,7 @@ typeCheck expr ctx = case expr of
         foldDefs (def : defs) ctx = do
           (def', deflist, subst) <- typeCheckDef def ctx
           (defs', fields, subst') <- foldDefs defs (foldr (\(var, val) ctx ->
-                                                             Ctx.insert var (Neu $ NeuVar var) val ctx)
+                                                             Ctx.insert var (Neu (NeuVar var val) val) val ctx)
                                                      ctx deflist)
           fnlSubst <- compose subst subst'
           pure (def' : defs',  deflist <> fields, fnlSubst)
@@ -364,14 +365,14 @@ typeCheck expr ctx = case expr of
 
     pure (TSignature defs', NormUniv 0, subst)
 
-  (TMatch term patterns) -> do
+  (TMatch term patterns Nothing) -> do
     (term', ty, subst) <- typeCheck term ctx
     retTy <- freshVar 
     (patterns', subst') <- checkPatterns patterns ty retTy
     outSubst <- compose subst subst'
     retTy' <- doSubst outSubst retTy
     let fnlSubst = rmSubst (show retTy) outSubst
-    pure $ (TMatch term' patterns', retTy', fnlSubst)
+    pure $ (TMatch term' patterns' (Just retTy'), retTy', fnlSubst)
     where
       -- Check Patterns: take a list of patterns as input, along with the
       -- matching type and return type, to be unified with
@@ -384,7 +385,7 @@ typeCheck expr ctx = case expr of
         (p', matchty', ctxUpd) <- getPatternType p
         
   
-        let ctx' = foldr (\(sym, ty) ctx -> Ctx.insert sym (Neu $ NeuVar sym) ty ctx) ctx ctxUpd
+        let ctx' = foldr (\(sym, ty) ctx -> Ctx.insert sym (Neu (NeuVar sym ty) ty) ty ctx) ctx ctxUpd
         (e', eret, esubst) <- typeCheck e ctx'
 
         -- TODO: ensure that the constrains are right way round...
@@ -405,9 +406,9 @@ typeCheck expr ctx = case expr of
       getPatternType TWildPat = do
         var <- freshVar
         pure $ (TWildPat, var, [])
-      getPatternType (TBindPat sym) = do
+      getPatternType (TBindPat sym Nothing) = do
         ty <- freshVar
-        pure $ (TBindPat sym, ty, [(sym, ty)])
+        pure $ (TBindPat sym (Just ty), ty, [(sym, ty)])
       getPatternType (TBuiltinMatch fnc strip (TIntermediate' ty) pats) = do
         lst <- mapM getPatternType pats
         let (subpatterns', norms, vars) =
@@ -451,11 +452,11 @@ typeCheck expr ctx = case expr of
       case arg of
         BoundArg str (TIntermediate' ty) -> do
           ty' <- evalTIntermediate ty ctx
-          (ctx', args') <- updateFromArgs (Ctx.insert str (Neu $ NeuVar str) ty' ctx) args
-          pure (Ctx.insert str (Neu $ NeuVar str) ty' ctx', ((BoundArg str ty', bl) : args'))
+          (ctx', args') <- updateFromArgs (Ctx.insert str (Neu (NeuVar str ty') ty') ty' ctx) args
+          pure (Ctx.insert str (Neu (NeuVar str ty') ty') ty' ctx', ((BoundArg str ty', bl) : args'))
         InfArg str id -> do
           (ctx', args') <- updateFromArgs ctx args
-          pure (Ctx.insert str (Neu $ NeuVar str) (Neu $ NeuVar ("#" <> show id))  ctx',
+          pure (Ctx.insert str (Neu (NeuVar str (mkVar ("#" <> show id))) (mkVar ("#" <> show id))) (mkVar ("#" <> show id))  ctx',
                                (InfArg str id, bl) : args')
 
 
@@ -468,7 +469,7 @@ typeCheckDef (TSingleDef name body ty) ctx = do
   bnd <- case ty of 
     Nothing -> freshVar
     Just (TIntermediate' ty) -> evalTIntermediate ty ctx
-  (body', ty', subst) <- typeCheck body (Ctx.insert name (Neu $ NeuVar name) bnd ctx)
+  (body', ty', subst) <- typeCheck body (Ctx.insert name (Neu (NeuVar name bnd) bnd) bnd ctx)
   pure (TSingleDef name body' (Just ty'), [(name, ty')], subst)
 
 typeCheckDef (TInductDef sym id params (TIntermediate' ty) alts) ctx = do
@@ -506,8 +507,8 @@ typeCheckDef (TInductDef sym id params (TIntermediate' ty) alts) ctx = do
     updateFromParams [] ctx = pure (ctx, [])
     updateFromParams ((sym, TIntermediate' ty) : args) ctx = do
       ty' <- evalTIntermediate ty ctx
-      (ctx', args') <- updateFromParams args (Ctx.insert sym (Neu $ NeuVar sym) ty' ctx)
-      pure (Ctx.insert sym (Neu $ NeuVar sym) ty' ctx', ((sym, ty') : args'))
+      (ctx', args') <- updateFromParams args (Ctx.insert sym (Neu (NeuVar sym ty') ty') ty' ctx)
+      pure (Ctx.insert sym (Neu (NeuVar sym ty') ty') ty' ctx', ((sym, ty') : args'))
 
     readIndex :: Normal -> EvalM [(String, Normal)]
     readIndex (NormUniv n) = pure []
@@ -524,17 +525,17 @@ typeCheckDef (TInductDef sym id params (TIntermediate' ty) alts) ctx = do
     -- return a constructor for the type, and the type of the constructor
     mkIndexTy :: [(String, Normal)] -> [(String, Normal)] -> Normal -> Int -> EvalM (Normal, Normal)
     mkIndexTy params index ty id = mkIndexTy' params index (ty, id) []
-    mkIndexTy' :: [(String, Normal)] -> [(String, Normal)] -> (Normal, Int) -> [String] -> EvalM (Normal, Normal) 
+    mkIndexTy' :: [(String, Normal)] -> [(String, Normal)] -> (Normal, Int) -> [(String, Normal)] -> EvalM (Normal, Normal) 
     mkIndexTy' [] [] (ty, id) args = do 
-      pure (NormIType sym id (reverse (map (Neu . NeuVar) args)), ty)
+      pure (NormIType sym id (reverse (map (\(sym, ty) -> (Neu (NeuVar sym ty) ty)) args)), ty)
 
     mkIndexTy' ((sym, ty) : params) index body args = do
-      (ctor, ctorty) <- mkIndexTy' params index body (sym : args)
+      (ctor, ctorty) <- mkIndexTy' params index body ((sym, ty) : args)
       let fty = NormProd sym ty ctorty
       pure $ (NormAbs sym ctor fty, fty)
 
     mkIndexTy' [] ((sym, ty) : ids) index args = do
-      (ctor, ctorty) <- mkIndexTy' [] ids index (sym : args)
+      (ctor, ctorty) <- mkIndexTy' [] ids index ((sym, ty) : args)
       pure $ (NormAbs sym ctor ctorty, ctorty)
   
 
@@ -571,7 +572,7 @@ freshVar :: EvalM Normal
 freshVar = do
   id <- use var_counter 
   var_counter += 1
-  pure (Neu $ NeuVar ("#" <> show id))
+  pure (Neu (NeuVar ("#" <> show id) (NormUniv 0)) (NormUniv 0))
 
 
 evalTIntermediate :: TIntermediate TIntermediate' -> Ctx.Context -> EvalM Normal  

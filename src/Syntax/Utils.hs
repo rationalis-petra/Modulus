@@ -79,7 +79,6 @@ typeVal (Builtin _ ty) = pure ty
 typeVal (NormAbs _ _ ty) = pure ty
 typeVal (NormSct m ty) = pure ty
 
--- typeVal (NormIType _ _ _ ty) = pure ty
 typeVal (NormIVal _ _ _ _ _ ty) = pure ty
 typeVal (CollTy _) = pure $ NormUniv 0
 typeVal (CollVal val) = case val of
@@ -87,6 +86,7 @@ typeVal (CollVal val) = case val of
   ListVal _ ty -> pure (CollTy (ListTy ty))
   ArrayVal _ ty dims -> pure (CollTy (ArrayTy ty dims))
 
+typeVal (Neu _ ty) = pure ty
 typeVal e = throwError $ "untypable value: " <> show e
 
 
@@ -99,6 +99,7 @@ class Expression a where
   free :: a -> Set.Set String
   
 
+-- TODO: should type annotations be included in free???
 instance Expression (Normal' m) where 
   free (Builtin _ _) = Set.empty
   free (PrimType  _) = Set.empty
@@ -109,9 +110,10 @@ instance Expression (Normal' m) where
     ArrayTy a _ -> free a
     IOMonadTy a -> free a
   free (CollVal val) = case val of 
+    ListVal lst ty -> foldr (Set.union . free) (free ty) lst
     IOAction _ ty -> free ty
 
-  free (Neu neutral) = free neutral
+  free (Neu neutral ty) = Set.union (free neutral) (free ty)
   free (NormProd var a b) =
     Set.union (free a) (Set.delete var (free b))
   free (NormImplProd var a b) =
@@ -120,14 +122,17 @@ instance Expression (Normal' m) where
     Set.union (free a) (free b)
   free (NormIVal _ _ _ _ norms ty) = foldr (Set.union . free) Set.empty norms
   free (NormIType _ _ norms) = foldr (Set.union . free) Set.empty norms
+  free (NormSig fields) = foldl (\set (field, val) ->
+                                   Set.delete field (Set.union (free val) set)) Set.empty fields
 
 
 instance Expression (Neutral' m) where
-  free (NeuVar var) = Set.singleton var
+  free (NeuVar var ty) = Set.insert var (free ty)
   free (NeuApp l r) = (free l) <> (free r)
   free (NeuDot sig field) = (free sig)
-  free (NeuIf cond e1 e2) = (free cond) <> (free e1) <> (free e2)
-  free (NeuMatch term alts) = free term <> (foldr (Set.union . altfree) Set.empty alts)
+  free (NeuIf cond e1 e2 ty) = free cond <> free e1 <> free e2 <> free ty
+  free (NeuMatch term alts ty) =
+      free term <> (foldr (Set.union . altfree) Set.empty alts) <> free ty
     where
       altfree (p, e) = foldr (Set.delete) (patVars p) (free e)
     
@@ -136,6 +141,14 @@ instance Expression (Neutral' m) where
 
 patVars :: Pattern -> Set.Set String
 patVars WildCard = Set.empty
-patVars (VarBind sym) = Set.singleton sym
+patVars (VarBind sym _) = Set.singleton sym
 patVars (MatchInduct id1 id2 subpats) = foldr Set.union Set.empty (map patVars subpats)
 
+mkVar s = Neu (NeuVar s (NormUniv 0)) (NormUniv 0)
+
+freshen :: Set.Set String -> String -> String
+freshen set str = 
+  if Set.member str set then
+    freshen set ("*" <> str) 
+  else
+    str

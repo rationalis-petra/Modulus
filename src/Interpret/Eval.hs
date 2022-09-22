@@ -12,7 +12,8 @@ module Interpret.Eval (Normal,
                        liftFun2,
                        liftFun3,
                        liftFun4,
-                       liftFun5) where
+                       liftFun5,
+                       liftFun6) where
 
 import Prelude hiding (lookup)
 
@@ -81,23 +82,29 @@ eval (CArr l r) = do
   
 eval (CProd var a b) = do
   a' <- eval a
-  b' <- localF (Env.insert var (Neu (NeuVar var))) (eval b)
+  let ty = (NormUniv 0)
+  b' <- localF (Env.insert var (Neu (NeuVar var ty) ty)) (eval b)
   pure $ NormProd var a' b'
 
 eval (CImplProd var a b) = do
   a' <- eval a
-  b' <- localF (Env.insert var (Neu (NeuVar var))) (eval b)
+  let ty = (NormUniv 0)
+  b' <- localF (Env.insert var (Neu (NeuVar var ty) ty)) (eval b)
   pure $ NormImplProd var a' b'
 
 eval (CAbs var body ty) = do   
-  body' <- localF (Env.insert var (Neu (NeuVar var))) (eval body)
+  hd <- tyHead ty
+  body' <- localF (Env.insert var (Neu (NeuVar var hd) hd)) (eval body)
   pure $ NormAbs var body' ty
 
 eval (CApp l r) = do
   l' <- eval l
   r' <- eval r
   case l' of 
-    Neu neu -> pure $ Neu (NeuApp neu r')
+    Neu neu ty -> do
+      tr <- liftExcept (typeVal r')
+      ty' <- tyApp ty tr
+      pure $ Neu (NeuApp neu r') ty'
     NormAbs var body ty -> normSubst (r', var) body
     Builtin fn ty -> fn r'
     NormIVal name tyid altid strip params ty -> do
@@ -139,28 +146,29 @@ eval (CSig defs) = do
         SingleDef var core ty -> do
           val <- eval core
   -- TODO: is this really the solution? perhaps. 
-          defs' <- localF (Env.insert var (Neu $ NeuVar var)) (foldDefs defs)
+          defs' <- localF (Env.insert var (Neu (NeuVar var ty) ty)) (foldDefs defs)
           pure ((var, val) : defs')
         _ -> throwError ("eval foldDefs not implemented for def: " <> show def)
 
-eval (CDot ty field) = do
-  ty' <- eval ty
-  case ty' of 
-    Neu neu ->
-      pure $ Neu (NeuDot neu field)
+eval (CDot term field) = do
+  val <- eval term
+  case val of
+    Neu neu ty -> do
+      ty <- tyField field ty
+      pure $ Neu (NeuDot neu field) ty
     NormSig fields -> case getField field fields of
       Just val -> pure val
       Nothing -> throwError ("can't find field" <> field)
-  -- TODO: restrict by field
+    -- TODO: restrict by field
     NormSct fields ty -> case getField field fields of 
       Just val -> pure val
       Nothing -> throwError ("can't find field" <> field)
     non -> throwError ("value is not record-like" <> show non)
 
-eval (CMatch term alts) = do
+eval (CMatch term alts ty) = do
   term' <- eval term
   case term' of
-    Neu neu -> neuMatch neu alts
+    Neu neu _ -> neuMatch neu alts
     _ -> match term' alts
   where 
     match t [] = throwError ("couldn't match value: " <> show t)
@@ -173,9 +181,12 @@ eval (CMatch term alts) = do
           local env' (eval expr)
         Nothing -> match t as
 
+    -- Take a value and a pattern. If the value matches the pattern, return a
+    --   list of what variables to bind 
+    --   otherwise, return none
     getBinds :: Normal -> Pattern -> EvalM (Maybe [(String, Normal)])
     getBinds t WildCard = pure $ Just []
-    getBinds t (VarBind sym) = pure $ Just [(sym, t)]
+    getBinds t (VarBind sym _) = pure $ Just [(sym, t)]
     getBinds (NormIVal _ id1 id2 strip params _) (MatchInduct id1' id2' patterns) = do
       if id1 == id1' && id2 == id2' then do
         nestedBinds <- mapM (uncurry getBinds) (zip (drop strip params) patterns)
@@ -187,27 +198,27 @@ eval (CMatch term alts) = do
     getBinds n (InbuiltMatch fun) = fun n getBinds
     getBinds _ _= pure Nothing
 
+    -- construct a neutral matching term.
     neuMatch :: Neutral -> [(Pattern, Core)] -> EvalM Normal
     neuMatch n ps = do
       ps' <- mapM (\(pat, core) -> do
         env <- ask
-        let env' = Set.fold (\sym env -> Env.insert sym (Neu $ NeuVar sym) env) env (patVars pat)
+        let env' = getPatNeu pat env
         norm <- local env' (eval core)
         pure (pat, norm)) ps
-      pure $ Neu $ NeuMatch n ps'
+      pure $ Neu (NeuMatch n ps' ty) ty
 
     getPatNeu WildCard env = env
-    getPatNeu (VarBind sym) env = Env.insert sym (Neu $ NeuVar sym) env
-    getPatNeu (MatchInduct id1 id2 pats) env =
-      foldr getPatNeu env pats
+    getPatNeu (VarBind sym ty) env = Env.insert sym (Neu (NeuVar sym ty) ty) env
+    getPatNeu (MatchInduct id1 id2 pats) env = foldr getPatNeu env pats
 
-eval (CIf cond e1 e2) = do 
+eval (CIf cond e1 e2 ty) = do 
   cond' <- eval cond
   case cond' of 
-    Neu n -> do
+    Neu n _ -> do
       e1' <- eval e1
       e2' <- eval e2
-      pure $ Neu $ NeuIf n e1' e2'
+      pure $ Neu (NeuIf n e1' e2' ty) ty
     PrimVal (Bool True) -> eval e1
     PrimVal (Bool False) -> eval e2
     _ -> throwError "eval expects condition to be bool"
@@ -216,7 +227,7 @@ eval other = throwError ("eval not implemented for" <> show other)
 
 normSubst :: (Normal, String) -> Normal -> EvalM Normal
 normSubst (val, var) ty = case ty of 
-  Neu neu -> neuSubst (val, var) neu
+  Neu neu ty -> neuSubst (val, var) neu
   PrimType p -> pure $ PrimType p
   PrimVal p -> pure $ PrimVal p
   CollTy cty -> case cty of 
@@ -297,23 +308,27 @@ normSubst (val, var) ty = case ty of
   
 neuSubst :: (Normal, String) -> Neutral -> EvalM Normal
 neuSubst (val, var) neutral = case neutral of 
-  NeuVar var' ->
+  NeuVar var' ty ->
     if var == var' then
       pure val
     else 
-      pure $ Neu (NeuVar var')
+      pure $ Neu (NeuVar var' ty) ty
   NeuApp l r -> do
     l' <- neuSubst (val, var) l
     r' <- normSubst (val, var) r
     case l' of 
-      Neu n -> pure $ Neu (NeuApp n r')
+      Neu n ty -> do
+        ty' <- tyApp ty r'
+        pure $ Neu (NeuApp n r') ty'
       Builtin fn ty -> fn r'
       v -> throwError ("bad app:" <> show v)
 
   NeuDot n field -> do
     mdle <- neuSubst (val, var) n
     case mdle of 
-      Neu n -> pure $ Neu (NeuDot n field)
+      Neu n ty -> do
+        ty' <- tyField field ty
+        pure $ Neu (NeuDot n field) ty'
   -- TODO: restrict by ty
       NormSct fields ty ->
         case (getField field fields) of
@@ -326,16 +341,16 @@ neuSubst (val, var) neutral = case neutral of
       v -> throwError ("bad field access: " <> show v)
 
   -- TODO: by "escaping" to the eval, we no longer have that Neu has no value -- bad?
-  NeuMatch term pats -> do
+  NeuMatch term pats ty -> do
     term' <- neuSubst (val, var) term
     case term' of
-      Neu n -> do
+      Neu n _ -> do
         pats' <- mapM (\(p, e) -> do
                           if Set.member var (patVars p) then
                             pure (p, e)
                             else
                             ((,) p <$> normSubst (val, var) e)) pats
-        pure $ Neu (NeuMatch n pats')
+        pure $ Neu (NeuMatch n pats' ty) ty
       term -> match term pats
 
      where
@@ -353,7 +368,7 @@ neuSubst (val, var) neutral = case neutral of
     
         getBinds :: Normal -> Pattern -> EvalM (Maybe [(String, Normal)])
         getBinds t WildCard = pure $ Just []
-        getBinds t (VarBind sym) = pure $ Just [(sym, t)]
+        getBinds t (VarBind sym _) = pure $ Just [(sym, t)]
         getBinds (NormIVal _ id1 id2 strip params _) (MatchInduct id1' id2' patterns) = do
           if id1 == id1' && id2 == id2' then do
             nestedBinds <- mapM (uncurry getBinds) (zip (drop strip params) patterns)
@@ -364,13 +379,13 @@ neuSubst (val, var) neutral = case neutral of
           else pure Nothing
         getBinds _ _= pure Nothing
 
-  NeuIf cond e1 e2 -> do
+  NeuIf cond e1 e2 ty -> do
    cond' <- neuSubst (val, var) cond
    case cond' of 
-     Neu n -> do
+     Neu n _ -> do
        e1' <- normSubst (val, var) e1
        e2' <- normSubst (val, var) e2
-       pure $ Neu $ NeuIf n e1' e2'
+       pure $ Neu (NeuIf n e1' e2' ty) ty
      PrimVal (Bool True) -> normSubst (val, var) e1
      PrimVal (Bool False) -> normSubst (val, var) e2
      _ -> throwError ("bad condition in if: expected bool, got: " <> show cond')
@@ -379,12 +394,25 @@ neuSubst (val, var) neutral = case neutral of
 
   NeuBuiltinApp fn neu ty -> do
     arg <- neuSubst (val, var) neu
-    case arg of 
-      Neu neu -> pure $ Neu $ NeuBuiltinApp fn neu ty
-      _ -> fn arg
+    (fn arg)
 
   -- NeuDot sig field -> do
   --   sig' <- neuSubst 
+tyHead :: Normal -> EvalM Normal
+tyHead (NormArr l r) = pure l
+tyHead (NormProd sym a b) = pure a
+tyHead (NormImplProd sym a b) = pure b
+tyHead hd = throwError ("can't get type head of " <> show hd)
+
+tyField :: String -> Normal -> EvalM Normal  
+tyField field (NormSig fields) =
+  case getField field fields of
+    Just x -> pure x
+    Nothing -> throwError ("can't find field: " <> field)
+tyField field (NormSct fields _) =
+  case getField field fields of
+    Just x -> pure x
+    Nothing -> throwError ("can't find field: " <> field)
 
 tyApp :: Normal -> Normal -> EvalM Normal
 tyApp (NormArr l r) _ = pure r 
@@ -400,7 +428,7 @@ instance Eq (Normal' m) where
 -- TODO: add Î· reductions to the equality check
 norm_equiv :: (Normal' m) -> (Normal' m) -> Generator -> (Map.Map String String, Map.Map String String) -> Bool 
 norm_equiv (NormUniv n1) (NormUniv n2) gen rename = n1 == n2
-norm_equiv (Neu n1) (Neu n2) gen rename = neu_equiv n1 n2 gen rename
+norm_equiv (Neu n1 _) (Neu n2 _) gen rename = neu_equiv n1 n2 gen rename
 norm_equiv (PrimVal p1) (PrimVal p2) _ _ = p1 == p2
 norm_equiv (PrimType p1) (PrimType p2) _ _ = p1 == p2
 
@@ -431,7 +459,7 @@ norm_equiv (NormArr  a b) (NormProd var' a' b') gen rename =
   
 neu_equiv :: (Neutral' m) -> (Neutral' m) -> Generator -> (Map.Map String String, Map.Map String String)
         -> Bool 
-neu_equiv (NeuVar v1) (NeuVar v2) used (lrename, rrename) =
+neu_equiv (NeuVar v1 _) (NeuVar v2 _) used (lrename, rrename) =
   case (Map.lookup v1 lrename, Map.lookup v2 rrename) of
     (Just v1', Just v2') -> v1' == v2'
     (Nothing, Nothing) -> v1 == v2
@@ -534,7 +562,9 @@ evalToIO inner_mnd ctx state =
 
 
 interceptNeutral :: (Normal -> EvalM Normal) -> Normal -> Normal -> EvalM Normal
-interceptNeutral f ty (Neu neutral) = pure $ Neu (NeuBuiltinApp (interceptNeutral f ty) neutral ty)
+interceptNeutral f ty (Neu neutral nty) = do
+  ty' <- tyApp ty nty
+  pure $ Neu (NeuBuiltinApp (interceptNeutral f ty) neutral ty') ty'
 interceptNeutral f ty val = f val
 
 
@@ -545,7 +575,9 @@ liftFun f ty = Builtin (interceptNeutral f ty) ty
 liftFun2 :: (Normal -> Normal -> EvalM Normal) -> Normal -> Normal
 liftFun2 f ty =
   let f' val = case val of
-                (Neu neu) -> pure $ Neu $ NeuBuiltinApp f' neu ty
+                (Neu neu nty) -> do
+                  ty' <- tyApp ty nty
+                  pure $ Neu (NeuBuiltinApp f' neu ty') ty'
                 _ ->
                   case ty of
                     (NormArr _ r) -> pure $ liftFun (f val) r
@@ -556,7 +588,9 @@ liftFun2 f ty =
 liftFun3 :: (Normal -> Normal -> Normal -> EvalM Normal) -> Normal -> Normal 
 liftFun3 f ty =
   let f' val = case val of
-                (Neu neu) -> pure $ Neu $ NeuBuiltinApp f' neu ty
+                (Neu neu nty) -> do
+                  ty' <- tyApp ty nty
+                  pure $ Neu (NeuBuiltinApp f' neu ty') ty'
                 _ -> case ty of
                   (NormArr _ r) -> pure $ liftFun2 (f val) r
                   (NormProd var _ body) -> pure $ liftFun2 (f val) body
@@ -566,22 +600,35 @@ liftFun3 f ty =
 liftFun4 :: (Normal -> Normal -> Normal -> Normal -> EvalM Normal) -> Normal -> Normal 
 liftFun4 f ty =
   let f' val = case val of
-                (Neu neu) -> pure $ Neu $ NeuBuiltinApp f' neu ty
+                (Neu neu nty) -> do
+                  ty' <- tyApp ty nty
+                  pure $ Neu (NeuBuiltinApp f' neu ty') ty'
                 _ -> case ty of
                   (NormArr _ r) -> pure $ liftFun3 (f val) r
                   (NormProd var _ body) -> pure $ liftFun3 (f val) body
                   (NormImplProd var _ body) -> pure $ liftFun3 (f val) body
   in Builtin f' ty
 
-
 liftFun5 :: (Normal -> Normal -> Normal -> Normal -> Normal -> EvalM Normal) -> Normal -> Normal 
 liftFun5 f ty =
   let f' val = case val of
-                (Neu neu) -> pure $ Neu $ NeuBuiltinApp f' neu ty
+                (Neu neu nty) -> do
+                  ty' <- tyApp ty nty
+                  pure $ Neu (NeuBuiltinApp f' neu ty') ty'
                 _ -> case ty of
                   (NormArr _ r) -> pure $ liftFun4 (f val) r
                   (NormProd var _ body) -> pure $ liftFun4 (f val) body
                   (NormImplProd var _ body) -> pure $ liftFun4 (f val) body
     in Builtin f' ty
 
-
+liftFun6 :: (Normal -> Normal -> Normal -> Normal -> Normal -> Normal -> EvalM Normal) -> Normal -> Normal 
+liftFun6 f ty =
+  let f' val = case val of
+                (Neu neu nty) -> do
+                  ty' <- tyApp ty nty
+                  pure $ Neu (NeuBuiltinApp f' neu ty') ty'
+                _ -> case ty of
+                  (NormArr _ r) -> pure $ liftFun5 (f val) r
+                  (NormProd var _ body) -> pure $ liftFun5 (f val) body
+                  (NormImplProd var _ body) -> pure $ liftFun5 (f val) body
+    in Builtin f' ty

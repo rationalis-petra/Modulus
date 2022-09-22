@@ -100,49 +100,6 @@ sig bindlist = do
   mldebdy <- toDefs bindlist 
   pure $ Cons (Atom (Special MkSig) : mldebdy)
 mlsSig = BuiltinMac sig
-
--- mlsNode = CustomCtor 1 [] nodeCtor nodeDtor Undef
---   where
---     nodeCtor :: [Normal] -> EvalM Normal
---     nodeCtor [e] = 
---       case e of
---         Coll (List lst) -> to_ast lst >>= (pure . AST . Cons)
---         (CustomCtor 0 [] c _ _) -> do
---           out <- c [] -- (\x -> Just [x]) <$> (c [])
---           case out of 
---             Coll (List lst) -> to_ast lst >>= (pure . AST . Cons)
---             _ -> lift $ throwError "cannot provide non-list to Node: "
---         x -> lift $ throwError ("cannot provide non-list Node: " <> show x)
---     nodeCtor _ = lift $ throwError "Node ctor requires exactly 1 args"
-
---     to_ast :: [Normal] -> EvalM [AST]
---     to_ast [] = pure []
---     to_ast (AST x : xs) = do
---       tl <- to_ast xs
---       pure (x : tl)
---     to_ast _ = lift $ throwError "must provide an AST list to Node"
-
---     nodeDtor :: Normal -> EvalM (Maybe [Normal])
---     nodeDtor val = 
---       case val of
---         AST (Cons lst) -> pure $ Just [(Coll $ List (map AST lst))]
---         _ -> pure Nothing 
-
--- mlsAtom = CustomCtor 1 [] atomCtor atomDtor Undef
---   where
---     atomCtor :: [Normal] -> EvalM Normal
---     atomCtor [x] = pure $ AST (Atom x)
---     atomCtor _ = lift $ throwError "too many args to nil not have a ctor"
-
---     atomDtor :: Normal -> EvalM (Maybe [Normal])
---     atomDtor val = 
---       case val of
---         AST (Atom x) -> pure $ Just [x]
---         _ -> pure Nothing 
-
--- mlsMacroExpand = liftFun macroExpand Undef Undef
---   where
---     macroExpand (AST ast) = 
       
   
 -- TYPES 
@@ -157,12 +114,12 @@ mlsMkTupleType = liftFun2 mkTupleType (NormArr (NormUniv 0) (NormArr (NormUniv 0
 mkTuple :: Normal -> Normal -> Normal -> Normal -> EvalM Normal
 mkTuple t1 t2 e1 e2 = 
   pure $ NormSct [("_1", e1), ("_2", e2)] (NormSig [("_1", t1), ("_2", t2)])
-mlsMkTuple = liftFun4 mkTuple (NormImplProd "a" (NormUniv 0)
-                                 (NormImplProd "b" (NormUniv 0)
-                                  (NormArr (Neu (NeuVar "a"))
-                                   (NormArr (Neu (NeuVar "b"))
-                                    (NormSig [("_1", Neu (NeuVar "a")), ("_2", Neu (NeuVar "b"))])))))
-             
+mlsMkTuple = liftFun4 mkTuple (NormImplProd "A" (NormUniv 0)
+                                 (NormImplProd "B" (NormUniv 0)
+                                  (NormArr (mkVar "A")
+                                   (NormArr (mkVar "B")
+                                    (NormSig [("_1", mkVar "A"), ("_2", mkVar "B")])))))
+
   
 -- CONSTRAINTS
 -- TODO: update the ty in NormSct
@@ -217,11 +174,7 @@ coreStructure = [
   ("do",          Special Do),
   ("quote",       Special MkQuote),
   ("λ",           Special Lambda),
-  ("lambda",      Special Lambda),
   ("let",         Special Let),
-  ("handle",      Special Handle),
-  ("handler",     Special MkHandler),
-  ("handle-with", Special HandleWith),
   ("structure",   Special MkStructure),
   ("signature",   Special MkSig),
   ("struct",      mlsStruct),
@@ -237,7 +190,6 @@ coreStructure = [
   ("defstructure", mlsDefStructure),
   ("defstruct",    mlsDefStruct),
   ("defsignature", mlsDefSig),
-  ("effect",       Special MkEffect),
   ("induct",       Special Induct),
   ("coinduct",     Special Coinduct)
   -- ("signature", (mlsDefSignature, Undef))

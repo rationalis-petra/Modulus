@@ -2,7 +2,30 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 
-module Data where
+module Data (Definition(..),
+             Pattern(..),
+             Core(..),
+             Normal'(..),
+             Normal,
+             Neutral'(..),
+             Neutral,
+             ActionMonadT(..),
+             MaybeEffect(..),
+             EvalM,
+             Environment(..),
+             ProgState(..),
+             uid_counter,
+             var_counter,
+             AST(..),
+             PrimVal(..),
+             PrimType(..),
+             CollVal(..),
+             CollTy(..),
+             InbuiltCtor(..),
+             Special(..),
+             TopCore(..)
+
+            ) where
 
 import Data.Text (Text, pack, unpack)
 import Data.Vector (Vector)
@@ -10,10 +33,53 @@ import Control.Lens hiding (Context)
 import Control.Monad.State (StateT) 
 import Control.Monad.Except (ExceptT) 
 import Control.Monad.Reader (ReaderT) 
-  
+
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
+-- TODO: untangle core & Normalized values
+data Definition
+  = SingleDef String Core Normal
+  | InductDef String Int [(String, Normal)] Normal [(String, Int, Normal)] 
+  | CoinductDef String Int [(String, Normal)] Normal [(String, Int, Normal)] 
+  | OpenDef Core [(String, Normal)]
+  deriving Show
+
+data Pattern
+  = WildCard
+  | VarBind String Normal
+  | MatchInduct Int Int [Pattern]
+  | MatchModule [(String, Pattern)]
+  | InbuiltMatch (Normal -> (Normal -> Pattern -> EvalM (Maybe [(String, Normal)]))
+                         -> EvalM (Maybe [(String, Normal)]))
+
+data Core
+  = CNorm Normal                           -- Normalised value
+  | CVar String                            -- Variable
+  | CDot Core String                       -- Access a field from a struct/signature
+  | CArr Core Core                         -- Arrow Type (degenerate product)
+  | CProd String Core Core                 -- Dependent Product 
+  | CImplProd String Core Core             -- Dependent Product 
+  | CAbs String Core Normal                -- Function abstraction
+  | CApp Core Core                         -- Function application 
+  | CMAbs String Normal Core               -- Macro abstraction
+  | CLet [(String, Core)] Core Normal      -- Local binding
+  | CLetOpen [(Core, [(String, Core)])] Core Normal -- Local opens
+  | CMatch Core [(Pattern, Core)] Normal   -- Pattern-Match
+  | CCoMatch Core [(Pattern, Core)] Normal -- Pattern-Comatch (for coinductive types)
+  -- TODO: remove this via lazy functions!
+  | CIf Core Core Core Normal              -- Conditional 
+  | CSct [Definition] Normal               -- Structure Definition
+  | CSig [Definition]                      -- Signature Definition (similar to dependent sum)
+  deriving Show
+
+data TopCore = TopDef Definition | TopExpr Core
+
+instance Show Pattern where  
+  show WildCard = "_"
+  show (VarBind sym _) = sym
+  show (MatchInduct _ _ _) = "inductive match"
+  show (InbuiltMatch _) = "inbuilt match"
 -- type Context = Map.Map String Expr
 -- type TypeContext' = TypeContext ProgMonad
 
@@ -23,67 +89,11 @@ data Environment = Environment {
   globalModule  :: Normal
 }
 
-data Definition
-  = SingleDef String Core Normal
-  | InductDef String Int [(String, Normal)] Normal [(String, Int, Normal)] 
-  | CoinductDef String Int [(String, Normal)] Normal [(String, Int, Normal)] 
-  | EffectDef String [String] [(String, [Core])]
-  | OpenDef Core [(String, Normal)]
-  deriving Show
-
-data Pattern
-  = WildCard
-  | VarBind String 
-  | MatchInduct Int Int [Pattern]
-  | MatchModule [(String, Pattern)]
-  | InbuiltMatch (Normal -> (Normal -> Pattern -> EvalM (Maybe [(String, Normal)]))
-                         -> EvalM (Maybe [(String, Normal)]))
-
-data Core
-  = CNorm Normal                     -- Normalised value
-  | CVar String                      -- Variable
-  | CDot Core String                 -- Access a field from a struct/signature
-  | CArr Core Core                   -- Arrow Type (degenerate product)
-  | CProd String Core Core           -- Dependent Product 
-  | CImplProd String Core Core       -- Dependent Product 
-  | CAbs String Core Normal          -- Function abstraction
-  | CApp Core Core                   -- Function application 
-  | CMAbs String Normal Core         -- Macro abstraction
-  | CLet [(String, Core)] Core       -- Local binding
-  | CLetOpen [(Core, [(String, Core)])] Core  -- Local opens
-  | CMatch Core [(Pattern, Core)]    -- Pattern-Match
-  | CCoMatch Core [(Pattern, Core)]  -- Pattern-Comatch (for coinductive types)
-  -- TODO: remove this via lazy functions!
-  | CIf Core Core Core
-  -- | Hndl Core Core                       -- Handle with a handler
-  -- | MkHndler [(String, [String], Core)]  -- Create a new handler
-  | CSct [Definition] Normal         -- Structure Definition, with type
-  | CSig [Definition]                -- Signature Definition (similar to dependent sum)
-  deriving Show
-
-data TopCore = TopDef Definition | TopExpr Core
-
-instance Show Pattern where  
-  show WildCard = "_"
-  show (VarBind sym) = sym
-  show (MatchInduct _ _ _) = "inductive match"
-  show (InbuiltMatch _) = "inbuilt match"
-
-
--- Contexts:   
--- globCtx: global context -- used to store modules etc.
--- evalCtx: context used for evaluation -- this context can also capture values,
---          e.f. from let-bindings
--- typeCtx: context used for the coalescence/type-checking phase
-
-
 data Special
   -- Definition Forms 
   = Def | Induct | Coinduct | Open | LetOpen
   -- Control Flow 
   | If | MkMatch
-  -- Effects
-  | HandleAsync | Handle | HandleWith | MkEffect
   -- Value Constructors
   | Let | Lambda |  MkHandler | MkStructure 
   -- Type Constructors
@@ -91,7 +101,6 @@ data Special
   -- Syntax-Manipulation
   | MkQuote | Do  | Access | Mac |  Annotate
   deriving Show
-
 
 data PrimVal
   = Unit
@@ -103,9 +112,9 @@ data PrimVal
   deriving Eq
 
 
--- InternalPat :: allows defining a constructor match pair
---                used for defining values (list List) that we
---                want access to from haskell
+-- IndPat :: allows defining a constructor match pair
+--           used for defining values (list List) that we
+--           want access to from haskell
 data InbuiltCtor m
   --       name    pattern-match
   = IndPat String
@@ -132,7 +141,7 @@ type Neutral = Neutral' EvalM
   
 data Normal' m  
   -- Neutral term
-  = Neu (Neutral' m)
+  = Neu (Neutral' m) (Normal' m)
   -- Basic & Inbuilt Values and Types
   | PrimVal PrimVal 
   | PrimType PrimType
@@ -172,22 +181,17 @@ data Normal' m
   | Undef
 
 data Neutral' m
-  = NeuVar String 
+  = NeuVar String (Normal' m)
   -- an inbuilt function waiting on a netural term
   | NeuApp (Neutral' m) (Normal' m)
   | NeuDot (Neutral' m) String
-  | NeuIf (Neutral' m) (Normal' m) (Normal' m)
-  | NeuMatch (Neutral' m) [(Pattern, Normal)]
+  | NeuIf (Neutral' m) (Normal' m) (Normal' m) (Normal' m)
+  | NeuMatch (Neutral' m) [(Pattern, Normal)] (Normal' m)
   | NeuCoMatch (Neutral' m) [(Pattern, Normal)]
 
   | NeuBuiltinApp (Normal' m -> m (Normal' m)) (Neutral' m) (Normal' m)
   
 
-  
---   -- ALGEBRAIC EFFECTS
-data Effect ty
-  = IOEffect
-  | UserEffect String Int [Normal' ty]
 
 
 
@@ -210,7 +214,7 @@ data MaybeEffect m a
 
 
 instance Show (Normal' m) where
-  show (Neu neu)        = show neu
+  show (Neu neu _)      = show neu
 
   show (PrimVal prim)   = show prim
   show (PrimType prim)  = show prim
@@ -227,13 +231,29 @@ instance Show (Normal' m) where
   show (Builtin _ ty) = "(fnc : " <> show ty <> ")"
   
   show (NormSct fields ty) =
-    "(structue" <> (foldr
-                (\(f, val) str -> str <> (" (def " <> f <> " " <> show val <> ")"))
-                "" (reverse fields)) <> ")"
+    if isTuple fields then
+      showAsTuple fields
+    else
+      "(structue" <> (foldr
+                      (\(f, val) str -> str <> (" (def " <> f <> " " <> show val <> ")"))
+                      "" (reverse fields)) <> ")"
+    where 
+      isTuple fields = foldr (\(n, _) b -> (n == "_1" || n == "_2") && b) True fields 
+      showAsTuple fields = 
+        case (getField "_1" fields, getField "_2" fields) of 
+          (Just v1, Just v2) -> "(" <> show v1 <> ", " <> show v2 <> ")"
   show (NormSig fields) =
-    "(signature" <> (foldr
-                (\(f, val) str -> str <> (" (" <> f <> " : " <> show val <> ")"))
-                "" (reverse fields)) <> ")"
+    if isTuple fields then
+      showAsTuple fields
+    else
+      "(signature" <> (foldr
+                       (\(f, val) str -> str <> (" (" <> f <> " : " <> show val <> ")"))
+                       "" (reverse fields)) <> ")"
+    where 
+      isTuple fields = foldr (\(n, _) b -> (n == "_1" || n == "_2") && b) True fields 
+      showAsTuple fields = 
+        case (getField "_1" fields, getField "_2" fields) of 
+          (Just v1, Just v2) -> "(" <> show v1 <> " × " <> show v2 <> ")"
 
   
   show (NormIType name id params) =
@@ -250,23 +270,24 @@ instance Show (Normal' m) where
   show Undef = "$Undef"
 
 instance Show (Neutral' m) where
-  show (NeuVar var) = var
-  show (NeuApp neu (Neu (NeuApp n1 n2))) = show neu <> " (" <> show (Neu (NeuApp n1 n2)) <> ")"
+  show (NeuVar var _) = var
+  show (NeuApp neu (Neu (NeuApp n1 n2) ty)) =
+    show neu <> " (" <> show (Neu (NeuApp n1 n2) ty) <> ")"
   show (NeuApp neu norm) = show neu <> " " <> show norm
   show (NeuDot neu field) = show neu <> "." <> field 
-  show (NeuMatch neu pats) = "(match " <> show neu
+  show (NeuMatch neu pats _) = "(match " <> show neu
     <> foldr (\(p, e) s -> s <> "\n" <> show p <> " → " <> show e) "" (reverse pats)
     <> ")"
   show (NeuCoMatch neu pats) = "(comatch " <> show neu
     <> foldr (\(p, e) s -> s <> "\n" <> show p <> " → " <> show e) "" (reverse pats)
     <> ")"
-  show (NeuIf cond e1 e2) = "(if " <> show e1 <> " " <> show e2 <> ")"
+  show (NeuIf cond e1 e2 _) = "(if " <> show e1 <> " " <> show e2 <> ")"
 
   show (NeuBuiltinApp fn neu ty)  = "(fnc :" <> show ty  <> ") " <> show neu
 
 
   
-data PrimType = BoolT | CharT | EffectSetT | IntT | FloatT | UnitT | StringT | AbsurdT
+data PrimType = BoolT | CharT | IntT | FloatT | UnitT | StringT | AbsurdT
   deriving (Eq, Ord)
   
 
@@ -278,11 +299,6 @@ type EvalMIO = EvalEnvM Environment IO
 newtype ActionMonadT m a = ActionMonadT (m (MaybeEffect m a))
 
 data ProgState = ProgState { _uid_counter :: Int, _var_counter :: Int }  
-
-instance Show (Effect m) where
-  show IOEffect = "IO"
-  show (UserEffect str _ norms) = str <> (foldr (\norm str -> str <> " " <> show norm)) "" norms
-
 
   
 instance Show PrimType where 
@@ -328,6 +344,8 @@ instance Show AST where
       show_ast (Atom x) = show x 
   
   
+getField f ((f', n):xs) = if f == f' then Just n else getField f xs
+getField f [] = Nothing
 
 
 $(makeLenses ''ProgState)

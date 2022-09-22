@@ -93,12 +93,12 @@ toTIntermediate (IIF cond e1 e2) = do
   cond' <- toTIntermediate cond 
   e1' <- toTIntermediate e1 
   e2' <- toTIntermediate e2
-  pure (TIF cond' e1' e2')
+  pure (TIF cond' e1' e2' Nothing)
 
 toTIntermediate (IMatch e1 cases) = do 
   e1' <- toTIntermediate e1 
   cases' <- mapM toCase cases 
-  pure (TMatch e1' cases')
+  pure (TMatch e1' cases' Nothing)
 
   where
     toCase :: (IPattern, Intermediate) -> EvalM (TPattern TIntermediate', TIntermediate TIntermediate')
@@ -109,7 +109,7 @@ toTIntermediate (IMatch e1 cases) = do
 
     toTPat :: IPattern -> EvalM (TPattern TIntermediate')
     toTPat IWildCard = pure TWildPat
-    toTPat (ISingPattern s) = pure (TBindPat s)
+    toTPat (ISingPattern s) = pure (TBindPat s Nothing)
     toTPat (ICheckPattern pat subPatterns) = do
       subPatterns' <- mapM toTPat subPatterns
       extractPattern pat subPatterns'

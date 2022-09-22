@@ -56,7 +56,7 @@ stringSignature = NormSig [
   ("!!",      (NormArr t (NormArr (PrimType IntT) (NormArr t t)))),
   ("index",   (NormArr t (NormArr (PrimType IntT) (NormArr t t))))]
   where
-    t = Neu $ NeuVar "t"
+    t = Neu (NeuVar "T" (NormUniv 0)) (NormUniv 0)
 
 stringStructure :: Normal
 stringStructure = NormSct [

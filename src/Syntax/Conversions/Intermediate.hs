@@ -48,7 +48,6 @@ toIntermediateM (Cons (e : es)) ctx = do
   case val of  
     (IValue (Special Def)) -> mkDef es Nothing ctx >>= (pure . IDefinition)
     (IValue (Special Induct)) -> mkInduct es ctx >>= (pure . IDefinition)
-    (IValue (Special MkEffect)) -> mkEffect es ctx >>= (pure . IDefinition)
     (IValue (Special Do)) -> mkDo es ctx
     (IValue (Special Lambda)) -> mkLambda es ctx
     (IValue (Special Mac)) -> mkMacro es ctx
@@ -65,13 +64,6 @@ toIntermediateM (Cons (e : es)) ctx = do
       _   -> throwError "Quote expects a single argument"
 
     (IValue (Special MkMatch)) -> mkMatch es ctx
-    (IValue (Special Handle)) -> mkHandleClause es ctx
-    (IValue (Special HandleWith)) -> mkHandleWith es ctx
-    (IValue (Special MkHandler)) -> do
-      handle <- mkHandler es ctx 
-      pure $ IMkHandler handle
-    -- (Single (Special HandleAsync)) -> mkHanldeAsync es ctx
-    -- treat it as an ordinary function application
     _ -> do
       args <- mapM (\v -> toIntermediateM v ctx) es
       let mkApply v [] = v
@@ -207,11 +199,6 @@ mkModule lst ctx = do
           let syms = getDefSyms def 
           tl' <- foldDefs tl Nothing (foldr shadow ctx syms)
           pure $ def : tl'
-        (IValue (Special MkEffect)) -> do
-          def <- mkEffect body ctx
-          let syms = getDefSyms def 
-          tl' <- foldDefs tl Nothing (foldr shadow ctx syms)
-          pure $ def : tl'
         (IValue (Special Open)) -> do
           def <- mkOpen body ctx
           let syms = getDefSyms def 
@@ -243,11 +230,6 @@ mkSig lst ctx = do
           pure $ def : tl'
         (IValue (Special Induct)) -> do
           def <- mkInduct body ctx
-          let syms = getDefSyms def 
-          tl' <- foldDefs tl (foldr shadow ctx syms)
-          pure $ def : tl'
-        (IValue (Special MkEffect)) -> do
-          def <- mkEffect body ctx
           let syms = getDefSyms def 
           tl' <- foldDefs tl (foldr shadow ctx syms)
           pure $ def : tl'
@@ -339,53 +321,6 @@ mkMatch (expr : patterns) ctx = do
   
 mkMatch _ _ = throwError "ill-formed pattern-match"
   
-
-mkEffect :: [AST] -> GlobCtx -> Except String IDefinition
-mkEffect ((Atom (Symbol s)) : tl) ctx = do
-  (params, alts) <- (spltLast tl)
-  case alts of 
-    Cons es -> do
-      effects <- mkEffects es ctx
-      pure $ IEffectDef s params effects
-    _ -> throwError "effect definition ill-formed"
-  where
-    mkEffects :: [AST] -> GlobCtx -> Except String [(String, [Intermediate])] 
-    mkEffects [] _ = return []
-    mkEffects (Cons ((Atom (Symbol s)) : rest) : tl) ctx = do
-      bdy <- mapM (\v -> toIntermediateM v ctx) rest
-      tail <- mkEffects tl ctx
-      return ((s, bdy) : tail)
-    mkEffects x _ = throwError ("effect-list is ill-formed: " <> show x)
-mkEffect _ _ = throwError "ill-formed effect definition"
-  
-mkHandleClause :: [AST] -> GlobCtx -> Except String Intermediate
-mkHandleClause (hd : tl) ctx = do
-  body <- toIntermediateM hd ctx
-  handler <- mkHandler tl ctx
-  pure $ IHandle body handler
-mkHandleClause _ _ = throwError "ill-formed handle clause"
-
-
-mkHandleWith :: [AST] -> GlobCtx -> Except String Intermediate
-mkHandleWith [hd, tl] ctx = do
-  body <- toIntermediateM hd ctx
-  handler <- toIntermediateM tl ctx
-  pure $ IHandleWith body handler
-mkHandleWith _ _ = throwError "ill-formed handle-with clause"
-
-  
-
-mkHandler :: [AST] -> GlobCtx
-            -> Except String [(String, [String], Intermediate)]
-mkHandler [] ctx = pure []
-mkHandler (Cons [(Atom (Symbol s)), symlist, body] : tl) ctx = do
-  symList <- getSymList symlist
-  body <- toIntermediateM body ctx
-  rest <- mkHandler tl ctx
-  pure $ (s, symList, body) : rest
-mkHandler x _ =
-      throwError ("ill-formed action handler within handle clause : " <> show x)
-
 mkOpen :: [AST] -> GlobCtx -> Except String IDefinition
 mkOpen [v] ctx = do
   (toIntermediateM v ctx) >>= (\x-> pure $ IOpenDef x)
