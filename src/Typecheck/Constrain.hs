@@ -27,7 +27,7 @@ import qualified Typecheck.Context as Ctx
 import qualified Interpret.Eval as Eval
 import Interpret.EvalM
 import Interpret.Eval (normSubst)
-import Syntax.Utils (typeVal, free, getField, freshen)
+import Syntax.Utils (typeVal, free, rename, getField, freshen)
 import Control.Monad.Except (Except, runExcept)
 
 import qualified Data.Map as Map  
@@ -35,7 +35,7 @@ import qualified Data.Set as Set
 
 err = throwError  
 
-type LRSubst = ([(Normal, String)], [(Normal, String)])
+type LRSubst = ([(Normal, String)], [(Normal, String)], [((String, Normal), (String, Normal))])
 type Subst = [(Normal, String)]
 
 -- NOTICE: this module will be deprecated in terms of unify
@@ -74,19 +74,20 @@ constrainLRApp (NormImplProd s a b) (Neu (NeuVar v _) _) ctx = do
     err "occurs check failed"
   else 
     pure ([], [], rightsubst (NormImplProd s a b) v)
+
 constrainLRApp (NormImplProd s a b)    r ctx = do
   let s' = freshen (Set.union (free b) (free r)) s
   b' <- normSubst ((Neu (NeuVar s' a) a), s) b
   (a1, a2, subst) <- constrainLRApp b' r ctx
-  appval <- case findLStrSubst s subst of  
+  appval <- case findLStrSubst s' subst of  
     Just v -> inferVar v a ctx
     Nothing -> err ("cannot find implicit substitution for var " <> s' <> " constraining terms: " 
                     <> show (NormImplProd s' a b') <> " and "
                     <> show r
                     <> " in substitution: " <> show subst)
   let subst' = rmLSubst s' subst
-  --fnlSubst = renameLSubst s s' subst'
-  pure ((appval:a1), a2, subst')
+      fnlSubst = renameLSubst s' s subst'
+  pure ((appval:a1), a2, fnlSubst)
 
   
 constrainLRApp (Neu (NeuVar v _) _) (NormImplProd s' a' b') ctx = do
@@ -95,7 +96,7 @@ constrainLRApp (Neu (NeuVar v _) _) (NormImplProd s' a' b') ctx = do
   else 
     pure ([], [], leftsubst (NormImplProd s' a' b') v)
 constrainLRApp l (NormImplProd s a b) ctx = do
-  let s' = freshen (free l) s
+  let s' = freshen (Set.union (free b) (free l)) s
   b' <- normSubst ((Neu (NeuVar s' a) a), s) b
   (a1, a2, subst) <- constrainLRApp l b' ctx
   appval <- case findRStrSubst s' subst of  
@@ -104,21 +105,23 @@ constrainLRApp l (NormImplProd s a b) ctx = do
                     <> show l <> " and "
                     <> show (NormImplProd s' a b')
                     <> " in substitution: " <> show subst)
-  pure (a1, (appval:a2), rmRSubst s' subst)
+  let subst' = rmLSubst s' subst
+      fnlSubst = renameLSubst s' s subst'
+  pure (a1, (appval:a2), fnlSubst)
 constrainLRApp l r ctx = do
   subst <- constrain' l r
   pure ([], [], subst)
 
   
 constrain' :: Normal -> Normal -> EvalM LRSubst
-constrain' (Neu (NeuVar v1 t1) t2) (Neu (NeuVar v2 _) _) =
+constrain' (Neu (NeuVar v1 t1) _) (Neu (NeuVar v2 t2) _) =
     if v1 == v2 then pure lrnosubst
-    else pure (rightsubst (Neu (NeuVar v1 t1) t2) v2)
+    else pure (varsame (v1, t1) (v2, t2))
 constrain' (Neu n _) ty = nnConstrain n ty
 constrain' ty (Neu n _) = do
   -- TODO: technically not respecting subtyping rules ()
-  (l, r) <- nnConstrain n ty
-  pure (r, l)
+  subst <- nnConstrain n ty
+  pure (swap subst)
 
 constrain' (PrimVal p1) (PrimVal p2) =
   if p1 == p2 then pure lrnosubst else err ("non-equal primitives in constrain: "
@@ -237,12 +240,18 @@ neuConstrain n1 n2 = err ("neuConstrain incomplete OR terms " <> show n1 <> " an
 nosubst :: Subst
 nosubst = []
 
+swap :: LRSubst -> LRSubst
+swap (l, r, s) = (r, l, map (\(x, y) -> (y, x)) s)
+
+
 lrnosubst :: LRSubst
-lrnosubst = ([], [])
+lrnosubst = ([], [], [])
+varsame :: (String, Normal) -> (String, Normal) -> LRSubst
+varsame s1 s2 = ([], [], [(s1, s2)])
 leftsubst :: Normal -> String -> LRSubst
-leftsubst ty s = ([(ty, s)], [])
+leftsubst ty s = ([(ty, s)], [], [])
 rightsubst :: Normal -> String -> LRSubst
-rightsubst ty s =  ([], [(ty, s)])
+rightsubst ty s =  ([], [(ty, s)], [])
 
 
 findStrSubst :: String -> Subst -> Maybe Normal
@@ -257,22 +266,42 @@ rmSubst str ((ty, str') : ss)=
   else let ss' = rmSubst str ss in ((ty, str') : ss')
 rmSubst str [] = []
 
+  -- TODO: these are now wrong (maybe?
 findLStrSubst :: String -> LRSubst -> Maybe Normal
-findLStrSubst str (l, _) = findStrSubst str l
+findLStrSubst str (l, _, vs) =
+  case findStrSubst str l of 
+    Just v -> Just v
+    Nothing -> findVarSubst vs where
+      findVarSubst [] = Nothing
+      findVarSubst (((v, ty), (v', ty')) : vs) =
+        if v == str then Just (Neu (NeuVar v' ty') ty')
+        else findVarSubst vs
+
 
 findRStrSubst :: String -> LRSubst -> Maybe Normal
-findRStrSubst str (_, r) = findStrSubst str r
+findRStrSubst str = findLStrSubst str . swap
 
 rmLSubst :: String -> LRSubst -> LRSubst
-rmLSubst str (l, r) = (rmSubst str l, r)
+rmLSubst str (l, r, v) = (rmSubst str l, r, v)
 
 rmRSubst :: String -> LRSubst -> LRSubst
-rmRSubst str (l, r) = (l, rmSubst str r)
+rmRSubst str (l, r, v) = (l, rmSubst str r, v)
 
--- rename all /origin/ strings in the lsubst from -> to 
--- replace all strings within values /tosubstitutie/ in the rsubst
--- renameLSubst :: String -> String -> LRSubst  
--- renameLSubst from to (l, r) = 
+renameLSubst :: String -> String -> LRSubst -> LRSubst
+renameLSubst from to (l, r, v) = 
+  let l' = map (\(val, var) -> if var == from then (val, to) else (val, var)) l
+      r' = map (\(val, var) -> (rename from to val, var)) r 
+      v' = map (substVar from to) v
+  in (l', r', v')
+  where 
+    substVar from to ((v, t), e2) =
+      let e1 = if v == from then (to, t) else (v, t)
+      in (e1, e2)
+
+    
+
+renameRSubst :: String -> String -> LRSubst -> LRSubst
+renameRSubst s1 s2 = (renameLSubst s1 s2 . swap)
   
 
 -- composition of substitutions: For HM substitutions, they are run in order,
@@ -303,7 +332,7 @@ composeList (s:ss) = do
 
   -- TODO: fix!
 composelr :: LRSubst -> LRSubst -> EvalM LRSubst
-composelr (l1, r1) (l2, r2) = pure (l1 <> l2, r1 <> r2)
+composelr (l1, r1, b1) (l2, r2, b2) = pure (l1 <> l2, r1 <> r2, b1 <> b2)
 -- composelr (l1, r1) (l2, r2) =
 --   let iter :: (Normal, String) -> [(Normal, a)] -> EvalM [(Normal, a)]
 --       iter s [] = pure []
@@ -320,7 +349,7 @@ composelr (l1, r1) (l2, r2) = pure (l1 <> l2, r1 <> r2)
 -- convert a lr substitution to a single substitution
 -- TODO: this is BAD - we need to check for redundancy!
 toSing  :: LRSubst -> Subst
-toSing (left, right) = (left <> right)
+toSing (left, right, vars) = (left <> right)
 
 -- Perform substitution
 -- TODO: do what about order of string substitution? rearranging??
@@ -333,7 +362,12 @@ doSubst subst ty = case subst of
 
 -- Throw an error if a variable (string) is contained in a substitution
 checkSubst :: String -> String -> LRSubst -> EvalM ()
-checkSubst msg str (l, r) = checkSubst' str (l <> r)
+checkSubst msg str (l, r, v) = do
+  (checkSubst' str (l <> r))
+  if foldr (\((s1, _), (s2, _)) b -> (str == s1 || str == s2 || b)) False v
+    then err msg
+  else
+    pure ()
   where
     checkSubst' _ [] = pure ()
     checkSubst' str ((ty, str') : ss) = 
@@ -358,6 +392,10 @@ occurs' v1 (Neu neu _) = occursNeu v1 neu
   -- Primitive types and values
 occurs' _ (PrimVal _) = False
 occurs' _ (PrimType _) = False
+occurs' s (CollVal val) = case val of 
+  ListVal lst ty -> (foldr (\x b -> occurs' s x || b) False lst) || occurs' s ty
+occurs' s (CollTy ty) = case ty of
+  ListTy a -> occurs' s a
 
 -- Universes   
 occurs' _ (NormUniv _) = False
@@ -471,5 +509,3 @@ subType (Neu n1 _) (Neu n2 _) = Eval.neu_equiv n1 n2 (Set.empty, 0) (Map.empty, 
 -- value forms  
 subType (PrimVal p1) (PrimVal p2) = p1 == p2
 subType _ _ = False
-
-swap (a, b) = (b, a)

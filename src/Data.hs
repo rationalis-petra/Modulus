@@ -125,12 +125,14 @@ data InbuiltCtor m
            Int (Normal' m) (Normal' m)
 
 data CollTy m
-  = ListTy (Normal' m)
+  = MaybeTy (Normal' m)
+  | ListTy (Normal' m)
   | ArrayTy (Normal' m) [Integer]
   | IOMonadTy (Normal' m)
 
 data CollVal m
-  = ListVal [(Normal' m)] (Normal' m)
+  = MaybeVal (Maybe (Normal' m)) (Normal' m)
+  | ListVal [(Normal' m)] (Normal' m)
   | ArrayVal (Vector (Normal' m)) (Normal' m) [Integer]
   | IOAction (IO (EvalM (Normal' m))) (Normal' m)
 
@@ -324,12 +326,15 @@ instance Show PrimVal where
 instance Show (CollVal m) where   
   show e = case e of  
     -- TODO: pretty-printing for lists & arrays
+    MaybeVal (Just l) _ -> "some " <> show l
+    MaybeVal Nothing _ -> "nothing"
     ListVal l _ -> show l
     ArrayVal v _ _ -> show v
     IOAction _ ty -> "<IO action>" 
 
 instance Show (CollTy m) where   
   show e = case e of  
+    MaybeTy ty -> "Maybe " <> show ty
     ListTy ty -> "List " <> show ty
     ArrayTy n1 n2 -> "Array " <> show n1 <> show n2
     IOMonadTy ty -> "IO " <> show ty

@@ -1,4 +1,4 @@
-module Interpret.Structures.Collections.List (listStructure, listSignature) where
+module Interpret.Structures.Data.List (listStructure, listSignature) where
 
 import qualified Data.Map as Map
 
@@ -214,6 +214,16 @@ mlsDrop = liftFun3 f mlsDropTy
         f _ (PrimVal (Int n)) (CollVal (ListVal xs a)) = do
           pure $ CollVal $ ListVal (drop (fromIntegral n) xs) a
 
+mlsReverseTy :: Normal  
+mlsReverseTy = NormImplProd "A" (NormUniv 0)
+                (NormArr (CollTy (ListTy (mkVar "A")))
+                  (CollTy (ListTy (mkVar "A"))))
+
+mlsReverse :: Normal  
+mlsReverse = liftFun2 f mlsReverseTy
+  where f :: Normal -> Normal -> EvalM Normal
+        f a (CollVal (ListVal xs _)) = do
+          pure $ CollVal $ ListVal (reverse xs) a
 
 listSignature :: Normal
 listSignature = NormSig [
@@ -223,7 +233,7 @@ listSignature = NormSig [
   ("cons", consType),
   ("Ɩ", mlsIndicesOfTy),
 
-  ("¨", mlsEachTy),
+  ("⋯", mlsEachTy),
   ("fold", mlsFoldTy),
   ("reduce", mlsReduceTy),
   ("/", mlsReduceTy),
@@ -233,7 +243,8 @@ listSignature = NormSig [
   ("zip", mlsZipTy),
   ("⋅", mlsCatTy),
   ("↑", mlsTakeTy),
-  ("↓", mlsDropTy)
+  ("↓", mlsDropTy),
+  ("reverse", mlsReverseTy)
   ]
   
 
@@ -246,7 +257,7 @@ listStructure = NormSct [
   ("Ɩ", mlsIndicesOf),
 
   -- utility functions
-  ("¨", mlsEach),
+  ("⋯", mlsEach),
   ("fold", mlsFold),
   ("reduce", mlsReduce),
   ("/", mlsReduce),
@@ -256,6 +267,6 @@ listStructure = NormSct [
   ("zip", mlsZip),
   ("⋅", mlsCat),
   ("↑", mlsTake),
-  ("↓", mlsDrop)
-  --("fold", mlsFold)
+  ("↓", mlsDrop),
+  ("reverse", mlsReverse)
   ] listSignature

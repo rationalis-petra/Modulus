@@ -231,10 +231,15 @@ normSubst (val, var) ty = case ty of
   PrimType p -> pure $ PrimType p
   PrimVal p -> pure $ PrimVal p
   CollTy cty -> case cty of 
+    MaybeTy a -> (CollTy . MaybeTy) <$> normSubst (val, var) a
     ListTy a -> (CollTy . ListTy) <$> normSubst (val, var) a
     ArrayTy a dims -> CollTy <$> (ArrayTy <$> normSubst (val, var) a <*> pure dims)
     IOMonadTy a -> (CollTy . IOMonadTy) <$> normSubst (val, var) a
   CollVal cvl -> case cvl of 
+    MaybeVal m ty -> case m of 
+      Just some -> CollVal <$> (MaybeVal <$> (Just <$> (normSubst (val, var) some))
+                                <*> normSubst (val, var) ty)
+      Nothing -> CollVal <$> (MaybeVal Nothing <$> normSubst (val, var) ty)
     ListVal vals ty -> CollVal <$> (ListVal <$> mapM (normSubst (val, var)) vals <*> normSubst (val, var) ty)
     ArrayVal vec ty shape -> CollVal <$> (ArrayVal <$> Vector.mapM (normSubst (val, var)) vec
                                       <*> normSubst (val, var) ty <*> pure shape)

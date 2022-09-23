@@ -1,4 +1,4 @@
-module Interpret.Structures.Collections.Array (arrayStructure, arraySignature) where
+module Interpret.Structures.Data.Array (arrayStructure, arraySignature) where
 
 import qualified Data.Map as Map
 import Data.Vector hiding (mapM)
