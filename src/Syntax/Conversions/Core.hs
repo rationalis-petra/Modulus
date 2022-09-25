@@ -4,6 +4,7 @@ import Data(EvalM,
             TopCore(..),
             Core (..),
             Pattern(..),
+            CoPattern(..),
             Definition(..),
             Normal,
             Normal'(..),
@@ -40,8 +41,10 @@ toTopCore (TDefinition def) = TopDef <$> fromDef def
       pure (OpenDef coreBody sig)
     fromDef (TOpenDef body Nothing) = err "definitions must be typed"
 
-    fromDef (TInductDef sym id params ty alts) = do
+    fromDef (TInductDef sym id params ty alts) =
       pure (InductDef sym id params ty alts)
+    fromDef (TCoinductDef sym id params ty alts) =
+      pure (CoinductDef sym id params ty alts)
 
 
     -- fromDef (TVariantDef nme params id alts ty) = pure (VariantDef nme params id alts ty)
@@ -190,6 +193,25 @@ toCore (TMatch term patterns (Just ty)) = do
     toCorePat (TBuiltinMatch fn _ ty pats) = do
       pats' <- mapM toCorePat pats
       pure $ InbuiltMatch (fn pats')
+
+  
+toCore (TCoMatch patterns (Just ty)) = do
+  patterns' <- toCoreCases patterns
+  pure $ CCoMatch patterns' ty
+  where
+    toCoreCases [] = pure []
+    toCoreCases ((p, e):ps) = do
+      e' <- toCore e
+      p' <- toCorePat p
+      ps' <- toCoreCases ps
+      pure ((p', e') : ps')
+
+    toCorePat :: TCoPattern Normal -> Except String CoPattern
+    toCorePat TCoWildPat = pure CoWildCard
+    toCorePat (TCoBindPat str (Just ty)) = pure (CoVarBind str ty)
+    toCorePat (TCoFun name id1 id2 ty pats) = do
+      pats' <- mapM toCorePat pats
+      pure $ (CoMatchInduct name id1 id2 pats')
 
 
 toCore x = err ("toCore: unimplemented for " <> show x)

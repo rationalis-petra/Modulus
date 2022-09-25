@@ -6,7 +6,6 @@ import Parse (parseFile, parseRepl)
 import Data
 import Interpret.Eval (evalToIO, evalTop)
 import Syntax.Macroexpand 
-import Syntax.Intermediate () 
 import Syntax.Conversions (toIntermediate,
                            toTIntermediateTop,
                            toCore,
@@ -70,17 +69,10 @@ main = do
                  repl env' state'
              Nothing -> 
                putStrLn "error in initialisation"
-
-         -- If we are in compilation mode, then we're expecting  
          else
            putStrLn "compilation not implemented yet!"
   
-
-
-
-
--- The REPL
-  
+-- The REPL 
 defaultContext :: EvalM Environment 
 defaultContext = do
   dfm <- defaultStructure
@@ -104,6 +96,7 @@ repl env state = do
           printFlush err
           repl env state 
         Right val -> do
+          printFlush val
           (env', state') <- runExprs [val] env state True
           repl env' state'
           

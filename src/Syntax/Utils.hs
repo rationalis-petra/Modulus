@@ -60,11 +60,14 @@ typeVal (PrimVal e) = pure (PrimType (typePrim e))
       Unit -> UnitT
       Bool _ -> BoolT
       Int _ -> IntT
+      Nat _ -> NatT
       Float _ -> FloatT
       Char _ -> CharT
       String _ -> StringT
 typeVal (InbuiltCtor ctor) = case ctor of 
   IndPat _ _ _ _ ty -> pure ty
+typeVal (NormCoVal _ ty) = pure ty
+typeVal (NormCoDtor _ _ _ _ _ _ ty) = pure ty
 
 -- type of types
 typeVal (NormUniv k) = pure (NormUniv (k + 1))

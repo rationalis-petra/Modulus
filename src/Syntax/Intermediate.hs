@@ -29,6 +29,7 @@ data IArg
 data IDefinition
   = ISingleDef String Intermediate (Maybe Intermediate)
   | IInductDef String [IArg] Intermediate [(String, Intermediate)]
+  | ICoinductDef String [IArg] Intermediate [(String, Intermediate)]
   | IEffectDef String [String] [(String, [Intermediate])]
   | IOpenDef Intermediate
   deriving Show
@@ -56,10 +57,17 @@ data Intermediate
   | IMkHandler [(String, [String], Intermediate)]
   | IHandleWith Intermediate Intermediate
   | IMatch Intermediate [(IPattern, Intermediate)]
+  | ICoMatch [(ICoPattern, Intermediate)]
   deriving Show
 
 data IPattern
   = ISingPattern String
   | IWildCard
   | ICheckPattern Intermediate [IPattern]
+  deriving Show
+
+data ICoPattern
+  = ICoSingPattern String
+  | ICoWildCard
+  | ICoCheckPattern Intermediate [ICoPattern]
   deriving Show

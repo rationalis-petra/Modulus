@@ -6,6 +6,8 @@ import Control.Monad.Except (runExcept)
 import Control.Monad.State 
 -- import Control.Lens 
 
+  
+import Debug.Trace
 import Data (PrimType(..),
              Normal,
              Normal'(..),
@@ -70,6 +72,67 @@ typeCheckTop (TDefinition def) ctx =
       (indCtor, indTy) <- mkIndexTy params' index ty' id
       alts' <- processAlts alts params' (Ctx.insert sym indCtor indTy ctx')
       pure $ Right $ TDefinition $ TInductDef sym id params' indCtor alts'
+
+      where
+        processAlts :: [(String, Int, TIntermediate')] -> [(String, Normal)] -> Ctx.Context
+                    -> EvalM [(String, Int, Normal)]
+        processAlts [] params ctx = pure []
+        processAlts ((sym, id, (TIntermediate' ty)) : alts) ps ctx = do
+          -- TODO: check for well-formedness!!
+          -- TODO: positivity check
+          ty' <- evalTIntermediate ty ctx
+          alts' <- processAlts alts ps ctx
+          pure $ (sym, id, (captureParams ps ty')) : alts'
+          where
+            captureParams [] ty = ty
+            captureParams ((sym, ty) : ps) tl = NormImplProd sym ty (captureParams ps tl)
+
+        updateFromParams :: [(String, TIntermediate')] -> Ctx.Context -> EvalM (Ctx.Context, [(String, Normal)])
+        updateFromParams [] ctx = pure (ctx, [])
+        updateFromParams ((sym, TIntermediate' ty) : args) ctx = do
+          ty' <- evalTIntermediate ty ctx
+          (ctx', args') <- updateFromParams args
+                             (Ctx.insert sym (Neu (NeuVar sym ty') ty') ty' ctx)
+          pure (Ctx.insert sym (Neu (NeuVar sym ty') ty') ty' ctx', ((sym, ty') : args'))
+
+        readIndex :: Normal -> EvalM [(String, Normal)]
+        readIndex (NormUniv n) = pure []
+        readIndex (NormProd sym a b) = do 
+          tl  <- readIndex b
+          pure ((sym, a) : tl)
+        readIndex (NormArr a b) = do
+          id <- freshVar
+          tl  <- readIndex b
+          pure ((show id, a) : tl)
+        readIndex _ = throwError "bad inductive type annotation"
+
+        -- take first the parameters, then and the index, along with the index's type.  
+        -- return a constructor for the type, and the type of the constructor
+        mkIndexTy :: [(String, Normal)] -> [(String, Normal)] -> Normal -> Int -> EvalM (Normal, Normal)
+        mkIndexTy params index ty id = mkIndexTy' params index (ty, id) []
+        mkIndexTy' :: [(String, Normal)] -> [(String, Normal)] -> (Normal, Int) -> [(String, Normal)] -> EvalM (Normal, Normal) 
+        mkIndexTy' [] [] (ty, id) args = do 
+          pure (NormIType sym id (reverse (map (\(var, ty) -> Neu (NeuVar var ty) ty) args)), ty)
+
+        mkIndexTy' ((sym, ty) : params) index body args = do
+          (ctor, ctorty) <- mkIndexTy' params index body ((sym, ty) : args)
+          let fty = NormProd sym ty ctorty
+          pure $ (NormAbs sym ctor fty, fty)
+
+        mkIndexTy' [] ((sym, ty) : ids) index args = do
+          (ctor, ctorty) <- mkIndexTy' [] ids index ((sym, ty) : args)
+          pure $ (NormAbs sym ctor ctorty, ctorty)
+
+  
+    TCoinductDef sym id params (TIntermediate' ty) alts -> do
+      -- TODO: check alternative definitions are well-formed (positive, return
+      -- correct Constructor) 
+      ty' <- evalTIntermediate ty ctx
+      index <- readIndex ty'
+      (ctx', params') <- updateFromParams params ctx
+      (indCtor, indTy) <- mkIndexTy params' index ty' id
+      alts' <- processAlts alts params' (Ctx.insert sym indCtor indTy ctx')
+      pure $ Right $ TDefinition $ TCoinductDef sym id params' indCtor alts'
 
       where
         processAlts :: [(String, Int, TIntermediate')] -> [(String, Normal)] -> Ctx.Context
@@ -289,7 +352,9 @@ typeCheck expr ctx = case expr of
              BoundArg str ty -> (((BoundArg str ty, isImpl) : args'), subst', impl)
              -- TOOD: come up with a better solution to new names...
              InfArg nme id -> case findStrSubst ("#" <> show id) subst of
-               Just ty -> (((BoundArg nme ty, isImpl) : args'), rmSubst ("#" <> show id) subst', impl)
+               Just ty -> (((BoundArg nme ty, isImpl) : args'),
+                           rmSubst ("#" <> show id) subst',
+                           impl)
                Nothing -> ((BoundArg nme (mkVar ("#" <> show id)), isImpl) : args',
                            subst',
                            ("#" <> show id) : impl)
@@ -441,6 +506,62 @@ typeCheck expr ctx = case expr of
           foldTyApp n (NormImplProd sym a b) apps = do
             b' <- foldTyApp (n - 1) b apps 
             pure $ NormImplProd sym a b'
+      -- getPatternType (MatchModule fields) = do
+
+  (TCoMatch patterns Nothing) -> do
+    retTy <- freshVar 
+    (patterns', subst) <- checkPatterns patterns retTy
+    retTy' <- doSubst subst retTy
+    let fnlSubst = rmSubst (show retTy) subst
+    pure $ (TCoMatch patterns' (Just retTy'), retTy', fnlSubst)
+    where
+      -- Check Patterns: take a list of patterns as input, along with the
+      -- matching type and return type, to be unified with
+      -- return a pattern, the return type of that pattern and the required substituion
+      checkPatterns :: [(TCoPattern TIntermediate', TIntermediate TIntermediate')] -> Normal
+                    -> EvalM ([(TCoPattern Normal, TIntermediate Normal)], Subst)
+      checkPatterns [] _ = pure ([], nosubst)
+      checkPatterns ((p, e) : ps) retty = do
+        -- an updated pattern, and the type thereof  
+        (p', _, ctxUpd) <- getPatternType p
+        
+  
+        let ctx' = foldr (\(sym, ty) ctx -> Ctx.insert sym (Neu (NeuVar sym ty) ty) ty ctx) ctx ctxUpd
+        (e', eret, esubst) <- typeCheck e ctx'
+
+        -- TODO: ensure that the constrains are right way round...
+        -- TODO: what to do with lapp1, lapp2 etc...
+        (lapp1, rapp1, restRetSubst) <- constrain retty eret ctx
+        (ps', pssubst) <- checkPatterns ps retty
+  
+        -- TODO: make sure composition is right way round...
+        substFnl <- composeList [restRetSubst, esubst, pssubst]
+        pure $ ((p', e') : ps', substFnl)
+      
+      -- TODO: check for duplicate variable patterns!
+      -- Get the type of a single pattern, to be constrained against.
+      -- Also, return a list of variables and their types
+        
+      getPatternType :: TCoPattern TIntermediate' -> EvalM (TCoPattern Normal, Normal, [(String, Normal)]) 
+      getPatternType TCoWildPat = do
+        var <- freshVar
+        pure $ (TCoWildPat, var, [])
+      getPatternType (TCoBindPat sym Nothing) = do
+        ty <- freshVar
+        pure $ (TCoBindPat sym (Just ty), ty, [(sym, ty)])
+      getPatternType (TCoFun name indid altid (TIntermediate' altTy) subpatterns) = do 
+        lst <- mapM getPatternType subpatterns
+        let (subpatterns', norms, vars) = foldr (\(s, n, v) (ss, ns, vs) -> (s:ss, n:ns, v <> vs)) ([], [], []) lst 
+        altTy' <- evalTIntermediate altTy ctx
+        retty <- foldTyApp altTy' norms
+        pure $ (TCoFun name indid altid altTy' subpatterns', retty, vars)
+
+        where 
+          foldTyApp :: Normal -> [Normal] -> EvalM Normal
+          foldTyApp ty [] = pure ty
+          foldTyApp ty (n : ns) = do
+            ty' <- Eval.tyApp ty n
+            foldTyApp ty' ns
       -- getPatternType (MatchModule fields) = do
   other -> 
     throwError ("typecheck unimplemented for intermediate term " <> show other)

@@ -180,6 +180,7 @@ coreStructure = [
   ("struct",      mlsStruct),
   ("sig",         mlsSig),
   ("match",       Special MkMatch),
+  ("comatch",     Special MkCoMatch),
   ("open",        Special Open),
   ("let-open",    Special LetOpen),
 

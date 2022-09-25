@@ -9,7 +9,7 @@ import Data (AST(..),
              Environment,
              Special(..),
              Normal,
-             Normal'(Symbol, Special, Keyword, NormIVal),
+             Normal'(Symbol, Special, Keyword, NormIVal, NormCoDtor),
              Neutral,
              Neutral')
 
@@ -47,7 +47,8 @@ toIntermediateM (Cons (e : es)) ctx = do
   val <- toIntermediateM e ctx
   case val of  
     (IValue (Special Def)) -> mkDef es Nothing ctx >>= (pure . IDefinition)
-    (IValue (Special Induct)) -> mkInduct es ctx >>= (pure . IDefinition)
+    (IValue (Special Induct)) -> mkInduct IInductDef es ctx >>= (pure . IDefinition)
+    (IValue (Special Coinduct)) -> mkInduct ICoinductDef es ctx >>= (pure . IDefinition)
     (IValue (Special Do)) -> mkDo es ctx
     (IValue (Special Lambda)) -> mkLambda es ctx
     (IValue (Special Mac)) -> mkMacro es ctx
@@ -64,6 +65,7 @@ toIntermediateM (Cons (e : es)) ctx = do
       _   -> throwError "Quote expects a single argument"
 
     (IValue (Special MkMatch)) -> mkMatch es ctx
+    (IValue (Special MkCoMatch)) -> mkCoMatch es ctx
     _ -> do
       args <- mapM (\v -> toIntermediateM v ctx) es
       let mkApply v [] = v
@@ -195,7 +197,12 @@ mkModule lst ctx = do
           tl' <- foldDefs tl Nothing (foldr shadow ctx syms)
           pure $ def : tl'
         (IValue (Special Induct)) -> do
-          def <- mkInduct body ctx
+          def <- mkInduct IInductDef body ctx
+          let syms = getDefSyms def 
+          tl' <- foldDefs tl Nothing (foldr shadow ctx syms)
+          pure $ def : tl'
+        (IValue (Special Coinduct)) -> do
+          def <- mkInduct ICoinductDef body ctx
           let syms = getDefSyms def 
           tl' <- foldDefs tl Nothing (foldr shadow ctx syms)
           pure $ def : tl'
@@ -229,7 +236,12 @@ mkSig lst ctx = do
           tl' <- foldDefs tl (foldr shadow ctx syms)
           pure $ def : tl'
         (IValue (Special Induct)) -> do
-          def <- mkInduct body ctx
+          def <- mkInduct IInductDef body ctx
+          let syms = getDefSyms def 
+          tl' <- foldDefs tl (foldr shadow ctx syms)
+          pure $ def : tl'
+        (IValue (Special Coinduct)) -> do
+          def <- mkInduct ICoinductDef body ctx
           let syms = getDefSyms def 
           tl' <- foldDefs tl (foldr shadow ctx syms)
           pure $ def : tl'
@@ -242,11 +254,12 @@ mkSig lst ctx = do
     foldDefs v _ = throwError ("bad term in signature definition: " ++ show v)
 
 
-mkInduct :: [AST] -> GlobCtx -> Except String IDefinition
-mkInduct (def : tl) ctx = do
+mkInduct :: (String -> [IArg] -> Intermediate -> [(String, Intermediate)] -> IDefinition)
+         -> [AST] -> GlobCtx ->  Except String IDefinition
+mkInduct constructor (def : tl) ctx = do
   (sym, params, ty) <- extractDef def ctx
   alternatives <- mkAlternatives tl (shadow sym ctx)
-  pure $ IInductDef sym params ty alternatives
+  pure $ constructor sym params ty alternatives
   where
     extractDef :: AST -> GlobCtx -> Except String (String, [IArg], Intermediate)
     extractDef (Cons [a, Cons [Atom (Symbol s), params], ty]) ctx = do
@@ -256,15 +269,16 @@ mkInduct (def : tl) ctx = do
           params' <- getAnnSymList params ctx
           ty' <- toIntermediateM ty ctx
           pure (s, params', ty')
-        _ -> throwError ("Poorly formed inductive type definition" <> show a')
+        _ -> throwError ("Poorly formed header in co/inductive definition: " <> show a')
     extractDef (Cons [a, Atom (Symbol s), ty]) ctx = do
       a' <- toIntermediateM a ctx
       case a' of 
         (IValue (Special Annotate)) -> do
           ty' <- toIntermediateM ty ctx
           pure (s, [], ty')
-        _ -> throwError ("Poorly formed inductive type definition - expected annotate, got: " <> show a')
-    extractDef def _ = throwError ("Poorly formed inductive type definition: " <> show def)
+        _ -> throwError ("Poorly formed header in co/inductive definition expected annotate, got: "
+                         <> show a')
+    extractDef def _ = throwError ("Poorly formed inductive type head: " <> show def)
 
     
     mkAlternatives :: [AST] -> GlobCtx -> Except String [(String, Intermediate)] 
@@ -281,12 +295,12 @@ mkInduct (def : tl) ctx = do
         (IValue (Special Annotate)) -> do
           altTy' <- toIntermediateM altTy ctx
           pure (s, altTy')
-        _ -> throwError "Poorly formed inductive type definition"
-    mkAlternative _ _ = throwError "Poorly formed inductive type definition"
+        _ -> throwError ("Poorly formed co/inductive alternative: " <> show a) 
+    mkAlternative a _ = throwError ("Poorly formed co/inductive type alternative: " <> show a)
 
 
   
-mkInduct _ _ = throwError "ill-formed variant definition"
+mkInduct _ _ _ = throwError "ill-formed inductive or coinductive definition"
 
 
 mkMatch :: [AST] -> GlobCtx -> Except String Intermediate  
@@ -317,9 +331,36 @@ mkMatch (expr : patterns) ctx = do
            Just (NormIVal name id1 id2 strip [] ty) ->
              pure $ ICheckPattern (IValue (NormIVal name id1 id2 strip [] ty)) []
            _ -> pure $ ISingPattern s
+mkMatch _ _ = throwError "ill-formed pattern-match"
 
   
-mkMatch _ _ = throwError "ill-formed pattern-match"
+mkCoMatch :: [AST] -> GlobCtx -> Except String Intermediate  
+mkCoMatch (patterns) ctx = do
+  patterns <- mkPatterns patterns ctx
+  pure $ ICoMatch patterns
+  where 
+    mkPatterns :: [AST] -> GlobCtx -> Except String [(ICoPattern, Intermediate)]
+    mkPatterns [] _ = pure []
+    mkPatterns (Cons [Atom ((Symbol "→")), pat, expr] : xs) ctx = do
+      bdy <- toIntermediateM expr ctx
+      pat <- mkPattern pat ctx
+      tl <- mkPatterns xs ctx
+      return $ (pat, bdy) : tl
+    mkPatterns x _ = throwError ("ill-formed copattern match " <> show x)
+
+    mkPattern :: AST -> GlobCtx -> Except String ICoPattern 
+    mkPattern (Cons (hd : tl)) ctx = do
+      val <- toIntermediateM hd ctx 
+      patterns <- mapM (\v -> mkPattern v ctx) tl
+      pure $ ICoCheckPattern val patterns
+
+    mkPattern (Atom (Symbol s)) ctx =
+      case s of 
+        "_" -> pure $ ICoWildCard
+        _ -> case lookup s ctx of
+           Just (NormCoDtor name id1 id2 len strip [] ty) ->
+             pure $ ICoCheckPattern (IValue (NormCoDtor name id1 id2 len strip [] ty)) []
+           _ -> pure $ ICoSingPattern s
   
 mkOpen :: [AST] -> GlobCtx -> Except String IDefinition
 mkOpen [v] ctx = do

@@ -43,6 +43,7 @@ data TArg ty
 data TDefinition ty
   --            name   id  params         index id  definitions
   = TInductDef String  Int [(String, ty)] ty [(String, Int, ty)]
+  | TCoinductDef String Int [(String, ty)] ty [(String, Int, ty)]
   | TSingleDef String (TIntermediate ty) (Maybe ty)
   | TOpenDef (TIntermediate ty) (Maybe ty)
   deriving Show
@@ -59,9 +60,14 @@ data TPattern ty
   | TBuiltinMatch ([Pattern] -> Normal -> (Normal -> Pattern -> EvalM (Maybe [(String, Normal)]))
                           -> EvalM (Maybe [(String, Normal)]))
     Int ty [TPattern ty]
+
+data TCoPattern ty
+  = TCoWildPat 
+  | TCoBindPat String (Maybe ty)
+  | TCoFun String Int Int ty [TCoPattern ty]
+  deriving Show
   
 
-{-- --}
 data TIntermediate ty
   = TValue Normal
   | TSymbol String
@@ -74,6 +80,7 @@ data TIntermediate ty
   | TIF (TIntermediate ty) (TIntermediate ty) (TIntermediate ty) (Maybe ty)
   | TAccess (TIntermediate ty) String
   | TMatch (TIntermediate ty) [(TPattern ty, TIntermediate ty)] (Maybe ty)
+  | TCoMatch [(TCoPattern ty, TIntermediate ty)] (Maybe ty)
   deriving Show
 
 newtype TIntermediate' = TIntermediate' (TIntermediate TIntermediate')

@@ -4,6 +4,7 @@
 
 module Data (Definition(..),
              Pattern(..),
+             CoPattern(..),
              Core(..),
              Normal'(..),
              Normal,
@@ -23,9 +24,7 @@ module Data (Definition(..),
              CollTy(..),
              InbuiltCtor(..),
              Special(..),
-             TopCore(..)
-
-            ) where
+             TopCore(..)) where
 
 import Data.Text (Text, pack, unpack)
 import Data.Vector (Vector)
@@ -40,7 +39,7 @@ import qualified Data.Set as Set
 -- TODO: untangle core & Normalized values
 data Definition
   = SingleDef String Core Normal
-  | InductDef String Int [(String, Normal)] Normal [(String, Int, Normal)] 
+  | InductDef   String Int [(String, Normal)] Normal [(String, Int, Normal)] 
   | CoinductDef String Int [(String, Normal)] Normal [(String, Int, Normal)] 
   | OpenDef Core [(String, Normal)]
   deriving Show
@@ -53,6 +52,15 @@ data Pattern
   | InbuiltMatch (Normal -> (Normal -> Pattern -> EvalM (Maybe [(String, Normal)]))
                          -> EvalM (Maybe [(String, Normal)]))
 
+data CoPattern
+  = CoWildCard
+  | CoVarBind String Normal
+  | CoMatchInduct String Int Int [CoPattern]
+  | CoMatchModule [(String, CoPattern)]
+  -- | InbuiltMatch (Normal -> (Normal -> Pattern -> EvalM (Maybe [(String, Normal)]))
+  --                        -> EvalM (Maybe [(String, Normal)]))
+
+
 data Core
   = CNorm Normal                           -- Normalised value
   | CVar String                            -- Variable
@@ -64,10 +72,9 @@ data Core
   | CApp Core Core                         -- Function application 
   | CMAbs String Normal Core               -- Macro abstraction
   | CLet [(String, Core)] Core Normal      -- Local binding
-  | CLetOpen [(Core, [(String, Core)])] Core Normal -- Local opens
   | CMatch Core [(Pattern, Core)] Normal   -- Pattern-Match
-  | CCoMatch Core [(Pattern, Core)] Normal -- Pattern-Comatch (for coinductive types)
-  -- TODO: remove this via lazy functions!
+  | CCoMatch [(CoPattern, Core)] Normal    -- Pattern-Comatch (for coinductive types)
+  -- TODO: remove this via lazy functions (induction?!)
   | CIf Core Core Core Normal              -- Conditional 
   | CSct [Definition] Normal               -- Structure Definition
   | CSig [Definition]                      -- Signature Definition (similar to dependent sum)
@@ -80,6 +87,12 @@ instance Show Pattern where
   show (VarBind sym _) = sym
   show (MatchInduct _ _ _) = "inductive match"
   show (InbuiltMatch _) = "inbuilt match"
+
+  
+instance Show CoPattern where  
+  show CoWildCard = "_"
+  show (CoVarBind sym _) = sym
+  show (CoMatchInduct _ _ _ _) = "coinductive match"
 -- type Context = Map.Map String Expr
 -- type TypeContext' = TypeContext ProgMonad
 
@@ -93,7 +106,7 @@ data Special
   -- Definition Forms 
   = Def | Induct | Coinduct | Open | LetOpen
   -- Control Flow 
-  | If | MkMatch
+  | If | MkMatch | MkCoMatch
   -- Value Constructors
   | Let | Lambda |  MkHandler | MkStructure 
   -- Type Constructors
@@ -106,6 +119,7 @@ data PrimVal
   = Unit
   | Bool Bool
   | Int Integer
+  | Nat Integer
   | Float Float
   | Char Char
   | String Text
@@ -167,10 +181,15 @@ data Normal' m
   | NormSig [(String, Normal' m)]
 
   -- Inductive and Coinductive Types and Values
+  --   NormIVal : name, tyid, valid, strip, vals, type
+  --   NormCoVal: tyid, a record of functions
+  --                (name, id, vars, func-body)
+  --   NormCoDtor : name, tyid, strip, type
   | NormIType String Int [Normal' m]
   | NormIVal String Int Int Int [Normal' m] (Normal' m)
   | NormCoType String Int [(Normal' m)]
-  | NormCoVal String Int Int [String] (Normal' m) (Normal' m)
+  | NormCoVal [(CoPattern, (Normal' m))] (Normal' m)
+  | NormCoDtor String Int Int Int Int [Normal' m]  (Normal' m)
 
 
   -- Multi-Stage Programming
@@ -189,7 +208,7 @@ data Neutral' m
   | NeuDot (Neutral' m) String
   | NeuIf (Neutral' m) (Normal' m) (Normal' m) (Normal' m)
   | NeuMatch (Neutral' m) [(Pattern, Normal)] (Normal' m)
-  | NeuCoMatch (Neutral' m) [(Pattern, Normal)]
+  | NeuCoMatch (Neutral' m) [(CoPattern, Normal)]
 
   | NeuBuiltinApp (Normal' m -> m (Normal' m)) (Neutral' m) (Normal' m)
   
@@ -258,11 +277,17 @@ instance Show (Normal' m) where
           (Just v1, Just v2) -> "(" <> show v1 <> " × " <> show v2 <> ")"
 
   
-  show (NormIType name id params) =
+  show (NormIType name _ params) =
     name <> (foldr (\p s -> " " <> show p <> s) "" params)
-  show (NormIVal name tid id strip params ty) = 
+  show (NormIVal name _ _ _ params ty) = 
     name <> (foldr (\p s -> " " <> show p <> s) "" (reverse params))
 
+  show (NormCoType name _ params) =
+    name <> (foldr (\p s -> " " <> show p <> s) "" params)
+  show (NormCoDtor name id _ _ _ _ ty) = 
+    name <> " : " <> show ty
+  show (NormCoVal _ ty) =
+    "(covalue : " <> show ty <> ")"
   show (BuiltinMac _) = show "<inbuilt-macro>"
   show (Special sp) = show sp
   show (Keyword word) = "&" <> word
@@ -289,7 +314,7 @@ instance Show (Neutral' m) where
 
 
   
-data PrimType = BoolT | CharT | IntT | FloatT | UnitT | StringT | AbsurdT
+data PrimType = BoolT | CharT | IntT | NatT | FloatT | UnitT | StringT | AbsurdT
   deriving (Eq, Ord)
   
 
@@ -305,7 +330,8 @@ data ProgState = ProgState { _uid_counter :: Int, _var_counter :: Int }
   
 instance Show PrimType where 
   show BoolT   = "Bool"
-  show IntT    = "Int"
+  show IntT    = "ℤ"
+  show NatT    = "ℕ"
   show UnitT   = "Unit"
   show FloatT  = "Float"
   show CharT   = "Char"
@@ -327,7 +353,7 @@ instance Show (CollVal m) where
   show e = case e of  
     -- TODO: pretty-printing for lists & arrays
     MaybeVal (Just l) _ -> "some " <> show l
-    MaybeVal Nothing _ -> "nothing"
+    MaybeVal Nothing _ -> "none"
     ListVal l _ -> show l
     ArrayVal v _ _ -> show v
     IOAction _ ty -> "<IO action>" 

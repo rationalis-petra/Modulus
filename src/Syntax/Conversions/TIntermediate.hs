@@ -13,6 +13,7 @@ import Data(EvalM,
 import Syntax.Intermediate(Intermediate(..),
                            IDefinition(..),
                            IPattern(..),
+                           ICoPattern(..),
                            IArg(..))
 
 import Interpret.EvalM (local, fresh_id, fresh_var, throwError)
@@ -123,6 +124,34 @@ toTIntermediate (IMatch e1 cases) = do
           IndPat _ matcher n _ ty -> pure $ TBuiltinMatch matcher n (TIntermediate' (TValue ty)) subPatterns
         _ -> throwError ("couldn't extract pattern from val: " <> show val)
 
+  
+toTIntermediate (ICoMatch cases) = do 
+  cases' <- mapM toCase cases 
+  pure (TCoMatch cases' Nothing)
+
+  where
+    toCase :: (ICoPattern, Intermediate) -> EvalM (TCoPattern TIntermediate', TIntermediate TIntermediate')
+    toCase (ipat, e) = do 
+      tpat <- toTPat ipat 
+      e' <- toTIntermediate e 
+      pure (tpat, e')
+
+    toTPat :: ICoPattern -> EvalM (TCoPattern TIntermediate')
+    toTPat ICoWildCard = pure TCoWildPat
+    toTPat (ICoSingPattern s) = pure (TCoBindPat s Nothing)
+    toTPat (ICoCheckPattern pat subPatterns) = do
+      subPatterns' <- mapM toTPat subPatterns
+      extractPattern pat subPatterns'
+
+    extractPattern :: Intermediate
+                   -> [TCoPattern TIntermediate'] -> EvalM (TCoPattern TIntermediate')
+    extractPattern expr subPatterns = do
+      val <- toTIntermediate expr
+      case val of 
+        TValue (NormCoDtor name altid vid len strip terms ty) ->
+          pure (TCoFun name altid vid (TIntermediate' (TValue ty)) subPatterns)
+        _ -> throwError ("couldn't extract pattern from val: " <> show val)
+
 toTIntermediate (IDefinition _) = throwError ("defs must be toplevel! ")
 toTIntermediate x = throwError ("toTIntermediate not implemented for: "  <> show x)
 
@@ -145,6 +174,35 @@ toTDef (IInductDef sym params ty alts) = do
   alts' <- processAlts alts
   id <- fresh_id
   pure $ TInductDef sym id params' (TIntermediate' ty') alts'
+  where
+    processAlts :: [(String, Intermediate)] -> EvalM [(String, Int, TIntermediate')] 
+    processAlts [] = pure []
+    processAlts ((str, inter) : params) = do
+      tint' <- toTIntermediate inter
+      id <- fresh_id
+      rest <- processAlts params
+      pure $ ((str, id, (TIntermediate' tint')) : rest)
+
+    processParams :: [IArg] -> EvalM [(String, TIntermediate')]
+    processParams [] = pure []
+    processParams (Sym sym : args) = do
+      args' <- processParams args
+      pure $ ((sym, TIntermediate' (TValue (NormUniv 0))) : args')
+
+    processParams (Annotation sym inter : args) = do
+      args' <- processParams args
+      inter' <- toTIntermediate inter
+      pure $ ((sym, TIntermediate' inter') : args')
+
+    processParams (IWildCardArg inter : args) = do
+      throwError "inductive definitions do not accept wildcard parameters"
+
+toTDef (ICoinductDef sym params ty alts) = do
+  params' <- processParams params
+  ty' <- toTIntermediate ty
+  alts' <- processAlts alts
+  id <- fresh_id
+  pure $ TCoinductDef sym id params' (TIntermediate' ty') alts'
   where
     processAlts :: [(String, Intermediate)] -> EvalM [(String, Int, TIntermediate')] 
     processAlts [] = pure []

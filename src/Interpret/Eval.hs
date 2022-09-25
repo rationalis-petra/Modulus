@@ -5,9 +5,7 @@ module Interpret.Eval (Normal,
                        evalTop,
                        normSubst,
                        tyApp,
-
                        neu_equiv,
-
                        liftFun,
                        liftFun2,
                        liftFun3,
@@ -64,6 +62,23 @@ evalTop (TopDef def) = case def of
     
     alts' <- mkAlts alts
     pure $ Right (insertCtor . insertAlts alts')
+  CoinductDef sym coid params ty alts -> do 
+    let insertCtor env = Env.insertCurrent sym ty env
+        insertAlts alts env = foldr (\(k, val) env -> Env.insertCurrent k val env) env alts
+
+        mkAlts [] = pure []
+        mkAlts ((sym, id, ty) : alts) = do
+          let alt = NormCoDtor sym coid id (length params + tySize ty) (length params) [] ty
+          alts' <- mkAlts alts
+          pure ((sym, alt) : alts')
+
+        tySize (NormArr l r) = 1 + tySize r
+        tySize (NormProd _ _ r) = 1 + tySize r
+        tySize (NormImplProd _ _ r) = 1 + tySize r
+        tySize _ = 0
+    
+    alts' <- mkAlts alts
+    pure $ Right (insertCtor . insertAlts alts')
   
 -- evaluate an expression, to a normal form (not a value!). This means that the
 -- environment now contains only normal forms!
@@ -76,7 +91,7 @@ eval (CVar var) = do
     Nothing -> throwError ("could not find variable " <> var <> " in context")
 
 eval (CArr l r) = do
-  l' <- eval l 
+  l' <- eval l
   r' <- eval r
   pure $ NormArr l' r'
   
@@ -110,6 +125,12 @@ eval (CApp l r) = do
     NormIVal name tyid altid strip params ty -> do
       ty' <- tyApp ty r'
       pure $ NormIVal name tyid altid strip (r' : params) ty'
+    NormCoDtor name id1 id2 len strip args ty -> do
+      ty' <- tyApp ty r'
+      case len of 
+        0 -> throwError "too many arugments to destructor"
+        1 -> applyDtor id1 id2 strip (reverse (r' : args))
+        _ -> pure $ NormCoDtor name id1 id2 (len - 1) strip (r' : args) ty
     InbuiltCtor ctor -> case ctor of   
       IndPat _ _ _ n _ -> eval (CApp (CNorm n) (CNorm r'))
 
@@ -211,6 +232,21 @@ eval (CMatch term alts ty) = do
     getPatNeu WildCard env = env
     getPatNeu (VarBind sym ty) env = Env.insert sym (Neu (NeuVar sym ty) ty) env
     getPatNeu (MatchInduct id1 id2 pats) env = foldr getPatNeu env pats
+
+eval (CCoMatch patterns ty) = do 
+  funcs <- mapM evalCoPat patterns 
+  pure $ NormCoVal funcs ty
+  where
+    evalCoPat (pat, body)  = do 
+      env <- ask
+      body' <- localF (getPatNeu pat) (eval body)
+      pure (pat, body')
+
+    getPatNeu CoWildCard env = env
+    getPatNeu (CoVarBind sym ty) env = Env.insert sym (Neu (NeuVar sym ty) ty) env
+    getPatNeu (CoMatchInduct _ _ _ pats) env = foldr getPatNeu env pats
+
+
 
 eval (CIf cond e1 e2 ty) = do 
   cond' <- eval cond
@@ -637,3 +673,37 @@ liftFun6 f ty =
                   (NormProd var _ body) -> pure $ liftFun5 (f val) body
                   (NormImplProd var _ body) -> pure $ liftFun5 (f val) body
     in Builtin f' ty
+
+  
+applyDtor :: Int -> Int -> Int -> [Normal] -> EvalM Normal
+applyDtor id1 id2 strip (arg:args) 
+  | strip == 0 = case arg of 
+      NormCoVal patterns _ -> go args patterns
+      _ -> throwError "bad destructor application"
+  | otherwise = applyDtor id1 id2 (strip - 1) args
+
+  
+  where go args [] = throwError "cannot find appropriate copattern in coinductive value"
+        go args ((p, body) : ps) = case getBindList p args of 
+          Just binds ->
+            foldr (\(str, val) term -> (term >>= normSubst (val, str)))
+                  (pure body)
+                  binds
+          Nothing -> go args ps
+
+        getBindList a args = case a of 
+          CoMatchInduct _ id1' id2' subPatterns ->
+            if id1' == id1 && id2' == id2 then
+              foldr (\pair accum -> case (getBinds pair, accum) of
+                                      (Just xs, Just ys) -> Just (xs <> ys)
+                                      _ -> Nothing) (Just []) (zip subPatterns args)
+            else Nothing 
+              
+
+        getBinds (p, arg) = case p of 
+          CoWildCard -> Just []
+          CoVarBind sym _ -> Just [(sym, arg)]
+
+
+
+applyDtor _ _ _ _ = throwError "bad destructor application"  

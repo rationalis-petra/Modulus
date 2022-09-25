@@ -36,7 +36,6 @@ mlsSome = InbuiltCtor $ IndPat "some" someMatch 1 (liftFun2 someCtor mlsSomeTy) 
 
     someCtor :: Normal -> Normal -> EvalM Normal
     someCtor ty val = pure (CollVal (MaybeVal (Just val) ty))
-    someCtor _ _ = throwError "bad arguments to constructor: cons"
 
 mlsNoneTy :: Normal
 mlsNoneTy = NormImplProd "A" (NormUniv 0) (CollTy (MaybeTy (mkVar "A")))

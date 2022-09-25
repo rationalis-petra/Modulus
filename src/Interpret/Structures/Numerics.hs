@@ -19,18 +19,13 @@ floatShow = liftFun newf (NormArr float_t (PrimType StringT))
   where
     newf :: Normal -> EvalM Normal
     newf (PrimVal (Float f)) = pure (PrimVal (String (pack (show f))))
-    newf x =
-      throwError ("bad arg to inbuilt float function" <> show x)
 
 mkFloatUni :: (Float -> Float) -> Normal
 mkFloatUni f = 
   liftFun newf unifloat
   where
     newf :: Normal -> EvalM Normal
-    newf (PrimVal (Float f1)) =
-      pure $ PrimVal $ Float $ f f1
-    newf x =
-      throwError ("bad arg to inbuilt float function" <> show x)
+    newf (PrimVal (Float f1)) = pure $ PrimVal $ Float $ f f1
 
 
 mkFloatOp :: (Float -> Float -> Float) -> Normal
@@ -40,9 +35,6 @@ mkFloatOp f =
     newf :: Normal -> Normal -> EvalM Normal
     newf (PrimVal (Float f1)) (PrimVal (Float f2)) =
       pure $ PrimVal $ Float $ f f1 f2
-    newf x y =
-      throwError ("bad arg to inbuilt float function"
-                         <> show x <> ", " <> show y)
 
 mkFltCmp :: (Float -> Float -> Bool) -> Normal
 mkFltCmp f = 
@@ -51,27 +43,19 @@ mkFltCmp f =
     newf :: Normal -> Normal -> EvalM Normal
     newf (PrimVal (Float n1)) (PrimVal (Float n2)) =
       pure $ PrimVal $ Bool $ f n1 n2
-    newf x y =
-      throwError ("bad arg to inbuilt integer function " 
-                         <> show x <> ", " <> show y)
 
 intShow :: Normal  
 intShow = liftFun newf (NormArr int_t (PrimType StringT))
   where
     newf :: Normal -> EvalM Normal
     newf (PrimVal (Int n1)) = pure (PrimVal (String (pack (show n1))))
-    newf x =
-      throwError ("bad arg to inbuilt float function" <> show x)
   
 mkIntUni :: (Integer -> Integer) -> Normal
 mkIntUni f = 
   liftFun newf uniint
   where
     newf :: Normal -> EvalM Normal
-    newf (PrimVal (Int n1)) =
-      pure $ PrimVal $ Int $ f n1
-    newf x =
-      throwError ("bad arg to inbuilt float function" <> show x)
+    newf (PrimVal (Int n1)) = pure $ PrimVal $ Int $ f n1
 
 mkIntOp :: (Integer -> Integer -> Integer) -> Normal
 mkIntOp f = 
@@ -80,9 +64,6 @@ mkIntOp f =
     newf :: Normal -> Normal -> EvalM Normal
     newf (PrimVal (Int n1)) (PrimVal (Int n2)) =
       pure $ PrimVal $ Int $ f n1 n2
-    newf x y =
-      throwError ("bad arg to inbuilt integer function"
-                         <> show x <> ", " <> show y)
 
 mkCmpOp :: (Integer -> Integer -> Bool) -> Normal
 mkCmpOp f = 
@@ -91,9 +72,6 @@ mkCmpOp f =
     newf :: Normal -> Normal -> EvalM Normal
     newf (PrimVal (Int n1)) (PrimVal (Int n2)) =
       pure $ PrimVal $ Bool $ f n1 n2
-    newf x y =
-      throwError ("bad arg to inbuilt integer function"
-                         <> show x <> ", " <> show y)
 
 mkBoolOp :: (Bool -> Bool -> Bool) -> Normal
 mkBoolOp f = 
@@ -102,9 +80,6 @@ mkBoolOp f =
     newf :: Normal -> Normal -> EvalM Normal
     newf (PrimVal (Bool b1)) (PrimVal (Bool b2)) =
       pure $ PrimVal $ Bool $ f b1 b2
-    newf x y =
-      throwError ("bad arg to inbuilt bool function"
-                         <> show x <> ", " <> show y)
 
 mkBoolSing :: (Bool -> Bool) -> Normal
 mkBoolSing f = 
@@ -113,8 +88,6 @@ mkBoolSing f =
     newf :: Normal -> EvalM Normal
     newf (PrimVal (Bool b)) =
       pure $ PrimVal $ Bool $ f b
-    newf x =
-      throwError ("bad arg to inbuilt bool function" <> show x)
 
 
 intSignature :: Normal
@@ -127,8 +100,6 @@ intSignature =
              ("+", binIntTy),
              ("-", binIntTy),
              ("*", binIntTy),
-             -- TODO: divide does not belong in a ring; but we want int to be a ring
-             -- maybe?? 
              ("quot", binIntTy),
              ("rem", binIntTy),
              ("add-inv", NormArr (mkVar "T") (mkVar "T")),
@@ -139,7 +110,7 @@ intSignature =
              ("e1", (mkVar "T")),
            
              ("show", NormArr (mkVar "T") (PrimType StringT)),
-           
+
              ("=", binIntCmp),
              ("≠", binIntCmp),
              ("<", binIntCmp),
@@ -154,8 +125,6 @@ intStructure =
    ("+", mkIntOp (+)),
    ("-", mkIntOp (-)),
    ("*", mkIntOp (*)),
-   -- TODO: divide does not belong in a ring; but we want int to be a ring
-   -- maybe?? 
    ("quot", mkIntOp (quot)),
    ("rem", mkIntOp (rem)),
    ("add-inv", mkIntUni (\x -> -x)),
@@ -172,8 +141,7 @@ intStructure =
    (">", mkCmpOp (>)),
    ("≥", mkCmpOp (>=)),
    ("=", mkCmpOp (==)),
-   ("≠", mkCmpOp (/=))
-  ]
+   ("≠", mkCmpOp (/=))]
 
 floatSignature :: Normal
 floatSignature =

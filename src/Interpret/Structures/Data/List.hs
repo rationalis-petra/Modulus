@@ -225,6 +225,17 @@ mlsReverse = liftFun2 f mlsReverseTy
         f a (CollVal (ListVal xs _)) = do
           pure $ CollVal $ ListVal (reverse xs) a
 
+mlsLenTy :: Normal  
+mlsLenTy = NormImplProd "A" (NormUniv 0)
+                (NormArr (CollTy (ListTy (mkVar "A")))
+                  (PrimType IntT))
+
+mlsLen :: Normal  
+mlsLen = liftFun2 f mlsLenTy
+  where f :: Normal -> Normal -> EvalM Normal
+        f _ (CollVal (ListVal xs _)) = do
+          pure $ PrimVal $ Int (fromIntegral (length xs))
+
 listSignature :: Normal
 listSignature = NormSig [
   ("M", mlsListCtorTy),
@@ -244,7 +255,8 @@ listSignature = NormSig [
   ("⋅", mlsCatTy),
   ("↑", mlsTakeTy),
   ("↓", mlsDropTy),
-  ("reverse", mlsReverseTy)
+  ("reverse", mlsReverseTy),
+  ("ρ", mlsLenTy)
   ]
   
 
@@ -268,5 +280,6 @@ listStructure = NormSct [
   ("⋅", mlsCat),
   ("↑", mlsTake),
   ("↓", mlsDrop),
-  ("reverse", mlsReverse)
+  ("reverse", mlsReverse),
+  ("ρ", mlsLen)
   ] listSignature
