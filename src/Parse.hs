@@ -160,17 +160,19 @@ pNormal =
         go acc = choice [((\f x -> f (toLst acc) x) <$> op <*> mkRBin l r op),
                          return (toVal acc)]
 
-      mkLeft p = (((\v -> case v of Cons l -> Right l; x -> Right [x]) <$> larens pNormal)
+      mkLeft p = (((\v -> case v of Cons l -> Right l; x -> Right [x]) <$> larens p)
                  <|> ((\v tl -> case tl of
                           [] -> Left v
                           _ -> Left $ Cons (v:tl)) <$> p <*> many p))
+      mkLeftTight p = (((\v -> case v of Cons l -> Right l; x -> Right [x]) <$> larens p)
+                 <|> (Left <$> p))
 
       toLst v = case v of Left x -> [x]; Right lst -> lst
       toVal v = case v of Left x -> x;   Right lst -> Cons lst
 
       mkCall op arg args = Cons (op : (arg : args))
 
-      sml    = mkBinTight (mkLeft pTerm) pTerm (mkOp ".")
+      sml    = mkBinTight (mkLeftTight pTerm)  pTerm (mkOp ".")
       ty     = mkRBin (mkLeft sml) sml         (mkOpP pRightSym)
       expr   = mkBin  (mkLeft ty) ty           (mkOpP pSpecial)
     in expr
