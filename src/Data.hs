@@ -248,7 +248,7 @@ instance Show (Normal' m) where
   show (NormProd var a b) = "(" <> var <> ":" <> show a <> ")" <> " → " <> show b
   show (NormImplProd var a b) = "{" <> var <> ":" <> show a <> "}" <> " → " <> show b
   show (NormArr l r) = show l <> " → " <> show r
-  show (NormAbs var body ty) = "(λ " <> var <> " . " <> show body <> ")"
+  show (NormAbs var body ty) = "(λ [" <> var <> "] " <> show body <> ")"
   show (Builtin _ ty) = "(fnc : " <> show ty <> ")"
   
   show (NormSct fields ty) =

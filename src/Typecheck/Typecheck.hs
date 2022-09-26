@@ -44,13 +44,13 @@ typeCheckTop (TDefinition def) ctx =
       (expr', ty, vsubst) <- typeCheck expr
           (Ctx.insert name (Neu (NeuVar name recTy) recTy) recTy ctx)
       (_, app, csubst) <- constrain recTy ty ctx
-      let fnlSubst = rmSubst (show recTy) csubst
+      let (fnlSubstl, fnlSubstr) = rmSubst (show recTy) csubst
       ty' <- tyApp ty app
-      if (null fnlSubst)
+      if (null fnlSubstl && null fnlSubstr)
         then 
           pure $ Right $ TDefinition $ TSingleDef name expr' (Just ty')
         else do
-          throwError ("subst strings non empty at toplevel: " <> show fnlSubst)
+          throwError ("subst strings non empty at toplevel: " <> show (fnlSubstl, fnlSubstr))
 
     TSingleDef name expr (Just mty) -> do
       throwError "cannot check type-annotated single definitions"
@@ -401,7 +401,7 @@ typeCheck expr ctx = case expr of
   (TStructure defs Nothing) -> do  
     let foldDefs :: [TDefinition TIntermediate'] -> Ctx.Context
                  -> EvalM ([TDefinition Normal], [(String, Normal)], Subst)
-        foldDefs [] _ = pure ([], [], [])
+        foldDefs [] _ = pure ([], [], nosubst)
         foldDefs (def : defs) ctx = do
           (def', deflist, subst) <- typeCheckDef def ctx
           (defs', fields, subst') <- foldDefs defs (foldr (\(var, val) ctx ->
@@ -417,7 +417,7 @@ typeCheck expr ctx = case expr of
   (TSignature defs) -> do  
     let foldDefs :: [TDefinition TIntermediate'] -> Ctx.Context
                  -> EvalM ([TDefinition Normal], [(String, Normal)], Subst)
-        foldDefs [] _ = pure ([], [], [])
+        foldDefs [] _ = pure ([], [], nosubst)
         foldDefs (def : defs) ctx = do
           (def', deflist, subst) <- typeCheckDef def ctx
           (defs', fields, subst') <- foldDefs defs (foldr (\(var, val) ctx ->
@@ -436,7 +436,8 @@ typeCheck expr ctx = case expr of
     (patterns', subst') <- checkPatterns patterns ty retTy
     outSubst <- compose subst subst'
     retTy' <- doSubst outSubst retTy
-    let fnlSubst = rmSubst (show retTy) outSubst
+    let fnlSubst' = rmSubst (show retTy) outSubst
+        fnlSubst = trace ("final subst: " <> show fnlSubst') fnlSubst'
     pure $ (TMatch term' patterns' (Just retTy'), retTy', fnlSubst)
     where
       -- Check Patterns: take a list of patterns as input, along with the
@@ -458,22 +459,66 @@ typeCheck expr ctx = case expr of
         (lapp1, rapp1, restMatchSubst) <- constrain matchty matchty' ctx
         (lapp2, rapp2, restRetSubst) <- constrain retty eret ctx
         (ps', pssubst) <- checkPatterns ps matchty retty
+        restRetSubst' <- varRight restRetSubst
+
+        let traceString = ("For: " <> show p) <> "\n"
+                          <> ("matchty, matchty' " <> show matchty <> ", " <> show matchty') <> "\n"
+                          <> ("retty, eret:  " <> show retty <> ", " <> show eret) <> "\n\n"
+                          <> ("restRetsubst' : " <> show restRetSubst') <> "\n"
+                          <> ("pssubst : " <> show pssubst) <> "\n"
+                          <> ("restMatchSubst' : "  <> show restMatchSubst) <> "\n"
+                          <> ("esubst : " <> show esubst) <> "\n"
+                          <> ("ctxUpd : " <> show ctxUpd) <> "\n"
+
+        lapprepl <- pure $ trace traceString lapp1
+
+        if not (null lapprepl && null lapp2 && null rapp1 && null rapp2) then 
+          throwError "constrain application in CheckPatterns not null"
+          else pure ()
   
         -- TODO: make sure composition is right way round...
-        substFnl <- composeList [restMatchSubst, restRetSubst, esubst, pssubst]
-        pure $ ((p', e') : ps', substFnl)
+        substFnl <- composeList restRetSubst' [pssubst, restMatchSubst, esubst]
+        substFnl' <- pure $ trace ("substFnl: " <> show substFnl) substFnl
+        pure $ ((p', e') : ps', substFnl')
       
-      -- TODO: check for duplicate variable patterns!
-      -- Get the type of a single pattern, to be constrained against.
-      -- Also, return a list of variables and their types
+      -- TODO: check for duplicate variables!
+      -- Return a tuple of:
+      -- 1. The updated pattern,
+      -- 2. The value of the type to be matched against
+      -- 3. A list if bindings of strings to types 
         
       getPatternType :: TPattern TIntermediate' -> EvalM (TPattern Normal, Normal, [(String, Normal)]) 
       getPatternType TWildPat = do
-        var <- freshVar
-        pure $ (TWildPat, var, [])
+        ty <- freshVar
+        pure (TWildPat, ty, [])
       getPatternType (TBindPat sym Nothing) = do
         ty <- freshVar
         pure $ (TBindPat sym (Just ty), ty, [(sym, ty)])
+      getPatternType (TIMatch indid altid strip (TIntermediate' ctorTy) subPatterns) = do 
+        ctorTy' <- evalTIntermediate ctorTy ctx
+        let types = getTypes (dropTypes strip ctorTy')
+        lst <- mapM getPatternType' (zip subPatterns types)
+        let (subPatterns', types, binds) = foldr (\(p, t, b) (ps, ts, bs) -> (p:ps, t:ts, b<>bs))
+                                                 ([], [], []) lst
+        pure $ (TIMatch indid altid strip ctorTy' subPatterns',
+                fnlType ctorTy',
+                binds)
+        -- TODO: use returned types for some kind of constraint??
+        where
+          getTypes (NormArr l r) = l : getTypes r
+          getTypes (NormProd _ a b) = a : getTypes b
+          getTypes (NormImplProd _ a b) = a : getTypes b
+          getTypes _ = []
+
+          dropTypes 0 t = t
+          dropTypes n (NormArr l r) = dropTypes (n-1) r
+          dropTypes n (NormProd _ _ b) = dropTypes (n-1) b
+          dropTypes n (NormImplProd _ _ b) = dropTypes (n-1) b
+
+          fnlType (NormArr l r) = fnlType r 
+          fnlType (NormProd _ _ b) = fnlType b
+          fnlType (NormImplProd _ _ b) = fnlType b
+          fnlType t = t
       getPatternType (TBuiltinMatch fnc strip (TIntermediate' ty) pats) = do
         lst <- mapM getPatternType pats
         let (subpatterns', norms, vars) =
@@ -490,23 +535,13 @@ typeCheck expr ctx = case expr of
           foldTyApp n (NormImplProd sym a b) apps = do
             b' <- foldTyApp (n - 1) b apps 
             pure $ NormImplProd sym a b'
-      getPatternType (TIMatch indid altid strip (TIntermediate' altTy) subpatterns) = do 
-        lst <- mapM getPatternType subpatterns
-        let (subpatterns', norms, vars) = foldr (\(s, n, v) (ss, ns, vs) -> (s:ss, n:ns, v <> vs)) ([], [], []) lst 
-        altTy' <- evalTIntermediate altTy ctx
-        retty <- foldTyApp strip altTy' norms
-        pure $ (TIMatch indid altid strip altTy' subpatterns', retty, vars)
 
-        where 
-          foldTyApp :: Int -> Normal -> [Normal] -> EvalM Normal
-          foldTyApp 0 ty [] = pure ty
-          foldTyApp 0 ty (n : ns) = do
-            ty' <- Eval.tyApp ty n
-            foldTyApp 0 ty' ns
-          foldTyApp n (NormImplProd sym a b) apps = do
-            b' <- foldTyApp (n - 1) b apps 
-            pure $ NormImplProd sym a b'
-      -- getPatternType (MatchModule fields) = do
+      -- The secondary version takes in a list of types to constrain against
+      getPatternType' :: (TPattern TIntermediate', Normal) -> EvalM (TPattern Normal, Normal, [(String, Normal)]) 
+      getPatternType' (TWildPat, ty) =
+        pure (TWildPat, ty, [])
+      getPatternType' (TBindPat sym Nothing, ty) = 
+        pure (TBindPat sym (Just ty), ty, [(sym, ty)])
 
   (TCoMatch patterns Nothing) -> do
     retTy <- freshVar 
@@ -535,7 +570,7 @@ typeCheck expr ctx = case expr of
         (ps', pssubst) <- checkPatterns ps retty
   
         -- TODO: make sure composition is right way round...
-        substFnl <- composeList [restRetSubst, esubst, pssubst]
+        substFnl <- composeList restRetSubst [esubst, pssubst]
         pure $ ((p', e') : ps', substFnl)
       
       -- TODO: check for duplicate variable patterns!
@@ -609,7 +644,7 @@ typeCheckDef (TInductDef sym id params (TIntermediate' ty) alts) ctx = do
           let alt = NormIVal sym id altid (length params) [] ty
               alts' = mkAltDefs alts
           in ((sym, alt) : alts')
-  pure $ (TInductDef sym id params' indCtor alts', defs, [])
+  pure $ (TInductDef sym id params' indCtor alts', defs, nosubst)
   where
     processAlts :: [(String, Int, TIntermediate')] -> [(String, Normal)] -> Ctx.Context
                 -> EvalM [(String, Int, Normal)]

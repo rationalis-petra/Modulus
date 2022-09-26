@@ -32,6 +32,8 @@ you can still try it out if you're interested.
 ## Currently Implemented 
 + Structures
 + Dependent Types
++ Inductive and Coinductive datatypes
++ Implicit arguments
 
 
 

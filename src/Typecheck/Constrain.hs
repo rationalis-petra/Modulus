@@ -8,6 +8,8 @@ module Typecheck.Constrain (
   rmSubst,
   findStrSubst,
   doSubst,
+  varLeft,
+  varRight,
   inferVar)
   where
 
@@ -36,7 +38,7 @@ import qualified Data.Set as Set
 err = throwError  
 
 type LRSubst = ([(Normal, String)], [(Normal, String)], [((String, Normal), (String, Normal))])
-type Subst = [(Normal, String)]
+type Subst = ([(Normal, String)], [((String, Normal), (String, Normal))])
 
 -- NOTICE: this module will be deprecated in terms of unify
 
@@ -238,7 +240,7 @@ neuConstrain n1 n2 = err ("neuConstrain incomplete OR terms " <> show n1 <> " an
 -- we need to be able to join and query these substitutions
 
 nosubst :: Subst
-nosubst = []
+nosubst = ([], [])
 
 swap :: LRSubst -> LRSubst
 swap (l, r, s) = (r, l, map (\(x, y) -> (y, x)) s)
@@ -255,37 +257,39 @@ rightsubst ty s =  ([], [(ty, s)], [])
 
 
 findStrSubst :: String -> Subst -> Maybe Normal
-findStrSubst str ((ty, str') : ss) =
+findStrSubst str ((ty, str') : ss, vars) =
   if str == str' then Just ty
-  else findStrSubst str ss
-findStrSubst _ [] = Nothing
+  else findStrSubst str (ss, vars)
+findStrSubst str ([], vars) = findVarSubst vars
+  where
+    findVarSubst [] = Nothing
+    findVarSubst (((v, ty), (v', ty')) : vs) =
+      if v == str then Just (Neu (NeuVar v' ty') ty')
+      else findVarSubst vs
 
+-- TODO 
 rmSubst :: String -> Subst -> Subst
-rmSubst str ((ty, str') : ss)=
-  if str == str' then rmSubst str ss
-  else let ss' = rmSubst str ss in ((ty, str') : ss')
-rmSubst str [] = []
+rmSubst str ((ty, str') : ss, vars)=
+  if str == str' then rmSubst str (ss, vars)
+  else let (ss', vars') = rmSubst str (ss, vars) in ((ty, str') : ss', vars')
+rmSubst str ([], vars) = ([], vars)
 
   -- TODO: these are now wrong (maybe?
 findLStrSubst :: String -> LRSubst -> Maybe Normal
-findLStrSubst str (l, _, vs) =
-  case findStrSubst str l of 
-    Just v -> Just v
-    Nothing -> findVarSubst vs where
-      findVarSubst [] = Nothing
-      findVarSubst (((v, ty), (v', ty')) : vs) =
-        if v == str then Just (Neu (NeuVar v' ty') ty')
-        else findVarSubst vs
-
+findLStrSubst str (l, _, vs) = findStrSubst str (l, vs)
 
 findRStrSubst :: String -> LRSubst -> Maybe Normal
 findRStrSubst str = findLStrSubst str . swap
 
 rmLSubst :: String -> LRSubst -> LRSubst
-rmLSubst str (l, r, v) = (rmSubst str l, r, v)
+rmLSubst str (l, r, v) =
+  let (l', v') = rmSubst str (l, v)
+  in (l', r, v')
 
 rmRSubst :: String -> LRSubst -> LRSubst
-rmRSubst str (l, r, v) = (l, rmSubst str r, v)
+rmRSubst str (l, r, v) =
+  let (r', v') = rmSubst str (r, v)
+  in (l, r', v')
 
 renameLSubst :: String -> String -> LRSubst -> LRSubst
 renameLSubst from to (l, r, v) = 
@@ -298,10 +302,16 @@ renameLSubst from to (l, r, v) =
       let e1 = if v == from then (to, t) else (v, t)
       in (e1, e2)
 
-    
-
 renameRSubst :: String -> String -> LRSubst -> LRSubst
 renameRSubst s1 s2 = (renameLSubst s1 s2 . swap)
+  
+varRight :: Subst -> EvalM Subst
+varRight (s, vars) =
+  compose (s, []) (map (\((var, ty), (right, _)) -> (Neu (NeuVar var ty) ty, right)) vars, [])
+  
+varLeft :: Subst -> EvalM Subst
+varLeft (s, vars) =
+  compose (s, []) (map (\((left, _), (var, ty)) -> (Neu (NeuVar var ty) ty, left)) vars, [])
   
 
 -- composition of substitutions: For HM substitutions, they are run in order,
@@ -310,55 +320,65 @@ renameRSubst s1 s2 = (renameLSubst s1 s2 . swap)
 -- thus, to compose s1 with s2
 -- 1: we apply all of s1's HM substitutions to s2
 -- 2: we append  of s1's string substitutions to s2's string substitutions
-compose :: Subst -> Subst -> EvalM Subst
-  -- TODO SEEMS DODGY!!
-compose str1 str2 = pure $ str1 <> str2
--- compose (s : ss, str1) (s2, str2) =
---   let iter :: (Normal, String) -> [(Normal, a)] -> EvalM [(Normal, a)]
---       iter s [] = pure []
---       iter s ((ty, vr) : ss) = do
---         ty' <- Type.normSubst s ty
---         tl <- iter s ss
---         pure $ (ty', vr) : tl
---   in do
---     -- perform substitution s within s2 
---     tl <- iter s s2 
---     compose (ss, str1) (s : tl)
+-- TODO: we need a step where we merge equivalent substitutions, e.g. 
+-- [(NormSct [("x", Int)], "A"), (NormSct [("y", Int)], "A")] should merge and give
+-- [(NormSct [("x", Int), ("y", Int)], "A")]
 
-composeList [] = pure nosubst
-composeList (s:ss) = do
-  cmp <- composeList ss
-  compose s cmp
+compose :: Subst -> Subst -> EvalM Subst
+compose ([], vars) (s', vars') = pure (s', vars <> vars')
+compose (s : ss, vars) (s2, vars') =
+  -- iter : apply a substitution to a list of substitutions
+  let iter :: (Normal, String) -> [(Normal, a)] -> EvalM [(Normal, a)]
+      iter s [] = pure []
+      iter s ((ty, vr) : ss) = do
+        ty' <- Eval.normSubst s ty
+        tl <- iter s ss
+        pure $ (ty', vr) : tl
+  in do
+    -- perform substitution s within s2 
+    tl <- iter s s2 
+    compose (ss, vars) ((s : tl), vars')
+
+composeList s [] = pure s
+composeList s1 (s2:ss) = do
+  cmp <- compose s1 s2
+  composeList cmp ss
 
   -- TODO: fix!
 composelr :: LRSubst -> LRSubst -> EvalM LRSubst
-composelr (l1, r1, b1) (l2, r2, b2) = pure (l1 <> l2, r1 <> r2, b1 <> b2)
--- composelr (l1, r1) (l2, r2) =
---   let iter :: (Normal, String) -> [(Normal, a)] -> EvalM [(Normal, a)]
---       iter s [] = pure []
---       iter s ((ty, vr) : ss) = do
---         hd <- Eval.normSubst s ty
---         tl <- iter s ss
---         pure $ (hd, vr) : tl
---   in do
---     l' <- iter l1 l2
---     r' <- iter r1 r2
---     -- perform substitution s within s2 
---     composelr (l', r')
+composelr (l1, r1, s1) (l2, r2, s2) = do
+  -- iter : apply a substitution to a list of substitutions
+  let iter :: (Normal, String) -> [(Normal, a)] -> EvalM [(Normal, a)]
+      iter s [] = pure []
+      iter s ((ty, vr) : ss) = do
+        ty' <- Eval.normSubst s ty
+        tl <- iter s ss
+        pure $ (ty', vr) : tl
+
+      compose (s : ss) s2 = do
+        tl <- iter s s2
+        compose ss (s : tl)
+      compose [] s = pure s
+    in do
+    -- perform substitution s within s2
+      l' <- compose l1 l2
+      r' <- compose r1 r2
+      pure (l', r', s1 <> s2)
 
 -- convert a lr substitution to a single substitution
--- TODO: this is BAD - we need to check for redundancy!
+-- by default, assume that 
 toSing  :: LRSubst -> Subst
-toSing (left, right, vars) = (left <> right)
+toSing (left, right, vars) =
+  (left <> right, vars)
 
 -- Perform substitution
 -- TODO: do what about order of string substitution? rearranging??
 doSubst :: Subst -> Normal  -> EvalM Normal 
 doSubst subst ty = case subst of 
-  [] -> pure ty 
-  ((sty, s) : ss) -> do
+  ([], _) -> pure ty 
+  (((sty, s) : ss), vrs) -> do
     ty' <- Eval.normSubst (sty, s) ty
-    doSubst ss ty'
+    doSubst (ss, vrs) ty'
 
 -- Throw an error if a variable (string) is contained in a substitution
 checkSubst :: String -> String -> LRSubst -> EvalM ()
