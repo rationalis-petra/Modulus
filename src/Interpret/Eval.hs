@@ -5,6 +5,7 @@ module Interpret.Eval (Normal,
                        evalTop,
                        normSubst,
                        tyApp,
+                       Result(..),
                        neu_equiv,
                        liftFun,
                        liftFun2,
@@ -14,6 +15,7 @@ module Interpret.Eval (Normal,
                        liftFun6) where
 
 import Prelude hiding (lookup)
+import Debug.Trace
 
 import Control.Monad.State (State, runState)
 import Control.Monad.Except (ExceptT, runExceptT)
@@ -29,25 +31,31 @@ import qualified Data.Set as Set
 import qualified Data.Vector as Vector
 import Interpret.Transform hiding (lift)
 
+  
+data Result
+  = RValue Normal
+  | RDef (Environment -> Environment)
+  | RAnn String Normal
 
-evalTop :: TopCore -> EvalM (Either Normal (Environment -> Environment))
-evalTop (TopExpr e) = eval e >>= (\val -> pure (Left val))
+
+evalTop :: TopCore -> EvalM Result
+evalTop (TopExpr e) = eval e >>= (\val -> pure (RValue val))
 evalTop (TopDef def) = case def of
   SingleDef name (CAbs sym core norm) ty -> do
     env <- ask
     let liftedFun = liftFun (\v -> local (Env.insert sym v liftedEnv) (eval core)) norm
         liftedEnv = Env.insert name liftedFun env
     val <- local liftedEnv (eval $ CAbs sym core norm)
-    pure (Right (Env.insertCurrent name val))
+    pure (RDef (Env.insertCurrent name val))
   SingleDef name body ty -> do
     val <- eval body
-    pure (Right (Env.insertCurrent name val))
+    pure (RDef (Env.insertCurrent name val))
   OpenDef body sig -> do
     mdle <- eval body
     case mdle of 
       NormSct m (NormSig ty) -> do
         let m' = (restrict (restrict m ty) sig)
-        pure (Right (\env -> foldr (\(k, val) env -> Env.insertCurrent k val env) env m'))
+        pure (RDef (\env -> foldr (\(k, val) env -> Env.insertCurrent k val env) env m'))
       _ -> throwError "cannot open non-module"
   InductDef sym indid params ty alts -> do 
     let insertCtor env = Env.insertCurrent sym ty env
@@ -61,14 +69,14 @@ evalTop (TopDef def) = case def of
           
     
     alts' <- mkAlts alts
-    pure $ Right (insertCtor . insertAlts alts')
+    pure $ RDef (insertCtor . insertAlts alts')
   CoinductDef sym coid params ty alts -> do 
     let insertCtor env = Env.insertCurrent sym ty env
         insertAlts alts env = foldr (\(k, val) env -> Env.insertCurrent k val env) env alts
 
         mkAlts [] = pure []
         mkAlts ((sym, id, ty) : alts) = do
-          let alt = NormCoDtor sym coid id (length params + tySize ty) (length params) [] ty
+          let alt = NormCoDtor sym coid id (tySize ty) (length params) [] ty
           alts' <- mkAlts alts
           pure ((sym, alt) : alts')
 
@@ -78,7 +86,11 @@ evalTop (TopDef def) = case def of
         tySize _ = 0
     
     alts' <- mkAlts alts
-    pure $ Right (insertCtor . insertAlts alts')
+    pure $ RDef (insertCtor . insertAlts alts')
+evalTop (TopAnn sym term) = do
+  term' <- eval term
+  pure (RAnn sym term')
+
   
 -- evaluate an expression, to a normal form (not a value!). This means that the
 -- environment now contains only normal forms!
@@ -239,8 +251,7 @@ eval (CCoMatch patterns ty) = do
   where
     evalCoPat (pat, body)  = do 
       env <- ask
-      body' <- localF (getPatNeu pat) (eval body)
-      pure (pat, body')
+      pure (pat, (local (getPatNeu pat env) (eval body)))
 
     getPatNeu CoWildCard env = env
     getPatNeu (CoVarBind sym ty) env = Env.insert sym (Neu (NeuVar sym ty) ty) env
@@ -280,6 +291,26 @@ normSubst (val, var) ty = case ty of
     ArrayVal vec ty shape -> CollVal <$> (ArrayVal <$> Vector.mapM (normSubst (val, var)) vec
                                       <*> normSubst (val, var) ty <*> pure shape)
     IOAction fn ty -> (CollVal . IOAction fn) <$> normSubst (val, var) ty  
+  NormCoVal pats ty -> do
+    let pats' = map substCoPat pats
+    ty' <- normSubst (val, var) ty
+    pure (NormCoVal pats' ty')
+    where 
+      substCoPat :: (CoPattern, EvalM Normal) -> (CoPattern, EvalM Normal)
+      substCoPat (copattern, body) = do
+        let vars = getCoPatVars copattern in
+          if Set.member var vars then
+            (copattern, body)
+          else
+            (copattern, (body >>= normSubst (val, var)))
+
+      getCoPatVars :: CoPattern -> Set.Set String
+      getCoPatVars CoWildCard = Set.empty
+      getCoPatVars (CoVarBind var _) = Set.singleton var
+      getCoPatVars (CoMatchInduct _ _ _ subPatterns) =
+        foldr (Set.union . getCoPatVars) Set.empty subPatterns
+
+ 
   NormUniv n -> pure $ NormUniv n
 
   
@@ -685,10 +716,12 @@ applyDtor id1 id2 strip (arg:args)
   
   where go args [] = throwError "cannot find appropriate copattern in coinductive value"
         go args ((p, body) : ps) = case getBindList p args of 
-          Just binds ->
-            foldr (\(str, val) term -> (term >>= normSubst (val, str)))
-                  (pure body)
+          Just binds -> do
+            res <- foldr (\(str, val) term -> (term >>= normSubst (val, str)))
+                  body
                   binds
+            let res' = trace ("res: " <> (show res)) res
+            pure res'
           Nothing -> go args ps
 
         getBindList a args = case a of 

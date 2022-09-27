@@ -36,6 +36,9 @@ typeCheckTop (TExpr e) ctx = do
       (expr, ty, subst) <- typeCheck e ctx
       -- (expr', ty') <- buildDepFn expr ty
       pure $ Left $ (TExpr expr, ty)
+typeCheckTop (TAnnotation sym bdy) ctx = do
+      (bdy', ty, subst) <- typeCheck bdy ctx
+      pure $ Right $ (TAnnotation sym bdy')
 
 typeCheckTop (TDefinition def) ctx = 
   case def of 
@@ -435,6 +438,7 @@ typeCheck expr ctx = case expr of
     retTy <- freshVar 
     (patterns', subst') <- checkPatterns patterns ty retTy
     outSubst <- compose subst subst'
+  -- TODO: check if there is a ready substitution
     retTy' <- doSubst outSubst retTy
     let fnlSubst' = rmSubst (show retTy) outSubst
         fnlSubst = trace ("final subst: " <> show fnlSubst') fnlSubst'
@@ -504,21 +508,6 @@ typeCheck expr ctx = case expr of
                 fnlType ctorTy',
                 binds)
         -- TODO: use returned types for some kind of constraint??
-        where
-          getTypes (NormArr l r) = l : getTypes r
-          getTypes (NormProd _ a b) = a : getTypes b
-          getTypes (NormImplProd _ a b) = a : getTypes b
-          getTypes _ = []
-
-          dropTypes 0 t = t
-          dropTypes n (NormArr l r) = dropTypes (n-1) r
-          dropTypes n (NormProd _ _ b) = dropTypes (n-1) b
-          dropTypes n (NormImplProd _ _ b) = dropTypes (n-1) b
-
-          fnlType (NormArr l r) = fnlType r 
-          fnlType (NormProd _ _ b) = fnlType b
-          fnlType (NormImplProd _ _ b) = fnlType b
-          fnlType t = t
       getPatternType (TBuiltinMatch fnc strip (TIntermediate' ty) pats) = do
         lst <- mapM getPatternType pats
         let (subpatterns', norms, vars) =
@@ -546,6 +535,7 @@ typeCheck expr ctx = case expr of
   (TCoMatch patterns Nothing) -> do
     retTy <- freshVar 
     (patterns', subst) <- checkPatterns patterns retTy
+  -- TODO: check if there is a ready substitution
     retTy' <- doSubst subst retTy
     let fnlSubst = rmSubst (show retTy) subst
     pure $ (TCoMatch patterns' (Just retTy'), retTy', fnlSubst)
@@ -556,48 +546,56 @@ typeCheck expr ctx = case expr of
       checkPatterns :: [(TCoPattern TIntermediate', TIntermediate TIntermediate')] -> Normal
                     -> EvalM ([(TCoPattern Normal, TIntermediate Normal)], Subst)
       checkPatterns [] _ = pure ([], nosubst)
-      checkPatterns ((p, e) : ps) retty = do
+      checkPatterns ((p, e) : ps) retTy = do
         -- an updated pattern, and the type thereof  
-        (p', _, ctxUpd) <- getPatternType p
+        (p', fncRet, retTy', ctxUpd) <- getPatternType p
         
   
         let ctx' = foldr (\(sym, ty) ctx -> Ctx.insert sym (Neu (NeuVar sym ty) ty) ty ctx) ctx ctxUpd
-        (e', eret, esubst) <- typeCheck e ctx'
+        (e', bodyTy, esubst) <- typeCheck e ctx'
 
         -- TODO: ensure that the constrains are right way round...
         -- TODO: what to do with lapp1, lapp2 etc...
-        (lapp1, rapp1, restRetSubst) <- constrain retty eret ctx
-        (ps', pssubst) <- checkPatterns ps retty
+        (lapp1, rapp1, bodySubst) <- constrain fncRet bodyTy ctx
+        (lapp2, rapp2, retSubst) <- constrain retTy retTy' ctx
+        (ps', pssubst) <- checkPatterns ps retTy
+
+        let trace_string = ("For: " <> show p <> "\n"
+                            <> "ctxUpd: " <> show ctxUpd <> "\n"
+                            <> "bodySubst: " <> show bodySubst <> "\n"
+                            <> "retSubst: " <> show retSubst <> "\n"
+                            <> "pssubst: " <> show pssubst <> "\n\n")
+            lapp1' = trace trace_string lapp1
+
+        if not (null lapp1' && null lapp2 && null rapp1 && null rapp2) then
+          throwError "non-null l/rapp in copattern check"
+          else pure ()
   
         -- TODO: make sure composition is right way round...
-        substFnl <- composeList restRetSubst [esubst, pssubst]
+        substFnl <- composeList retSubst [bodySubst, pssubst]
         pure $ ((p', e') : ps', substFnl)
       
       -- TODO: check for duplicate variable patterns!
       -- Get the type of a single pattern, to be constrained against.
       -- Also, return a list of variables and their types
         
-      getPatternType :: TCoPattern TIntermediate' -> EvalM (TCoPattern Normal, Normal, [(String, Normal)]) 
-      getPatternType TCoWildPat = do
-        var <- freshVar
-        pure $ (TCoWildPat, var, [])
-      getPatternType (TCoBindPat sym Nothing) = do
-        ty <- freshVar
-        pure $ (TCoBindPat sym (Just ty), ty, [(sym, ty)])
-      getPatternType (TCoFun name indid altid (TIntermediate' altTy) subpatterns) = do 
-        lst <- mapM getPatternType subpatterns
-        let (subpatterns', norms, vars) = foldr (\(s, n, v) (ss, ns, vs) -> (s:ss, n:ns, v <> vs)) ([], [], []) lst 
+      getPatternType :: TCoPattern TIntermediate' -> EvalM (TCoPattern Normal, Normal, Normal, [(String, Normal)]) 
+      getPatternType (TCoinductPat name indid altid strip (TIntermediate' altTy) subpatterns) = do 
         altTy' <- evalTIntermediate altTy ctx
-        retty <- foldTyApp altTy' norms
-        pure $ (TCoFun name indid altid altTy' subpatterns', retty, vars)
+        let types = getTypes (dropTypes strip altTy')
+            fncRetTy = fnlType altTy'
+            retTy = head types
+            args = tail types
+        lst <- mapM getPatternType' (zip args subpatterns)
+        let (subpatterns', norms, vars) = foldr (\(s, n, v) (ss, ns, vs) -> (s:ss, n:ns, v <> vs)) ([], [], []) lst 
+        pure $ (TCoinductPat name indid altid strip altTy' subpatterns', fncRetTy, retTy, vars)
 
-        where 
-          foldTyApp :: Normal -> [Normal] -> EvalM Normal
-          foldTyApp ty [] = pure ty
-          foldTyApp ty (n : ns) = do
-            ty' <- Eval.tyApp ty n
-            foldTyApp ty' ns
-      -- getPatternType (MatchModule fields) = do
+      getPatternType _ = throwError "comatch requires coterm as top-level pattern"
+        
+      getPatternType' :: (Normal, TCoPattern TIntermediate') -> EvalM (TCoPattern Normal, Normal, [(String, Normal)]) 
+      getPatternType' (ty, TCoWildPat) = pure (TCoWildPat, ty, [])
+      getPatternType' (ty, TCoBindPat sym Nothing) = pure (TCoBindPat sym (Just ty), ty, [(sym, ty)])
+      
   other -> 
     throwError ("typecheck unimplemented for intermediate term " <> show other)
 
@@ -745,3 +743,18 @@ evalNIntermediate tint ctx = do
         Left err -> throwError err
         Right val -> pure val
   local (Ctx.ctxToEnv ctx) (Eval.eval c_term) 
+
+getTypes (NormArr l r) = l : getTypes r
+getTypes (NormProd _ a b) = a : getTypes b
+getTypes (NormImplProd _ a b) = a : getTypes b
+getTypes _ = []
+
+dropTypes 0 t = t
+dropTypes n (NormArr l r) = dropTypes (n-1) r
+dropTypes n (NormProd _ _ b) = dropTypes (n-1) b
+dropTypes n (NormImplProd _ _ b) = dropTypes (n-1) b
+
+fnlType (NormArr l r) = fnlType r 
+fnlType (NormProd _ _ b) = fnlType b
+fnlType (NormImplProd _ _ b) = fnlType b
+fnlType t = t

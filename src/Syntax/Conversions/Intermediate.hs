@@ -66,6 +66,7 @@ toIntermediateM (Cons (e : es)) ctx = do
 
     (IValue (Special MkMatch)) -> mkMatch es ctx
     (IValue (Special MkCoMatch)) -> mkCoMatch es ctx
+    (IValue (Special Annotate)) -> mkAnnotate es ctx
     _ -> do
       args <- mapM (\v -> toIntermediateM v ctx) es
       let mkApply v [] = v
@@ -399,8 +400,7 @@ mkDo es globctx = do
     foldLet [] _ = return []
     foldLet [x] ctx = do
       val <- toIntermediateM x ctx
-      return [val] 
-    -- foldLet (Cons [(Atom (Symbol "←")), mnd] : xs) ctx = 
+      pure [val] 
       
     foldLet (Cons [(Atom (Symbol s)), defs] : xs) ctx = 
       case lookup s ctx of 
@@ -411,14 +411,18 @@ mkDo es globctx = do
         _ -> do
           result <- toIntermediateM (Cons [(Atom (Symbol s)), defs]) ctx
           tail <- foldLet xs ctx
-          return $ result : tail
+          pure (result : tail)
 
     foldLet (x : xs) ctx = do
       hd <- toIntermediateM x ctx
       rest <- (foldLet xs ctx)
-      return $ hd : rest
+      pure $ hd : rest
 
-
+mkAnnotate :: [AST] -> GlobCtx -> Except String Intermediate
+mkAnnotate [(Atom (Symbol str)), term] ctx  = do
+  term' <- toIntermediateM term ctx
+  pure (IAnnotation str term')
+mkAnnotate args _ = throwError ("malformed annotate: " <> show args)
 
 
 

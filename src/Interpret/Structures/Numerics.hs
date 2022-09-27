@@ -96,7 +96,7 @@ intSignature =
       binIntCmp = NormArr (mkVar "T") (NormArr (mkVar "T") (PrimType BoolT))
         in
     NormSig [("T", NormUniv 0),
-             ("Int", NormUniv 0),
+             ("ℤ", NormUniv 0),
              ("+", binIntTy),
              ("-", binIntTy),
              ("*", binIntTy),
@@ -121,7 +121,7 @@ intSignature =
 intStructure :: [(String, Normal)]
 intStructure = 
   [("t", int_t),
-   ("Int", int_t),
+   ("ℤ", int_t),
    ("+", mkIntOp (+)),
    ("-", mkIntOp (-)),
    ("*", mkIntOp (*)),

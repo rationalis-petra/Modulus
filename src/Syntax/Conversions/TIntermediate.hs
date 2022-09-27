@@ -29,6 +29,7 @@ import qualified Interpret.Eval as Eval
 
 toTIntermediateTop :: Intermediate -> EvalM (TIntTop TIntermediate')
 toTIntermediateTop (IDefinition def) = TDefinition <$> toTDef def
+toTIntermediateTop (IAnnotation str bdy) = TAnnotation str <$> toTIntermediate bdy
 toTIntermediateTop i = TExpr <$> toTIntermediate i
 
 -- TODO: make sure to update the context with typeLookup
@@ -149,7 +150,7 @@ toTIntermediate (ICoMatch cases) = do
       val <- toTIntermediate expr
       case val of 
         TValue (NormCoDtor name altid vid len strip terms ty) ->
-          pure (TCoFun name altid vid (TIntermediate' (TValue ty)) subPatterns)
+          pure (TCoinductPat name altid vid strip (TIntermediate' (TValue ty)) subPatterns)
         _ -> throwError ("couldn't extract pattern from val: " <> show val)
 
 toTIntermediate (IDefinition _) = throwError ("defs must be toplevel! ")

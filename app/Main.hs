@@ -4,7 +4,7 @@ import Control.Monad.Except (runExcept)
 
 import Parse (parseFile, parseRepl)
 import Data
-import Interpret.Eval (evalToIO, evalTop)
+import Interpret.Eval (evalToIO, evalTop, Result(..))
 import Syntax.Macroexpand 
 import Syntax.Conversions (toIntermediate,
                            toTIntermediateTop,
@@ -96,7 +96,6 @@ repl env state = do
           printFlush err
           repl env state 
         Right val -> do
-          printFlush val
           (env', state') <- runExprs [val] env state True
           repl env' state'
           
@@ -154,8 +153,8 @@ evalTopCore core env state = do
   out <- evalToIO (evalTop core) env state
   case out of 
     Just (result, state') -> case result of
-      Left val -> pure (env, state', Just val)
-      Right fnc -> pure (fnc env, state', Nothing)
+      RValue val -> pure (env, state', Just val)
+      RDef fnc -> pure (fnc env, state', Nothing)
     Nothing -> pure (env, state, Nothing)
   
 loopAction :: Normal -> Environment -> ProgState -> IO (Normal, ProgState)

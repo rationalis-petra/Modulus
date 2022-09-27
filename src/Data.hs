@@ -80,7 +80,7 @@ data Core
   | CSig [Definition]                      -- Signature Definition (similar to dependent sum)
   deriving Show
 
-data TopCore = TopDef Definition | TopExpr Core
+data TopCore = TopDef Definition | TopExpr Core | TopAnn String Core
 
 instance Show Pattern where  
   show WildCard = "_"
@@ -188,7 +188,7 @@ data Normal' m
   | NormIType String Int [Normal' m]
   | NormIVal String Int Int Int [Normal' m] (Normal' m)
   | NormCoType String Int [(Normal' m)]
-  | NormCoVal [(CoPattern, (Normal' m))] (Normal' m)
+  | NormCoVal [(CoPattern, m (Normal' m))] (Normal' m)
   | NormCoDtor String Int Int Int Int [Normal' m]  (Normal' m)
 
 
@@ -284,8 +284,8 @@ instance Show (Normal' m) where
 
   show (NormCoType name _ params) =
     name <> (foldr (\p s -> " " <> show p <> s) "" params)
-  show (NormCoDtor name id _ _ _ _ ty) = 
-    name <> " : " <> show ty
+  show (NormCoDtor name _ _ len _ args ty) = 
+    name <> " : " <> show ty <> " len: " <> show len <> " args: " <> show args
   show (NormCoVal _ ty) =
     "(covalue : " <> show ty <> ")"
   show (BuiltinMac _) = show "<inbuilt-macro>"
@@ -321,7 +321,7 @@ data PrimType = BoolT | CharT | IntT | NatT | FloatT | UnitT | StringT | AbsurdT
 type EvalEnvM env m = ReaderT env (ExceptT String (StateT ProgState m))
 type EvalM = EvalEnvM Environment Identity
 type EvalMIO = EvalEnvM Environment IO
-  
+
 
 newtype ActionMonadT m a = ActionMonadT (m (MaybeEffect m a))
 

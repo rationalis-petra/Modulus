@@ -51,6 +51,7 @@ data TDefinition ty
 data TIntTop ty
   = TExpr (TIntermediate ty)
   | TDefinition (TDefinition ty)
+  | TAnnotation String (TIntermediate ty) 
   deriving Show
 
 data TPattern ty
@@ -64,7 +65,7 @@ data TPattern ty
 data TCoPattern ty
   = TCoWildPat 
   | TCoBindPat String (Maybe ty)
-  | TCoFun String Int Int ty [TCoPattern ty]
+  | TCoinductPat String Int Int Int ty [TCoPattern ty]
   deriving Show
   
 

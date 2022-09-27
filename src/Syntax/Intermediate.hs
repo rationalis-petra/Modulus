@@ -58,6 +58,7 @@ data Intermediate
   | IHandleWith Intermediate Intermediate
   | IMatch Intermediate [(IPattern, Intermediate)]
   | ICoMatch [(ICoPattern, Intermediate)]
+  | IAnnotation String Intermediate
   deriving Show
 
 data IPattern

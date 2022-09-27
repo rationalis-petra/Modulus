@@ -45,10 +45,8 @@ toTopCore (TDefinition def) = TopDef <$> fromDef def
       pure (InductDef sym id params ty alts)
     fromDef (TCoinductDef sym id params ty alts) =
       pure (CoinductDef sym id params ty alts)
-
-
-    -- fromDef (TVariantDef nme params id alts ty) = pure (VariantDef nme params id alts ty)
-toTopCore (TExpr v) = TopExpr <$> toCore v
+toTopCore (TExpr expr) = TopExpr <$> toCore expr
+toTopCore (TAnnotation sym term) = TopAnn sym <$> toCore term
 
 
 toCore :: TIntermediate Normal -> Except String Core  
@@ -86,6 +84,7 @@ toCore (TLambda args body lty) = do
       let arg' = getVar arg
       body' <- mkLambdaTyExpr args body r
       pure $ CAbs arg' body' (NormImplProd var l r)
+    mkLambdaTyVal _ _ ty = err ("mkLambdaTyVal failed: " <> show ty) 
 
 
     mkLambdaTyExpr :: [(TArg Normal, Bool)] -> TIntermediate Normal -> Normal -> Except String Core
@@ -209,7 +208,7 @@ toCore (TCoMatch patterns (Just ty)) = do
     toCorePat :: TCoPattern Normal -> Except String CoPattern
     toCorePat TCoWildPat = pure CoWildCard
     toCorePat (TCoBindPat str (Just ty)) = pure (CoVarBind str ty)
-    toCorePat (TCoFun name id1 id2 ty pats) = do
+    toCorePat (TCoinductPat name id1 id2 _ ty pats) = do
       pats' <- mapM toCorePat pats
       pure $ (CoMatchInduct name id1 id2 pats')
 
