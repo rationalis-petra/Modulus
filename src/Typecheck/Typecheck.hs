@@ -7,7 +7,6 @@ import Control.Monad.State
 -- import Control.Lens 
 
   
-import Debug.Trace
 import Data (PrimType(..),
              Normal,
              Normal'(..),
@@ -440,8 +439,7 @@ typeCheck expr ctx = case expr of
     outSubst <- compose subst subst'
   -- TODO: check if there is a ready substitution
     retTy' <- doSubst outSubst retTy
-    let fnlSubst' = rmSubst (show retTy) outSubst
-        fnlSubst = trace ("final subst: " <> show fnlSubst') fnlSubst'
+    let fnlSubst = rmSubst (show retTy) outSubst
     pure $ (TMatch term' patterns' (Just retTy'), retTy', fnlSubst)
     where
       -- Check Patterns: take a list of patterns as input, along with the
@@ -465,25 +463,13 @@ typeCheck expr ctx = case expr of
         (ps', pssubst) <- checkPatterns ps matchty retty
         restRetSubst' <- varRight restRetSubst
 
-        let traceString = ("For: " <> show p) <> "\n"
-                          <> ("matchty, matchty' " <> show matchty <> ", " <> show matchty') <> "\n"
-                          <> ("retty, eret:  " <> show retty <> ", " <> show eret) <> "\n\n"
-                          <> ("restRetsubst' : " <> show restRetSubst') <> "\n"
-                          <> ("pssubst : " <> show pssubst) <> "\n"
-                          <> ("restMatchSubst' : "  <> show restMatchSubst) <> "\n"
-                          <> ("esubst : " <> show esubst) <> "\n"
-                          <> ("ctxUpd : " <> show ctxUpd) <> "\n"
-
-        lapprepl <- pure $ trace traceString lapp1
-
-        if not (null lapprepl && null lapp2 && null rapp1 && null rapp2) then 
+        if not (null lapp1 && null lapp2 && null rapp1 && null rapp2) then 
           throwError "constrain application in CheckPatterns not null"
           else pure ()
   
         -- TODO: make sure composition is right way round...
         substFnl <- composeList restRetSubst' [pssubst, restMatchSubst, esubst]
-        substFnl' <- pure $ trace ("substFnl: " <> show substFnl) substFnl
-        pure $ ((p', e') : ps', substFnl')
+        pure $ ((p', e') : ps', substFnl)
       
       -- TODO: check for duplicate variables!
       -- Return a tuple of:
@@ -560,14 +546,7 @@ typeCheck expr ctx = case expr of
         (lapp2, rapp2, retSubst) <- constrain retTy retTy' ctx
         (ps', pssubst) <- checkPatterns ps retTy
 
-        let trace_string = ("For: " <> show p <> "\n"
-                            <> "ctxUpd: " <> show ctxUpd <> "\n"
-                            <> "bodySubst: " <> show bodySubst <> "\n"
-                            <> "retSubst: " <> show retSubst <> "\n"
-                            <> "pssubst: " <> show pssubst <> "\n\n")
-            lapp1' = trace trace_string lapp1
-
-        if not (null lapp1' && null lapp2 && null rapp1 && null rapp2) then
+        if not (null lapp1 && null lapp2 && null rapp1 && null rapp2) then
           throwError "non-null l/rapp in copattern check"
           else pure ()
   

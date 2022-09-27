@@ -15,7 +15,6 @@ module Interpret.Eval (Normal,
                        liftFun6) where
 
 import Prelude hiding (lookup)
-import Debug.Trace
 
 import Control.Monad.State (State, runState)
 import Control.Monad.Except (ExceptT, runExceptT)
@@ -716,12 +715,10 @@ applyDtor id1 id2 strip (arg:args)
   
   where go args [] = throwError "cannot find appropriate copattern in coinductive value"
         go args ((p, body) : ps) = case getBindList p args of 
-          Just binds -> do
-            res <- foldr (\(str, val) term -> (term >>= normSubst (val, str)))
+          Just binds -> 
+            foldr (\(str, val) term -> (term >>= normSubst (val, str)))
                   body
                   binds
-            let res' = trace ("res: " <> (show res)) res
-            pure res'
           Nothing -> go args ps
 
         getBindList a args = case a of 

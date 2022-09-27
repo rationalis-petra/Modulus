@@ -13,7 +13,6 @@ module Typecheck.Constrain (
   inferVar)
   where
 
-import Debug.Trace
 import Data (PrimType(..),
              Normal,
              Normal'(..),
