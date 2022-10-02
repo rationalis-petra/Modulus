@@ -8,7 +8,7 @@ import Data(Environment(..),
 import Control.Monad.Except (runExcept)
 import Data.Text (pack, unpack)
 
-import Parse (parseModule)
+import Parse (parseScript)
 import Syntax.Macroexpand
 import Syntax.Intermediate(Intermediate(..),
                            IDefinition(..))
@@ -29,21 +29,22 @@ moduleContext = Environment {
   globalModule = NormSct [] (NormSig [])}
 
   
-buildModule :: Map.Map String Normal -> String -> EvalM Normal
-buildModule mp s = 
-  case parseModule "internal-module" (pack s) of 
-    Left err -> throwError (show err)
-    Right ast -> do
-      expanded <- local moduleContext (macroExpand ast)
-      case toIntermediate expanded moduleContext of 
-        Left err -> do 
-          throwError err
-        Right val -> do
-          result <- toTIntermediate val
-          (checked, _, _) <- typeCheck result (Ctx.envToCtx moduleContext) 
-          core <- case runExcept (toCore checked) of 
-            Left err -> throwError err
-            Right val -> pure val
-          local moduleContext (Eval.eval core)
+-- buildModule :: Map.Map String Normal -> String -> EvalM Normal
+-- buildModule mp s = 
+--   -- TODO: replace with parseModule
+--   case parseScript "internal-module" (pack s) of 
+--     Left err -> throwError (show err)
+--     Right ast -> do
+--       expanded <- local moduleContext (macroExpand ast)
+--       case toIntermediate expanded moduleContext of 
+--         Left err -> do 
+--           throwError err
+--         Right val -> do
+--           result <- toTIntermediate val
+--           (checked, _, _) <- typeCheck result (Ctx.envToCtx moduleContext) 
+--           core <- case runExcept (toCore checked) of 
+--             Left err -> throwError err
+--             Right val -> pure val
+--           local moduleContext (Eval.eval core)
 
   

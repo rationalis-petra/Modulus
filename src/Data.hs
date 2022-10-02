@@ -28,7 +28,7 @@ module Data (Definition(..),
 
 import Data.Text (Text, pack, unpack)
 import Data.Vector (Vector)
-import Control.Lens hiding (Context)
+import Control.Lens hiding (Context, Refl)
 import Control.Monad.State (StateT) 
 import Control.Monad.Except (ExceptT) 
 import Control.Monad.Reader (ReaderT) 
@@ -163,6 +163,8 @@ data Normal' m
   | PrimType PrimType
   | CollVal (CollVal m)
   | CollTy (CollTy m)
+  | PropEq (Normal' m) (Normal' m)
+  | Refl (Normal' m)
   | InbuiltCtor (InbuiltCtor m)
 
   -- Universes
@@ -241,6 +243,8 @@ instance Show (Normal' m) where
   show (PrimType prim)  = show prim
   show (CollTy ty)      = show ty
   show (CollVal val)    = show val
+  show (Refl ty)        = "refl " <> show ty
+  show (PropEq v1 v2)   = (show v1) <> "≡" <> (show v2)
   show (InbuiltCtor pat) = show pat
   
   show (NormUniv n) = if n == 0 then "𝒰" else "𝒰" <> show n
@@ -356,7 +360,7 @@ instance Show (CollVal m) where
     MaybeVal Nothing _ -> "none"
     ListVal l _ -> show l
     ArrayVal v _ _ -> show v
-    IOAction _ ty -> "<IO action>" 
+    IOAction _ ty -> "<_ : IO " <> show ty <> ">" 
 
 instance Show (CollTy m) where   
   show e = case e of  

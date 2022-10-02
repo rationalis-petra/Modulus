@@ -2,16 +2,17 @@ module Main where
 
 import Control.Monad.Except (runExcept)
 
-import Parse (parseFile, parseRepl)
+import Parse (parseScript, parseRepl)
 import Data
-import Interpret.Eval (evalToIO, evalTop, Result(..))
+import Interpret.Eval (evalToIO, evalTop, Result(..), loopAction)
 import Syntax.Macroexpand 
 import Syntax.Conversions (toIntermediate,
                            toTIntermediateTop,
                            toCore,
-                           toTopCore) 
+                           toTopCore)
 import Typecheck.Typecheck
 import qualified Typecheck.Context as Ctx
+import Server (startServer)
 
 
 import System.IO
@@ -27,9 +28,11 @@ import Data.Semigroup ((<>))
 
 defaultState = ProgState { _uid_counter = 0, _var_counter = 0 }  
 
-data Args = Args
-  { file        :: String,
-    interactive :: Bool }
+data Mode = Script | Interactive | Compile  
+
+
+data Args = Args { file :: String,
+                   mode :: String }
 
 args :: Parser Args
 args = Args
@@ -37,10 +40,10 @@ args = Args
       (long "file"
       <> value ""
       <> help "The source file of compilation")
-  <*> switch
-      (long "interactive"
-       <> short 'i'
-       <> help "Whether to run in interactive mode (REPL)")
+  <*> strOption
+      (long "mode"
+       <> short 'm'
+       <> help "What mode to run in: (i)nteractive, (s)erver of (c)ompilation")
 
 main :: IO ()
 main = do
@@ -54,23 +57,32 @@ main = do
           <> header "MODULUS")
 
       process :: Args -> IO ()
-      process (Args {file=f, interactive=i}) =
+      process (Args {file=f, mode=m}) =
          -- If we are in interpret mode: 
-         if i then do
-           dfc <- evalToIO defaultContext (Env.empty) defaultState
-           case dfc of 
-             Just (env, state) ->
-               if null f then
-                 repl env state
-               else do
-                 handle <- openFile f ReadMode
-                 contents <- hGetContents handle
-                 (env', state') <- runInteractively contents env state
-                 repl env' state'
-             Nothing -> 
-               putStrLn "error in initialisation"
-         else
-           putStrLn "compilation not implemented yet!"
+        case m of 
+          m | m == "c" || m == "compiled" ->
+              putStrLn "compilation not implemented yet!"
+            | m == "i" || m == "interactive" ->  do
+                dfc <- evalToIO defaultContext (Env.empty) defaultState
+                case dfc of
+                  Just (env, state) ->
+                    if null f then
+                      repl env state
+                    else do
+                      handle <- openFile f ReadMode
+                      contents <- hGetContents handle
+                      (env', state') <- runInteractively contents env state
+                      repl env' state'
+                  Nothing -> putStrLn "error in initialisation"
+            | m == "s" || m == "server" -> do
+                dfc <- evalToIO defaultContext (Env.empty) defaultState
+                case dfc of
+                  Just (env, state) ->
+                    startServer state env
+                  Nothing -> putStrLn "error in initialisation"
+
+                
+            | otherwise -> putStrLn "bad mode argument"
   
 -- The REPL 
 defaultContext :: EvalM Environment 
@@ -103,7 +115,7 @@ repl env state = do
 
 runInteractively :: String -> Environment -> ProgState -> IO (Environment, ProgState)
 runInteractively str env state =
-  case parseFile "file" (pack str) of
+  case parseScript "file" (pack str) of
       Left err -> printFlush err >> pure (env, state)
       Right vals -> runExprs vals env state False
 
@@ -112,6 +124,14 @@ runInteractively str env state =
 runExprs :: [AST] -> Environment -> ProgState -> Bool -> IO (Environment, ProgState)
 runExprs [] env state _ = pure (env, state)
 runExprs (e : es) env state runIO = do
+  -- result <- evalToIO compile env state 
+  -- where my_mnd = do
+  --         expanded <- macroExpand e 
+  --         intermediate <- liftExcept toIntermediateM e 
+  --         tintermediate <- toTIntermediateTop intermediate
+  --         env <- ask
+  --         checked <- typeCheckTop tintermediate (Ctx.envToCtx env)
+  --         core <- liftExcept $ toCore checked
   result <- evalToIO (macroExpand e) env state
   case result of 
     Just (expanded, state') ->
@@ -157,17 +177,5 @@ evalTopCore core env state = do
       RDef fnc -> pure (fnc env, state', Nothing)
     Nothing -> pure (env, state, Nothing)
   
-loopAction :: Normal -> Environment -> ProgState -> IO (Normal, ProgState)
-loopAction val env state =
-  case val of
-    (CollVal (IOAction action ty)) -> do
-      evalMAction <- action
-      result <- evalToIO evalMAction env state
-      case result of
-        Just (val, state') -> 
-          loopAction val env state'
-        Nothing -> pure (val, state)
-    _ -> pure (val, state)
-
 
 printFlush s = print s >> hFlush stdout   

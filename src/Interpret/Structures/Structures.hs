@@ -51,13 +51,6 @@ implFieldSource = "\
 \  (defn mul-inv {F : Field} [(n : F.t)] (F.mul-inv n))) \
 \"
 
-fieldSig :: EvalM Normal
-fieldSig = buildModule Map.empty fieldSource
-
-ringSig :: EvalM Normal
-ringSig = do
-  buildModule Map.empty ringSource
-
 
 structStructure :: EvalM [(String, Normal)]
 -- structModule = do

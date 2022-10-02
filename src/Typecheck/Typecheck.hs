@@ -4,7 +4,6 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Control.Monad.Except (runExcept)
 import Control.Monad.State 
--- import Control.Lens 
 
   
 import Data (PrimType(..),
@@ -437,8 +436,10 @@ typeCheck expr ctx = case expr of
     retTy <- freshVar 
     (patterns', subst') <- checkPatterns patterns ty retTy
     outSubst <- compose subst subst'
-  -- TODO: check if there is a ready substitution
+    -- TODO: check if there is a ready substitution
+
     retTy' <- doSubst outSubst retTy
+
     let fnlSubst = rmSubst (show retTy) outSubst
     pure $ (TMatch term' patterns' (Just retTy'), retTy', fnlSubst)
     where
@@ -475,9 +476,9 @@ typeCheck expr ctx = case expr of
       -- Return a tuple of:
       -- 1. The updated pattern,
       -- 2. The value of the type to be matched against
-      -- 3. A list if bindings of strings to types 
+      -- 3. A list of bindings of strings to types 
         
-      getPatternType :: TPattern TIntermediate' -> EvalM (TPattern Normal, Normal, [(String, Normal)]) 
+      getPatternType :: TPattern TIntermediate' -> EvalM (TPattern Normal, Normal, [(String, Normal)])
       getPatternType TWildPat = do
         ty <- freshVar
         pure (TWildPat, ty, [])

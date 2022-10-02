@@ -64,6 +64,8 @@ typeVal (PrimVal e) = pure (PrimType (typePrim e))
       Float _ -> FloatT
       Char _ -> CharT
       String _ -> StringT
+typeVal (Refl ty) = pure $ PropEq ty ty
+typeVal (PropEq _ _) = pure $ NormUniv 0
 typeVal (InbuiltCtor ctor) = case ctor of 
   IndPat _ _ _ _ ty -> pure ty
 typeVal (NormCoVal _ ty) = pure ty

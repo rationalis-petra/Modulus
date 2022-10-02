@@ -29,6 +29,7 @@ dependencies:
 - text                 # for parsing/representing strings in the lanugage
 - optparse-applicative # command-line argument parsing
 - lens                 # lenses
+- stm                  # concurrency/transactional memory
 # - bindings-libffi
 # - libffi
 # - llvm-hs

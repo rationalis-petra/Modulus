@@ -5,7 +5,7 @@ import qualified Data.Map as Map
 
 import Data
 import Syntax.Utils
-import Interpret.Eval (liftFun2, liftFun4)
+import Interpret.Eval (liftFun, liftFun2, liftFun3, liftFun4)
 import Interpret.EvalM (throwError)
 import Interpret.Transform
 import qualified Interpret.Environment as Env
@@ -140,6 +140,21 @@ doConstrain _ _ = throwError "bad args to <: expected structure and signature"
 mlsConstrain = liftFun2 doConstrain (NormArr Undef (NormArr Undef Undef))
 
 
+mkPropEqType :: Normal
+mkPropEqType = NormImplProd "A" (NormUniv 0) (NormArr (mkVar "A") (NormArr (mkVar "A") (NormUniv 0)))
+mkPropEq = liftFun3 f mkPropEqType
+  where
+    f _ l r = pure $ PropEq l r
+
+mkReflType :: Normal 
+mkReflType = NormImplProd "A" (NormUniv 0) (NormProd "a" (mkVar "A")
+                                             (PropEq (Neu (NeuVar "a" (mkVar "A")) (mkVar "A")) (Neu (NeuVar "a" (mkVar "A")) (mkVar "A"))))
+
+mkRefl :: Normal
+mkRefl = liftFun2 f mkReflType 
+  where 
+    f _ a = pure $ Refl a
+
   
 coreStructure :: [(String, Normal)]
 coreStructure = [
@@ -147,9 +162,6 @@ coreStructure = [
   ("Bool", PrimType BoolT),
   ("Unit", PrimType UnitT),
   ("𝒰", NormUniv 0),
-  ("𝒰₁", NormUniv 1),
-  ("𝒰₂", NormUniv 2),
-  ("𝒰₃", NormUniv 3),
   ("→", Special MkProd),
   ("sig", mlsSig),
   ("×", mlsMkTupleType),
@@ -160,6 +172,9 @@ coreStructure = [
   (":", Special Annotate),
   ("|", mlsUpd),
   ("with", mlsWith),
+
+  ("refl", mkRefl),
+  ("≡", mkPropEq),
 
   -- macro stuff
   -- ("Atom", mlsAtom),

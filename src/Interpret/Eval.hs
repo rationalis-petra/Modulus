@@ -1,8 +1,11 @@
 module Interpret.Eval (Normal,
                        EvalM,
                        evalToIO,
+                       evalToEither,
                        eval,
                        evalTop,
+                       evalDef,
+                       loopAction,
                        normSubst,
                        tyApp,
                        Result(..),
@@ -36,6 +39,17 @@ data Result
   | RDef (Environment -> Environment)
   | RAnn String Normal
 
+loopAction :: Normal -> Environment -> ProgState -> IO (Normal, ProgState)
+loopAction val env state =
+  case val of
+    (CollVal (IOAction action ty)) -> do
+      evalMAction <- action
+      result <- evalToIO evalMAction env state
+      case result of
+        Just (val, state') -> 
+          loopAction val env state'
+        Nothing -> pure (val, state)
+    _ -> pure (val, state)
 
 evalTop :: TopCore -> EvalM Result
 evalTop (TopExpr e) = eval e >>= (\val -> pure (RValue val))
@@ -90,6 +104,51 @@ evalTop (TopAnn sym term) = do
   term' <- eval term
   pure (RAnn sym term')
 
+evalDef :: Definition -> EvalM [(String, Normal)]
+evalDef def = case def of
+  SingleDef name (CAbs sym core norm) ty -> do
+    env <- ask
+    let liftedFun = liftFun (\v -> local (Env.insert sym v liftedEnv) (eval core)) norm
+        liftedEnv = Env.insert name liftedFun env
+    val <- local liftedEnv (eval $ CAbs sym core norm)
+    pure [(name, val)]
+  SingleDef name body ty -> do
+    val <- eval body
+    pure [(name, val)]
+  OpenDef body sig -> do
+    mdle <- eval body
+    case mdle of 
+      NormSct m (NormSig ty) -> 
+        pure $ (restrict (restrict m ty) sig)
+      _ -> throwError "cannot open non-module"
+  InductDef sym indid params ty alts -> do 
+    let ctor = (sym, ty)
+
+        mkAlts [] = pure []
+        mkAlts ((sym, id, ty) : alts) = do
+          let alt = NormIVal sym indid id (length params) [] ty
+          alts' <- mkAlts alts
+          pure ((sym, alt) : alts')
+          
+    
+    alts' <- mkAlts alts
+    pure $ (ctor : alts')
+  CoinductDef sym coid params ty alts -> do 
+    let ctor = (sym, ty)
+
+        mkAlts [] = pure []
+        mkAlts ((sym, id, ty) : alts) = do
+          let alt = NormCoDtor sym coid id (tySize ty) (length params) [] ty
+          alts' <- mkAlts alts
+          pure ((sym, alt) : alts')
+
+        tySize (NormArr l r) = 1 + tySize r
+        tySize (NormProd _ _ r) = 1 + tySize r
+        tySize (NormImplProd _ _ r) = 1 + tySize r
+        tySize _ = 0
+    
+    alts' <- mkAlts alts
+    pure $ (ctor : alts')
   
 -- evaluate an expression, to a normal form (not a value!). This means that the
 -- environment now contains only normal forms!
@@ -276,6 +335,8 @@ normSubst (val, var) ty = case ty of
   Neu neu ty -> neuSubst (val, var) neu
   PrimType p -> pure $ PrimType p
   PrimVal p -> pure $ PrimVal p
+  Refl ty -> Refl <$> normSubst (val, var) ty
+  PropEq lty rty -> PropEq <$> normSubst (val, var) lty <*> normSubst (val, var) rty
   CollTy cty -> case cty of 
     MaybeTy a -> (CollTy . MaybeTy) <$> normSubst (val, var) a
     ListTy a -> (CollTy . ListTy) <$> normSubst (val, var) a
@@ -571,65 +632,12 @@ evalToIO inner_mnd ctx state =
       putStrLn $ "err: " <> err
       return Nothing
 
--- evalToIO :: EvalM a -> Environment -> ProgState -> IO (Maybe (a, ProgState))
--- evalToIO (ActionMonadT inner_mnd) ctx state =
---   case runState (runExceptT (runReaderT inner_mnd ctx)) state of
---     (Right (Value obj), state') -> do
---       return $ Just (obj, state')
---     (Right (RaiseAction cnt id1 id2 args (Just f)), state') -> do
---       result <- f args
---       accumEffects result cnt state'
---     (Right (RaiseAction cnt id1 id2 args Nothing), state') -> do
---       putStrLn $ "Action Called Without Being Handled: ("  ++ show id2 ++ "," ++ show id2 ++ ")"
---       return Nothing
---     (Left err, state') -> do
---       putStrLn $ "err: " <> err
---       return Nothing
---   where
---     accumEffects :: EvalM Normal -> (Normal -> EvalM a) -> ProgState -> IO (Maybe (a, ProgState))
---     accumEffects (ActionMonadT inner_mnd) cnt state = 
---       case runState (runExceptT (runReaderT inner_mnd ctx)) state of
---         (Right (RaiseAction cnt2 id1 id2 args (Just f)), state') -> do 
---           result <- f args
---           accumEffects result (\x -> cnt2 x >>= cnt) state'
---         (Right (Value obj), state') -> do
---           evalToIO (cnt obj) ctx state'
---         (Right (RaiseAction _ id1 id2 _ Nothing), state') -> do
---           putStrLn $ "Action Called Without Default" ++ show (id1, id2)
---           return Nothing
---         (Left err, state') -> do
---           putStrLn $ "error: " <> err
---           return Nothing
+evalToEither :: EvalM a -> Environment -> ProgState -> Either String (a, ProgState)
+evalToEither inner_mnd ctx state =
+  case runState (runExceptT (runReaderT inner_mnd ctx)) state of
+    (Right obj, state') -> Right (obj, state')
+    (Left err, state') -> Left $ "err: " <> err
 
--- evalToIO :: EvalM a -> Environment -> ProgState -> IO (Maybe (a, ProgState))
--- evalToIO (ActionMonadT inner_mnd) ctx state =
---   case runState (runExceptT (runReaderT inner_mnd ctx)) state of
---     (Right (Value obj), state') -> do
---       return $ Just (obj, state')
---     (Right (RaiseAction cnt id1 id2 args (Just f)), state') -> do
---       result <- f args
---       accumEffects result cnt state'
---     (Right (RaiseAction cnt id1 id2 args Nothing), state') -> do
---       putStrLn $ "Action Called Without Being Handled: ("  ++ show id2 ++ "," ++ show id2 ++ ")"
---       return Nothing
---     (Left err, state') -> do
---       putStrLn $ "err: " <> err
---       return Nothing
---   where
---     accumEffects :: EvalM Normal -> (Normal -> EvalM a) -> ProgState -> IO (Maybe (a, ProgState))
---     accumEffects (ActionMonadT inner_mnd) cnt state = 
---       case runState (runExceptT (runReaderT inner_mnd ctx)) state of
---         (Right (RaiseAction cnt2 id1 id2 args (Just f)), state') -> do 
---           result <- f args
---           accumEffects result (\x -> cnt2 x >>= cnt) state'
---         (Right (Value obj), state') -> do
---           evalToIO (cnt obj) ctx state'
---         (Right (RaiseAction _ id1 id2 _ Nothing), state') -> do
---           putStrLn $ "Action Called Without Default" ++ show (id1, id2)
---           return Nothing
---         (Left err, state') -> do
---           putStrLn $ "error: " <> err
---           return Nothing
 
 
 interceptNeutral :: (Normal -> EvalM Normal) -> Normal -> Normal -> EvalM Normal

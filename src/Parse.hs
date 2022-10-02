@@ -177,6 +177,14 @@ pNormal =
       expr   = mkBin  (mkLeft ty) ty           (mkOpP pSpecial)
     in expr
 
+
+pHeader = do
+  parens pHeaderBody  
+  pure ([], [], [])
+  where
+    pHeaderBody = do 
+      symbol "module"
+
  
 -- pNormal :: Parser AST
 -- pNormal = makeNormalParser pTerm operatorTable
@@ -187,9 +195,17 @@ pTop = sc *> try (many (parens pNormal)) <* sc
 pRepl :: Parser AST
 pRepl = sc *> pNormal
 
-pMod :: Parser AST
-pMod = sc *> parens pNormal <* sc
+pMod = do
+  sc
+  header <- pHeader
+  defs <- pTop
+  eof
+  pure (header, defs)
 
-parseFile = runParser (pTop <* eof)
+parseScript = runParser (pTop <* eof)
+
 parseRepl = runParser (pRepl <* eof)
-parseModule = runParser (pMod <* eof)
+
+-- parseModule :: String -> Text -> Either (String AST
+parseModule = runParser (pMod <* eof) 
+

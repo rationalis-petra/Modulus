@@ -22,7 +22,7 @@ mlsPutLine = liftFun f putType
         f (PrimVal (String str)) = pure $ CollVal $ IOAction (do
           putStrLn (unpack str)
           hFlush stdout
-          pure $ pure $ PrimVal Unit) putType
+          pure $ pure $ PrimVal Unit) (CollTy (IOMonadTy (PrimType UnitT)))
 
 putType :: Normal
 putType = NormArr (PrimType StringT) (CollTy (IOMonadTy (PrimType UnitT)))
@@ -31,10 +31,9 @@ getType :: Normal
 getType = CollTy (IOMonadTy (PrimType StringT))
 
 systemSignature :: Normal  
-systemSignature = NormSig $ [("get-line", getType), ("put-line", putType)]
+systemSignature = NormSig $ [("get_line", getType), ("put_line", putType)]
 
 systemStructure :: [(String, Normal)]
 systemStructure = [
-  ("get-line", mlsGetLine),
-  ("put-line", mlsPutLine)
-  ]
+  ("get_line", mlsGetLine),
+  ("put_line", mlsPutLine)]

@@ -43,7 +43,6 @@ data Intermediate
   | IQuote AST
   | IAccess Intermediate String
   | IDo [Intermediate]
-  | IProgn [Intermediate]
   | IIF Intermediate Intermediate Intermediate
   | ISymbol String
   | ILet [(String, Intermediate)] Intermediate
