@@ -5,28 +5,25 @@ import Control.Monad.State (State)
 
 import Syntax.Utils  
 
-import qualified Interpret.Structures.Core as Core
-import qualified Interpret.Structures.Numerics as Num
-import qualified Interpret.Structures.System as Sys
+import Interpret.Structures.Core 
+import Interpret.Structures.Numerics 
+import Interpret.Structures.System 
 import Interpret.Structures.Data
-import qualified Interpret.Structures.Structures as Sct
-import qualified Interpret.Structures.Monad as Mnd
+import Interpret.Structures.Structures
+import Interpret.Structures.Monad 
+import Interpret.Structures.Common 
 
 import Data (Normal, Normal'(NormSct, NormSig), EvalM)
 import qualified Data.Map as Map
 
-coreStructure    = Core.coreStructure
-numStructure     = Num.numStructure
-numSignature     = Num.numSignature
-systemStructure  = Sys.systemStructure
-systemSignature  = Sys.systemSignature
 
 defaultStructure :: EvalM [(String, Normal)]
 defaultStructure = do
-  structs <- Sct.structStructure 
-  pure $ insertLeft coreStructure [("num",     NormSct numStructure numSignature),
-                                   ("sys",     NormSct systemStructure systemSignature),
-                                   ("data",    dataStructure),
-                                   ("monad",   Mnd.monadStructure),
-                                   ("structs", NormSct structs (NormSig []))
-                                  ]
+  structs <- structStructure 
+  pure $ insertLeft
+           (coreTerms <> commonTerms)
+           [("num",     NormSct numStructure numSignature),
+            ("sys",     NormSct systemStructure systemSignature),
+            ("data",    dataStructure),
+            ("monad",   monadStructure),
+            ("structs", NormSct structs (NormSig []))]

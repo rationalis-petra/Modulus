@@ -137,20 +137,20 @@ mlsScan = liftFun5 f mlsFoldTy
           res <- eval (CApp (CApp (CNorm func) (CNorm x)) (CNorm z))
           evalScan func res xs (res : accum)
 
-mlsFlattenTy :: Normal  
-mlsFlattenTy = NormImplProd "A" (NormUniv 0)
+mlsJoinTy :: Normal  
+mlsJoinTy = NormImplProd "A" (NormUniv 0)
              (NormArr (CollTy (ListTy (CollTy (ListTy (mkVar "A")))))
                (CollTy (ListTy (mkVar "A"))))
 
-mlsFlatten :: Normal  
-mlsFlatten = liftFun2 f mlsFlattenTy
+mlsJoin :: Normal  
+mlsJoin = liftFun2 f mlsJoinTy
   where f :: Normal -> Normal -> EvalM Normal
         f a (CollVal (ListVal xs _)) = do
-          pure $ CollVal $ ListVal (flatten xs) a
+          pure $ CollVal $ ListVal (join xs) a
 
-        flatten :: [Normal] -> [Normal]
-        flatten [] = []
-        flatten ((CollVal (ListVal ys _)) : xs) = ys <> flatten xs
+        join :: [Normal] -> [Normal]
+        join [] = []
+        join ((CollVal (ListVal ys _)) : xs) = ys <> join xs
 
 mlsZipTy :: Normal  
 mlsZipTy = NormImplProd "A" (NormUniv 0)
@@ -250,7 +250,7 @@ listSignature = NormSig [
   ("/", mlsReduceTy),
   ("scan", mlsScanTy),
   ("\\", mlsScanTy),
-  ("flatten", mlsFlattenTy),
+  ("join", mlsJoinTy),
   ("zip", mlsZipTy),
   ("⋅", mlsCatTy),
   ("↑", mlsTakeTy),
@@ -275,7 +275,7 @@ listStructure = NormSct [
   ("/", mlsReduce),
   ("scan", mlsScan),
   ("\\", mlsScan),
-  ("flatten", mlsFlatten),
+  ("join", mlsJoin),
   ("zip", mlsZip),
   ("⋅", mlsCat),
   ("↑", mlsTake),

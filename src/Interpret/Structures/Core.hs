@@ -1,4 +1,4 @@
-module Interpret.Structures.Core (coreStructure) where
+module Interpret.Structures.Core (coreTerms) where
 
 
 import qualified Data.Map as Map
@@ -8,7 +8,6 @@ import Syntax.Utils
 import Interpret.Eval (liftFun, liftFun2, liftFun3, liftFun4)
 import Interpret.EvalM (throwError)
 import Interpret.Transform
-import qualified Interpret.Environment as Env
 
 -- import Typecheck.Typecheck2 (subtype)
 
@@ -125,7 +124,7 @@ mlsMkTuple = liftFun4 mkTuple (NormImplProd "A" (NormUniv 0)
 -- TODO: update the ty in NormSct
 doConstrain :: Normal -> Normal -> EvalM Normal
 doConstrain (NormSct mod ty) (NormSig sig) = 
-  case constrain mod sig of 
+  case constrain mod sig of
     Just x -> pure $ NormSct x ty
     Nothing -> throwError ("could not constrain structure " <> show mod <> " with signature " <> show sig)
   where
@@ -156,12 +155,13 @@ mkRefl = liftFun2 f mkReflType
     f _ a = pure $ Refl a
 
   
-coreStructure :: [(String, Normal)]
-coreStructure = [
+coreTerms :: [(String, Normal)]
+coreTerms = [
   -- Types
   ("Bool", PrimType BoolT),
   ("Unit", PrimType UnitT),
   ("𝒰", NormUniv 0),
+  -- TODO: universe constructor
   ("→", Special MkProd),
   ("sig", mlsSig),
   ("×", mlsMkTupleType),
@@ -176,7 +176,7 @@ coreStructure = [
   ("refl", mkRefl),
   ("≡", mkPropEq),
 
-  -- macro stuff
+  -- TODO macro stuff
   -- ("Atom", mlsAtom),
   -- ("Node", mlsNode),
   -- ("syntax", Special Mac),

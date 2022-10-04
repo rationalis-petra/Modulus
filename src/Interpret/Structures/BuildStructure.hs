@@ -25,7 +25,7 @@ import qualified Data.Map as Map
 
 moduleContext = Environment {
   localCtx = Map.empty,
-  currentModule = NormSct coreStructure (NormSig []),
+  currentModule = NormSct coreTerms (NormSig []),
   globalModule = NormSct [] (NormSig [])}
 
   
