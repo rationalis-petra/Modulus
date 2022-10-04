@@ -7,6 +7,8 @@ module Server where
     receive messages, enabling the interpreter to provide linting, hot reload
     and more. -}
 
+import Server.Message
+
 import Data.Text (Text, pack)
 import qualified Data.Map as Map
 import Control.Concurrent
@@ -15,14 +17,23 @@ import Control.Lens hiding (Context)
 import qualified Control.Monad.Except as Except
 
 
-import Data (EvalM, Normal, CollVal(..), TopCore(..), Environment, Definition, ProgState)
+import Data (EvalM,
+             Normal,
+             Normal'(NormSct, NormSig),
+             CollVal(..),
+             TopCore(..),
+             Environment,
+             Definition,
+             ProgState)
 import Parse (parseModule)
-import Interpret.EvalM (throwError, liftExcept, ask)
+import Interpret.EvalM (throwError, liftExcept, ask, localF)
 import Interpret.Eval (evalToIO, evalToEither, eval, evalDef, loopAction)
+import qualified Interpret.Environment as Env
 import Syntax.Macroexpand (macroExpand)
 import Syntax.Conversions (toIntermediate, toTIntermediateTop, toTopCore)
 import Syntax.Utils (getField)
 import Typecheck.Typecheck (typeCheckTop)
+import Syntax.Utils (typeVal)
 import qualified Typecheck.Context as Ctx
 
   
@@ -34,12 +45,12 @@ data ModuleHeader = ModuleHeader { _imports :: [String],
                                    _exports :: [String] }
 
 data Module = Module { _vals :: [(String, Normal)],
+                       _types :: [(String, Normal)],
                        _header :: ModuleHeader,
                        _sourceCore :: [Definition],
                        _sourceString :: Text  }
 
-data DTree a b
-  = Node (Map.Map a (DTree a b)) (Maybe b)
+data DTree a b = Node (Map.Map a (DTree a b)) (Maybe b)
 emptyTree :: DTree a b
 emptyTree = Node Map.empty Nothing
 
@@ -48,14 +59,10 @@ type ModuleTree = DTree String Module
 
 
 
-data Message
-  = UpdateModule [String] Text
-  | RunMain
-  | Kill
 
 data IState = IState { _progState   :: ProgState,
                        _environment :: Environment,
-                       _moduleTree  :: ModuleTree }
+                       _modules     :: Either RawTree ModuleTree }
 
 $(makeLenses ''IState)
 $(makeLenses ''Module)
@@ -64,42 +71,38 @@ $(makeLenses ''ModuleHeader)
 startServer :: ProgState -> Environment -> IO ()  
 startServer dstate denvironment  = do 
   shared <- atomically $ newTQueue 
-  forkIO $ interpreter (IState dstate denvironment emptyTree) shared
   forkIO $ server shared
-  threadDelay 2000000
+  interpreter (IState dstate denvironment (Right emptyTree)) shared
 
 interpreter :: IState -> TQueue Message -> IO ()
 interpreter istate inbox = do
   message <- atomically $ readTQueue inbox
   case message of 
-    Kill -> putStrLn "exiting..."
+    Kill ->
+      putStrLn "exiting..."
     RunMain -> do
       istate' <- runMain istate
       interpreter istate' inbox
-    UpdateModule path text -> do
-      let rawTree = insert path text (toRaw (istate^.moduleTree))
+    Compile -> do
+      let rawTree = (toRaw (istate^.modules))
       let result = compileTree rawTree (istate^.progState) (istate^.environment)
       case result of 
         Right (compiledTree, state') -> do
-          let newState = (((set moduleTree compiledTree) . (set progState  state')) istate) 
+          let newState = (((set modules (Right compiledTree)) . (set progState  state')) istate) 
           interpreter newState inbox
         Left err -> do
           putStrLn err
           interpreter istate inbox
+    UpdateModule path text -> do
+      let rawTree = insert path text (toRaw (istate^.modules))
+      interpreter (set modules (Left rawTree) istate) inbox
       
 
-server :: TQueue Message -> IO ()
-server outbox = do
-  atomically $ writeTQueue outbox $ UpdateModule [] (pack "(module) (def main (sys.put_line \"hello, world!\"))")
-  atomically $ writeTQueue outbox RunMain
-  atomically $ writeTQueue outbox Kill
-  pure ()
 
 runMain :: IState -> IO IState
-runMain istate = do
-  let Node _ mdle = view moduleTree istate
-  case mdle of 
-    Just m -> 
+runMain istate = 
+  case view modules istate of 
+    Right (Node _ (Just m)) ->
       case getField "main" (m^.vals) of
         Just val -> do
           (out, state') <- loopAction val (istate^.environment) (istate^.progState)
@@ -107,8 +110,11 @@ runMain istate = do
         Nothing -> do
           putStrLn "error: main monad not found"
           pure istate
-    Nothing -> do
+    Right _ -> do
       putStrLn "error: cannot run main module as it does not exist"
+      pure istate
+    Left _ -> do
+      putStrLn "error: cannot run main it is not compiled"
       pure istate
 
 insert :: Ord a => [a] -> b -> DTree a b -> DTree a b
@@ -120,40 +126,70 @@ insert (s:ss) val (Node dir maybeVal) =
       Node (Map.insert s (insert ss val emptyTree) (Map.empty)) maybeVal
 
 compileTree :: RawTree -> ProgState -> Environment -> Either String (ModuleTree, ProgState)
-compileTree (Node _ (Just text)) state env = evalToEither my_mnd env state
+compileTree tree state env = evalToEither (my_mnd tree) env state
   where
-    my_mnd :: EvalM ModuleTree
-    my_mnd = do
-      (header, defs) <- case parseModule "main" text of 
+    my_mnd :: RawTree -> EvalM ModuleTree
+    my_mnd (Node dir (Just text)) = do
+      dir' <- (let compileSub :: String -> RawTree -> EvalM (Map.Map String ModuleTree) -> EvalM (Map.Map String ModuleTree)
+                   compileSub key val dir' = do
+                                  dir'' <- dir'
+                                  val' <- my_mnd val
+                                  pure $ Map.insert key val' dir''
+                in Map.foldrWithKey compileSub (pure Map.empty) dir)
+
+      
+      ((inp, exp, _), defs) <- case parseModule "main" text of 
         Right val -> pure val 
         Left err -> throwError (show err)
-      -- TOOD: replace uses of mapM with a fold so, e.g. macros and definitions
-      -- can carry forward for typechecking etc.
-      expanded <- mapM macroExpand defs
-      env <- ask
-      let eintermediate = map (flip toIntermediate env) expanded 
-      intermediate <- mapM (\case Right val -> pure val; Left err -> throwError err) eintermediate
-      tintermediate <- mapM toTIntermediateTop intermediate
-      env <- ask
-      checked <- mapM (flip typeCheckTop (Ctx.envToCtx env)) tintermediate 
-      let justvals = map (\case Left (val, _) -> val; Right val -> val) checked
-      core <- liftExcept (mapM toTopCore justvals)
-      defs <- liftExcept (mapM getAsDef core)
-      vals <- (mapM evalDef defs)
-      pure (Node Map.empty (Just
-                            Module {
-                             _vals=(flatten vals),
-                             _header=ModuleHeader [] [] [],
-                             _sourceCore=defs,
-                             _sourceString=text}))
-compileTree _ _ _ = Left "no main module" 
+
+      -- resolve imports statements
+      imports <- liftExcept $ resolveImports inp dir'
+      localF (flip (foldr (\(k, v) env -> Env.insert k v env)) imports) $ do
+        -- TOOD: replace uses of mapM with a fold so, e.g. macros and definitions
+        -- can carry forward for typechecking etc.
+        expanded <- mapM macroExpand defs
+        env <- ask
+        let eintermediate = map (flip toIntermediate env) expanded 
+        intermediate <- mapM (\case Right val -> pure val; Left err -> throwError err) eintermediate
+        tintermediate <- mapM toTIntermediateTop intermediate
+        env <- ask
+        checked <- mapM (flip typeCheckTop (Ctx.envToCtx env)) tintermediate 
+        let justvals = map (\case Left (val, _) -> val; Right val -> val) checked
+        core <- liftExcept (mapM toTopCore justvals)
+        defs <- liftExcept (mapM getAsDef core)
+        vals <- flatten <$> (mapM evalDef defs)
+        types <- liftExcept (mapM (\(k, v) -> ((,) k) <$> typeVal v) vals)
         
        
-toRaw :: ModuleTree -> RawTree
-toRaw (Node dir (Just (Module {_sourceString=str}))) = 
-  Node (Map.map toRaw dir) (Just str) 
-toRaw (Node dir Nothing) = 
-  Node (Map.map toRaw dir) Nothing 
+        pure (Node dir' (Just $ Module {
+                               _vals=vals,
+                               _types=types,
+                               _header=ModuleHeader [] [] [],
+                               _sourceCore=defs,
+                               _sourceString=text}))
+
+    my_mnd _ = throwError "no main module" 
+
+resolveImports :: [String] -> Map.Map String ModuleTree -> Except.Except String [(String, Normal)]
+resolveImports [] _ = pure []
+resolveImports (s:ss) dict = 
+  case Map.lookup s dict of  
+    Just (Node _ ( Just (Module {_vals=vals, _types=types}))) -> do
+      tl <- resolveImports ss dict
+      pure $ (s, NormSct vals (NormSig types)) : tl
+    _ -> Except.throwError ("couldn't find import: " <> s)
+  
+        
+       
+toRaw :: (Either RawTree ModuleTree ) -> RawTree
+toRaw (Right v) = toRaw' v 
+  where
+    toRaw' (Node dir (Just (Module {_sourceString=str}))) =
+      Node (Map.map toRaw' dir) (Just str)
+    toRaw' (Node dir Nothing) = 
+      Node (Map.map toRaw' dir) Nothing 
+toRaw (Left raw) = raw
+
 
       
 getAsDef :: TopCore  -> Except.Except String Definition
@@ -163,3 +199,19 @@ getAsDef _ = Except.throwError "not definition"
 
 flatten :: [[a]] -> [a]
 flatten = (foldr (<>)) []
+
+
+
+
+-- Server/IO Section  
+server :: TQueue Message -> IO ()
+server outbox = do
+  atomically $ writeTQueue outbox $ UpdateModule ["lib"] (pack "(module lib (export dostuff)) (def dostuff (sys.put_line \"hello, world!\"))")
+  atomically $ writeTQueue outbox $ UpdateModule [] (pack "(module main (import lib)) (def main lib.dostuff)")
+  atomically $ writeTQueue outbox Compile
+  atomically $ writeTQueue outbox RunMain
+  atomically $ writeTQueue outbox Kill
+  pure ()
+
+
+  

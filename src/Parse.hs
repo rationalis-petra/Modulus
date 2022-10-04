@@ -179,12 +179,25 @@ pNormal =
 
 
 pHeader = do
-  parens pHeaderBody  
-  pure ([], [], [])
+  pHeaderDecl  
+  imports <- try (parens pImports) <|> pure []
+  exports <- try (parens pExports) <|> pure []
+  pure (imports, exports, [])
   where
-    pHeaderBody = do 
+    pHeaderDecl = do 
       symbol "module"
+      pSymStr
+      pure ()
 
+    pImports = do
+      symbol "import"
+      many pSymStr
+
+    pExports = do
+      symbol "export"
+      many pSymStr
+      
+    pSymStr = lexeme ((:) <$> (letterChar <|> char '_') <*> many (alphaNumChar <|> char '_'))
  
 -- pNormal :: Parser AST
 -- pNormal = makeNormalParser pTerm operatorTable
@@ -197,7 +210,7 @@ pRepl = sc *> pNormal
 
 pMod = do
   sc
-  header <- pHeader
+  header <- parens pHeader
   defs <- pTop
   eof
   pure (header, defs)
