@@ -13,7 +13,7 @@ import Data.Text (Text, pack)
 import qualified Data.Map as Map
 import Control.Concurrent
 import Control.Concurrent.STM
-import Control.Lens hiding (Context)
+import Control.Lens hiding (Context, contains)
 import qualified Control.Monad.Except as Except
 
 
@@ -138,27 +138,37 @@ compileTree tree state env = evalToEither (my_mnd tree) env state
                 in Map.foldrWithKey compileSub (pure Map.empty) dir)
 
       
-      ((inp, exp, _), defs) <- case parseModule "main" text of 
+      ((inp, exp, _), terms) <- case parseModule "main" text of 
         Right val -> pure val 
         Left err -> throwError (show err)
 
       -- resolve imports statements
       imports <- liftExcept $ resolveImports inp dir'
       localF (flip (foldr (\(k, v) env -> Env.insert k v env)) imports) $ do
-        -- TOOD: replace uses of mapM with a fold so, e.g. macros and definitions
+
+        let foldTerms [] = pure ([], [], [])
+            foldTerms (def:defs) = do
+              expanded <- macroExpand def
+              env <- ask
+              let eintermediate = toIntermediate expanded env  
+              intermediate <- (case eintermediate of Right val -> pure val; Left err -> throwError err)
+              tintermediate <- toTIntermediateTop intermediate
+              env <- ask
+              checked <- typeCheckTop tintermediate (Ctx.envToCtx env)
+
+              -- TODO: integrate type-checking results into allTypes
+              let justvals = (case checked of Left (val, _) -> val; Right val -> val)
+              core <- liftExcept (toTopCore justvals)
+              def <- liftExcept (getAsDef core)
+              vals <- evalDef def
+              allTypes <- liftExcept (mapM (\(k, v) -> ((,) k) <$> typeVal v) vals)
+              (defs, vals', allTypes') <- localF (flip (foldr (\(k, v) -> Env.insert k v)) vals) (foldTerms defs)
+              pure (def : defs, vals <> vals', allTypes <> allTypes')
+
         -- can carry forward for typechecking etc.
-        expanded <- mapM macroExpand defs
-        env <- ask
-        let eintermediate = map (flip toIntermediate env) expanded 
-        intermediate <- mapM (\case Right val -> pure val; Left err -> throwError err) eintermediate
-        tintermediate <- mapM toTIntermediateTop intermediate
-        env <- ask
-        checked <- mapM (flip typeCheckTop (Ctx.envToCtx env)) tintermediate 
-        let justvals = map (\case Left (val, _) -> val; Right val -> val) checked
-        core <- liftExcept (mapM toTopCore justvals)
-        defs <- liftExcept (mapM getAsDef core)
-        vals <- flatten <$> (mapM evalDef defs)
-        types <- liftExcept (mapM (\(k, v) -> ((,) k) <$> typeVal v) vals)
+        (defs, vals, allTypes) <- foldTerms terms
+        -- restrict the types to be only our exports!
+        let types = foldr (\(k, v) rest -> if contains k exp then ((k, v) : rest) else rest) [] allTypes
         
        
         pure (Node dir' (Just $ Module {
@@ -197,8 +207,6 @@ getAsDef (TopDef definition) = pure definition
 getAsDef _ = Except.throwError "not definition"
 
 
-flatten :: [[a]] -> [a]
-flatten = (foldr (<>)) []
 
 
 
@@ -206,7 +214,7 @@ flatten = (foldr (<>)) []
 -- Server/IO Section  
 server :: TQueue Message -> IO ()
 server outbox = do
-  atomically $ writeTQueue outbox $ UpdateModule ["lib"] (pack "(module lib (export dostuff)) (def dostuff (sys.put_line \"hello, world!\"))")
+  atomically $ writeTQueue outbox $ UpdateModule ["lib"] (pack "(module lib (export dostuff)) (def mystring \"hello, world!\") (def dostuff (sys.put_line mystring))")
   atomically $ writeTQueue outbox $ UpdateModule [] (pack "(module main (import lib)) (def main lib.dostuff)")
   atomically $ writeTQueue outbox Compile
   atomically $ writeTQueue outbox RunMain
@@ -215,3 +223,6 @@ server outbox = do
 
 
   
+contains _ [] = False 
+contains x (y:ys) | x == y = True
+contains x (_:ys) = contains x ys
