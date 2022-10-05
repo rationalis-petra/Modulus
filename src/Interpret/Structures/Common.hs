@@ -42,6 +42,20 @@ mlsCompose = liftFun5 f mlsComposeType
   where f a _ c l r = pure $ liftFun (cmp l r) (NormArr a c)
         cmp f1 f2 arg = eval (CApp (CApp (CNorm f1) (CNorm f2)) (CNorm arg))
 
+mlsFlipType :: Normal  
+mlsFlipType = NormImplProd "A" (NormUniv 0) 
+               (NormImplProd "B" (NormUniv 0)
+                (NormImplProd "C" (NormUniv 0)
+                 (NormArr (NormArr (mkVar "A") (NormArr (mkVar "B") (mkVar "C")))
+                  (NormArr (mkVar "B") (NormArr (mkVar "A") (mkVar "C"))))))
+
+mlsFlip :: Normal
+mlsFlip = liftFun4 f mlsFlipType
+  where f a b c fnc = pure $ liftFun2 (newFnc fnc) (newType a b c)
+        newFnc f x y = eval $ (CApp (CApp (CNorm f) (CNorm x)) (CNorm y))
+        newType a b c = NormArr b (NormArr a c)
+
+  
 commonSignature :: Normal
 commonSignature = NormSig $
   [("⊣", mlsLeftType)

@@ -30,6 +30,8 @@ dependencies:
 - optparse-applicative # command-line argument parsing
 - lens                 # lenses
 - stm                  # concurrency/transactional memory
+- network              # networking 
+- bytestring
 # - bindings-libffi
 # - libffi
 # - llvm-hs

@@ -22,7 +22,7 @@ import qualified Interpret.Environment as Env
 import Data.Text (pack)
 import qualified Data.Map as Map
 
-  -- Parsing Command Line Args
+-- Parsing Command Line Args
 import Options.Applicative
 import Data.Semigroup ((<>))
 

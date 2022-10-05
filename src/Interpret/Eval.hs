@@ -545,6 +545,7 @@ tyField field (NormSct fields _) =
   case getField field fields of
     Just x -> pure x
     Nothing -> throwError ("can't find field: " <> field)
+tyField field term = throwError ("can't get field  "<>field<>" of non struct/sig: " <> show term)
 
 tyApp :: Normal -> Normal -> EvalM Normal
 tyApp (NormArr l r) _ = pure r 
