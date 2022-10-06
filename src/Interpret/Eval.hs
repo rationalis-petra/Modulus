@@ -402,6 +402,10 @@ normSubst (val, var) ty = case ty of
       body' <- normSubst (val, var) body
       ty' <- normSubst (val, var) ty
       pure $ NormAbs var' body' ty'
+  -- TODO: The function /may/ have captured variables in it as a closure?
+  -- pretty sure this shouldn't happen as we have InbuiltNeuApp
+  Builtin fnc ty -> do
+    Builtin fnc <$> normSubst (val, var) ty
 
 
   NormSct fields ty -> do

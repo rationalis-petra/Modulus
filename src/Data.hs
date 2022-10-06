@@ -251,7 +251,9 @@ instance Show (Normal' m) where
 
   show (NormProd var a b) = "(" <> var <> ":" <> show a <> ")" <> " → " <> show b
   show (NormImplProd var a b) = "{" <> var <> ":" <> show a <> "}" <> " → " <> show b
-  show (NormArr l r) = show l <> " → " <> show r
+  show (NormArr l r) =
+    let l' = if fncLike l then "(" <> show l <> ")" else show l
+        in l' <> " → " <> show r
   show (NormAbs var body ty) = "(λ [" <> var <> "] " <> show body <> ")"
   show (Builtin _ ty) = "(fnc : " <> show ty <> ")"
   
@@ -382,5 +384,12 @@ instance Show AST where
 getField f ((f', n):xs) = if f == f' then Just n else getField f xs
 getField f [] = Nothing
 
+fncLike :: Normal' m -> Bool
+fncLike (NormArr _ _)        = True
+fncLike (NormImplProd _ _ _) = True
+fncLike (NormProd _ _ _)     = True
+fncLike _ = False
 
 $(makeLenses ''ProgState)
+
+

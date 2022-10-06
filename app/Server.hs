@@ -8,9 +8,11 @@ module Server where
 
 
 import Data.Text (Text, pack)
+import Data.Text.Encoding (decodeUtf8')
 import qualified Data.Map as Map
 import Control.Concurrent
 import Control.Concurrent.STM
+
 
 
 import Data (EvalM,
@@ -36,10 +38,8 @@ import qualified Control.Exception as Ex
 
 startServer :: ProgState -> Environment -> IO ()  
 startServer dstate denvironment  = do 
-  byteQueue <- atomically $ newTQueue 
   messageQueue <- atomically $ newTQueue 
-  forkIO $ runTCPServer Nothing "4008" (serverLoop byteQueue)
-  forkIO $ messageParser byteQueue messageQueue
+  forkIO $ runTCPServer Nothing "4008" (serverLoop messageQueue)
   interpreter (IState dstate denvironment (Right emptyTree)) messageQueue
 
 
@@ -54,8 +54,7 @@ runTCPServer mhost port server = withSocketsDo $ do
     resolve = do
         let hints = defaultHints {
                 addrFlags = [AI_PASSIVE]
-              , addrSocketType = Stream
-              }
+              , addrSocketType = Stream}
         head <$> getAddrInfo (Just hints) mhost (Just port)
     open addr = Ex.bracketOnError (openSocket addr) close $ \sock -> do
         setSocketOption sock ReuseAddr 1
@@ -71,30 +70,20 @@ runTCPServer mhost port server = withSocketsDo $ do
             -- @conn@) before proper cleanup of @conn@ is your case
             forkFinally (server conn) (const $ gracefulClose conn 5000)
 
-serverLoop :: TQueue Bs.ByteString -> Socket -> IO ()  
+
+serverLoop :: TQueue Message -> Socket -> IO ()  
 serverLoop outbox socket = do 
   msg <- recv socket 1024
   unless (Bs.null msg) $ do
-    atomically $ writeTQueue outbox msg
+    case decodeUtf8' msg of 
+      Left err -> putStrLn "packet decoding failed"
+      Right val -> case parseMessage val of 
+        Just msg -> atomically $ writeTQueue outbox msg
+        Nothing -> putStrLn "packet parsing failed"
   serverLoop outbox socket
 
-messageParser :: TQueue Bs.ByteString -> TQueue Message -> IO ()
-messageParser bytes messages = do 
-  _ <- atomically $ readTQueue bytes
-  -- TODO use a reducer to emulate state; return messages when appropriate 
-  atomically $ writeTQueue messages RunMain
-  messageParser bytes messages
-  
-  
-
--- Server/IO Section  
-server :: TQueue Message -> IO ()
-server outbox = do
-  atomically $ writeTQueue outbox $ UpdateModule ["lib"] (pack "(module lib (export dostuff)) (def mystring \"hello, world!\") (def dostuff (sys.put_line mystring))")
-  atomically $ writeTQueue outbox $ UpdateModule [] (pack "(module main (import lib)) (def main lib.dostuff)")
-  atomically $ writeTQueue outbox Compile
-  atomically $ writeTQueue outbox RunMain
-  atomically $ writeTQueue outbox Kill
-  pure ()
-  
+parseMessage :: Text -> Maybe Message
+parseMessage msg | msg == (pack "Kill") = Just Kill
+                 | msg == (pack "Run") = Just RunMain
+                 | otherwise = Nothing
 
