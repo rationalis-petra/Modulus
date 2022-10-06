@@ -10,9 +10,11 @@ import Interpret.Eval (liftFun2,
 import qualified Interpret.Environment as Env
 import Interpret.Transform
 
+mlsArrTy :: Normal
+mlsArrTy = (NormArr (NormUniv 0) (NormArr (CollTy (ListTy (PrimType IntT))) (NormUniv 0)))
 
 mlsArr :: Normal
-mlsArr = liftFun2 mkArrTy (NormArr (NormUniv 0) (NormArr (CollTy (ListTy (PrimType IntT))) (NormUniv 0)))
+mlsArr = liftFun2 mkArrTy mlsArrTy
   where
     mkArrTy :: Normal -> Normal -> EvalM Normal
     mkArrTy ty (CollVal (ListVal dims _)) = do
@@ -26,14 +28,16 @@ mlsArr = liftFun2 mkArrTy (NormArr (NormUniv 0) (NormArr (CollTy (ListTy (PrimTy
 
   
 arraySignature :: Normal
-arraySignature = NormSig [
-  ("Array", (NormArr (NormUniv 0) (NormArr (CollTy (ListTy (PrimType IntT))) (NormUniv 0))))]
+arraySignature = NormSig
+                 [ ("Array", mlsArrTy)
+                 ]
+                 
                                 
 
 arrayStructure :: Normal
-arrayStructure = NormSct [
-  ("Array", mlsArr)]
-  arrayStructure
+arrayStructure = NormSct
+                 [ ("Array", mlsArr)
+                 ] arraySignature
 
   
   -- -- Types

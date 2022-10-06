@@ -157,24 +157,23 @@ mkRefl = liftFun2 f mkReflType
   
 coreTerms :: [(String, Normal)]
 coreTerms = [
-  -- Types
-  ("Bool", PrimType BoolT),
-  ("Unit", PrimType UnitT),
-  ("𝒰", NormUniv 0),
+    ("Bool", PrimType BoolT)
+  , ("Unit", PrimType UnitT)
+  , ("𝒰", NormUniv 0)
   -- TODO: universe constructor
-  ("→", Special MkProd),
-  ("sig", mlsSig),
-  ("×", mlsMkTupleType),
+  , ("→", Special MkProd)
+  , ("sig", mlsSig)
+  , ("×", mlsMkTupleType)
 
   -- misc. functions (constructors etc.)
-  (",", mlsMkTuple),
-  ("<:", mlsConstrain),
-  (":", Special Annotate),
-  ("|", mlsUpd),
-  ("with", mlsWith),
+  , (",", mlsMkTuple)
+  , ("<:", mlsConstrain)
+  , (":", Special Annotate)
+  , ("|", mlsUpd)
+  , ("with", mlsWith)
 
-  ("refl", mkRefl),
-  ("≡", mkPropEq),
+  , ("refl", mkRefl)
+  , ("≡", mkPropEq)
 
   -- TODO macro stuff
   -- ("Atom", mlsAtom),
@@ -184,30 +183,30 @@ coreTerms = [
   -- ("subtype", mlsSubtype),
   
   -- language constructs
-  (".",           Special Access),
-  ("if",          Special If),
-  ("do",          Special Do),
-  ("quote",       Special MkQuote),
-  ("λ",           Special Lambda),
-  ("let",         Special Let),
-  ("structure",   Special MkStructure),
-  ("signature",   Special MkSig),
-  ("struct",      mlsStruct),
-  ("sig",         mlsSig),
-  ("match",       Special MkMatch),
-  ("comatch",     Special MkCoMatch),
-  ("open",        Special Open),
-  ("let-open",    Special LetOpen),
+  , (".",           Special Access)
+  , ("if",          Special If)
+  , ("do",          Special Do)
+  , ("quote",       Special MkQuote)
+  , ("λ",           Special Lambda)
+  , ("let",         Special Let)
+  , ("structure",   Special MkStructure)
+  , ("signature",   Special MkSig)
+  , ("struct",      mlsStruct)
+  , ("sig",         mlsSig)
+  , ("match",       Special MkMatch)
+  , ("comatch",     Special MkCoMatch)
+  , ("open",        Special Open)
+  , ("let-open",    Special LetOpen)
 
-  ("def",          Special Def),
-  ("≜",            Special Def),
-  ("defn",         mlsDefun) ,
-  ("defsyntax",    mlsDefmac),
-  ("defstructure", mlsDefStructure),
-  ("defstruct",    mlsDefStruct),
-  ("defsignature", mlsDefSig),
-  ("induct",       Special Induct),
-  ("coinduct",     Special Coinduct)
+  , ("def",          Special Def)
+  , ("≜",            Special Def)
+  , ("defn",         mlsDefun)
+  , ("defsyntax",    mlsDefmac)
+  , ("defstructure", mlsDefStructure)
+  , ("defstruct",    mlsDefStruct)
+  , ("defsignature", mlsDefSig)
+  , ("induct",       Special Induct)
+  , ("coinduct",     Special Coinduct)
   -- ("signature", (mlsDefSignature, Undef))
   ]
 

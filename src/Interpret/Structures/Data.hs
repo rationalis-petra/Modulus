@@ -11,15 +11,18 @@ import qualified Data.Map as Map
 import Data
 
 dataSignature :: Normal
-dataSignature = NormSig [("string", stringSignature),
-                         ("list",   listSignature),
-                         ("array",  arraySignature),
-                         ("maybe",  maybeSignature)
-                        ]
+dataSignature = NormSig
+                [ ("string", stringSignature)
+                , ("list",   listSignature)
+                , ("array",  arraySignature)
+                , ("maybe",  maybeSignature)
+                ]
+                
   
 dataStructure :: Normal
-dataStructure = NormSct [("string", stringStructure),
-                         ("list",   listStructure),
-                         ("array",  arrayStructure),
-                         ("maybe",  maybeStructure)
-                         ] dataSignature
+dataStructure = NormSct
+                [ ("string", stringStructure)
+                , ("list",   listStructure)
+                , ("array",  arrayStructure)
+                , ("maybe",  maybeStructure)
+                ] dataSignature

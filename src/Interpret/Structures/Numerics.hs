@@ -95,121 +95,127 @@ intSignature =
   let binIntTy = NormArr (mkVar "T") (NormArr (mkVar "T") (mkVar "T"))
       binIntCmp = NormArr (mkVar "T") (NormArr (mkVar "T") (PrimType BoolT))
         in
-    NormSig [("T", NormUniv 0),
-             ("ℤ", NormUniv 0),
-             ("+", binIntTy),
-             ("-", binIntTy),
-             ("*", binIntTy),
-             ("quot", binIntTy),
-             ("rem", binIntTy),
-             ("add-inv", NormArr (mkVar "T") (mkVar "T")),
-           
-             ("^", mkIntOp (^)),
-           
-             ("e0", (mkVar "T")),
-             ("e1", (mkVar "T")),
-           
-             ("show", NormArr (mkVar "T") (PrimType StringT)),
-
-             ("=", binIntCmp),
-             ("≠", binIntCmp),
-             ("<", binIntCmp),
-             ("≤", binIntCmp),
-             (">", binIntCmp),
-             ("≥", binIntCmp)]
+    NormSig [ ("T", NormUniv 0)
+            , ("ℤ", NormUniv 0)
+            , ("+", binIntTy)
+            , ("-", binIntTy)
+            , ("⋅", binIntTy)
+            , ("quot", binIntTy)
+            , ("rem", binIntTy)
+            , ("add-inv", NormArr (mkVar "T") (mkVar "T"))
+             
+            , ("^", mkIntOp (^))
+             
+            , ("e0", (mkVar "T"))
+            , ("e1", (mkVar "T"))
+             
+            , ("show", NormArr (mkVar "T") (PrimType StringT))
+             
+            , ("=", binIntCmp)
+            , ("≠", binIntCmp)
+            , ("<", binIntCmp)
+            , ("≤", binIntCmp)
+            , (">", binIntCmp)
+            , ("≥", binIntCmp)
+            ]
 
 intStructure :: [(String, Normal)]
 intStructure = 
-  [("t", int_t),
-   ("ℤ", int_t),
-   ("+", mkIntOp (+)),
-   ("-", mkIntOp (-)),
-   ("*", mkIntOp (*)),
-   ("quot", mkIntOp (quot)),
-   ("rem", mkIntOp (rem)),
-   ("add-inv", mkIntUni (\x -> -x)),
-
-   ("^", mkIntOp (^)),
-
-   ("e0", PrimVal (Int 0)),
-   ("e1", PrimVal (Int 1)),
-
-   ("show", intShow),
-
-   ("<", mkCmpOp (<)),
-   ("≤", mkCmpOp (<=)),
-   (">", mkCmpOp (>)),
-   ("≥", mkCmpOp (>=)),
-   ("=", mkCmpOp (==)),
-   ("≠", mkCmpOp (/=))]
+  [ ("t", int_t)
+  , ("ℤ", int_t)
+  , ("+", mkIntOp (+))
+  , ("-", mkIntOp (-))
+  , ("⋅", mkIntOp (*))
+  , ("quot", mkIntOp (quot))
+  , ("rem", mkIntOp (rem))
+  , ("add-inv", mkIntUni (\x -> -x))
+   
+  , ("^", mkIntOp (^))
+   
+  , ("e0", PrimVal (Int 0))
+  , ("e1", PrimVal (Int 1))
+   
+  , ("show", intShow)
+   
+  , ("<", mkCmpOp (<))
+  , ("≤", mkCmpOp (<=))
+  , (">", mkCmpOp (>))
+  , ("≥", mkCmpOp (>=))
+  , ("=", mkCmpOp (==))
+  , ("≠", mkCmpOp (/=))
+  ]
 
 floatSignature :: Normal
 floatSignature =
   let binFltTy = NormArr (mkVar "T") (NormArr (mkVar "T") (mkVar "T"))
       binFltCmp = NormArr (mkVar "T") (NormArr (mkVar "T") (PrimType BoolT))
         in
-    NormSig [("t", NormUniv 0),
-             ("Float", NormUniv 0),
-             ("+", binFltTy),
-             ("-", binFltTy),
-             ("*", binFltTy),
-             ("÷", binFltTy),
-             ("^", binFltTy),
+    NormSig [ ("t", NormUniv 0)
+            , ("Float", NormUniv 0)
+            , ("+", binFltTy)
+            , ("-", binFltTy)
+            , ("⋅", binFltTy)
+            , ("÷", binFltTy)
+            , ("^", binFltTy)
            
-             ("e0", (mkVar "T")),
-             ("e1", (mkVar "T")),
+            , ("e0", mkVar "T")
+            , ("e1", mkVar "T")
            
-             ("show", NormArr (mkVar "T") (PrimType StringT)),
+            , ("show", NormArr (mkVar "T") (PrimType StringT))
            
-             ("=", binFltCmp),
-             ("≠", binFltCmp),
-             ("<", binFltCmp),
-             ("≤", binFltCmp),
-             (">", binFltCmp),
-             ("≥", binFltCmp)]
+            ,  ("=", binFltCmp)
+            ,  ("≠", binFltCmp)
+            ,  ("<", binFltCmp)
+            ,  ("≤", binFltCmp)
+            ,  (">", binFltCmp)
+            ,  ("≥", binFltCmp)
+            ]
 
 floatStructure :: [(String, Normal)] 
 floatStructure =
-  [("t",     float_t),
-   ("Float", float_t),
-   ("+", mkFloatOp (+)),
-   ("-", mkFloatOp (-)),
-   ("*", mkFloatOp (*)),
-   ("÷", mkFloatOp (/)),
-   ("^", mkFloatOp (**)),
+   [ ("t",     float_t)
+   , ("Float", float_t)
+   , ("+", mkFloatOp (+))
+   , ("-", mkFloatOp (-))
+   , ("⋅", mkFloatOp (*))
+   , ("÷", mkFloatOp (/))
+   , ("^", mkFloatOp (**))
 
-   ("e0", PrimVal (Float 0.0)),
-   ("e1", PrimVal (Float 1.0)),
+   , ("e0", PrimVal (Float 0.0))
+   , ("e1", PrimVal (Float 1.0))
    
-   ("add-inv", mkFloatUni (\x -> -x)),
-   ("mul-inv", mkFloatUni (\x -> 1/x)),
-   ("show", floatShow),
+   , ("add-inv", mkFloatUni (\x -> -x))
+   , ("mul-inv", mkFloatUni (\x -> 1/x))
+   , ("show", floatShow)
 
-   ("=", mkFltCmp (==)),
-   ("≠", mkFltCmp (/=)),
-   ("<", mkFltCmp (<)),
-   ("≤", mkFltCmp (<=)),
-   (">", mkFltCmp (>)),
-   ("≥", mkFltCmp (>=))]
+   , ("=", mkFltCmp (==))
+   , ("≠", mkFltCmp (/=))
+   , ("<", mkFltCmp (<))
+   , ("≤", mkFltCmp (<=))
+   , (">", mkFltCmp (>))
+   , ("≥", mkFltCmp (>=))
+   ]
 
   
 boolStructure :: [(String, Normal)] 
 boolStructure =
-  [("∧", mkBoolOp (&&)),
-   ("∨", mkBoolOp (||)),
-   ("⊻", mkBoolOp (/=)),
-   ("not", mkBoolSing not)]
+   [ ("∧", mkBoolOp (&&))
+   , ("∨", mkBoolOp (||))
+   , ("⊻", mkBoolOp (/=))
+   , ("not", mkBoolSing not)
+   ]
 
 numSignature :: Normal  
-numSignature = NormSig [
-  ("int", intSignature),
-  ("float", floatSignature)]
+numSignature = NormSig
+               [ ("int", intSignature)
+               , ("float", floatSignature)
+               ]
 
-numStructure :: [(String, Normal)]
-numStructure = 
-  [("int", NormSct intStructure intSignature),
-   ("float", NormSct floatStructure floatSignature)
-   ]
+numStructure :: Normal
+numStructure = NormSct
+               [ ("int", NormSct intStructure intSignature)
+               , ("float", NormSct floatStructure floatSignature)
+               ] numSignature
 
   
 

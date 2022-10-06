@@ -22,8 +22,8 @@ defaultStructure = do
   structs <- structStructure 
   pure $ insertLeft
            (coreTerms <> commonTerms)
-           [("num",     NormSct numStructure numSignature),
-            ("sys",     NormSct systemStructure systemSignature),
+           [("num",     numStructure),
+            ("sys",     systemStructure),
             ("data",    dataStructure),
             ("monad",   monadStructure),
             ("structs", NormSct structs (NormSig []))]

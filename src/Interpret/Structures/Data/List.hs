@@ -237,49 +237,49 @@ mlsLen = liftFun2 f mlsLenTy
           pure $ PrimVal $ Int (fromIntegral (length xs))
 
 listSignature :: Normal
-listSignature = NormSig [
-  ("M", mlsListCtorTy),
-  ("List", mlsListCtorTy),
-  ("nil", nilType),
-  ("cons", consType),
-  ("Ɩ", mlsIndicesOfTy),
-
-  ("⋯", mlsEachTy),
-  ("fold", mlsFoldTy),
-  ("reduce", mlsReduceTy),
-  ("/", mlsReduceTy),
-  ("scan", mlsScanTy),
-  ("\\", mlsScanTy),
-  ("join", mlsJoinTy),
-  ("zip", mlsZipTy),
-  ("⋅", mlsCatTy),
-  ("↑", mlsTakeTy),
-  ("↓", mlsDropTy),
-  ("reverse", mlsReverseTy),
-  ("ρ", mlsLenTy)
+listSignature = NormSig 
+  [ ("M", mlsListCtorTy)
+  , ("List", mlsListCtorTy)
+  , ("nil", nilType)
+  , ("cons", consType)
+  , ("Ɩ", mlsIndicesOfTy)
+   
+  , ("⋯", mlsEachTy)
+  , ("fold", mlsFoldTy)
+  , ("reduce", mlsReduceTy)
+  , ("/", mlsReduceTy)
+  , ("scan", mlsScanTy)
+  , ("\\", mlsScanTy)
+  , ("join", mlsJoinTy)
+  , ("zip", mlsZipTy)
+  , ("⋅", mlsCatTy)
+  , ("↑", mlsTakeTy)
+  , ("↓", mlsDropTy)
+  , ("reverse", mlsReverseTy)
+  , ("ρ", mlsLenTy)
   ]
   
 
 listStructure :: Normal
-listStructure = NormSct [
-  ("M", mlsListCtor),
-  ("List", mlsListCtor),
-  ("nil", mlsNil),
-  ("cons", mlsCons),
-  ("Ɩ", mlsIndicesOf),
-
-  -- utility functions
-  ("⋯", mlsEach),
-  ("fold", mlsFold),
-  ("reduce", mlsReduce),
-  ("/", mlsReduce),
-  ("scan", mlsScan),
-  ("\\", mlsScan),
-  ("join", mlsJoin),
-  ("zip", mlsZip),
-  ("⋅", mlsCat),
-  ("↑", mlsTake),
-  ("↓", mlsDrop),
-  ("reverse", mlsReverse),
-  ("ρ", mlsLen)
+listStructure = NormSct 
+  [ ("M", mlsListCtor)
+  , ("List", mlsListCtor)
+  , ("nil", mlsNil)
+  , ("cons", mlsCons)
+  , ("Ɩ", mlsIndicesOf)
+ 
+    -- utility functions
+  , ("⋯", mlsEach)
+  , ("fold", mlsFold)
+  , ("reduce", mlsReduce)
+  , ("/", mlsReduce)
+  , ("scan", mlsScan)
+  , ("\\", mlsScan)
+  , ("join", mlsJoin)
+  , ("zip", mlsZip)
+  , ("⋅", mlsCat)
+  , ("↑", mlsTake)
+  , ("↓", mlsDrop)
+  , ("reverse", mlsReverse)
+  , ("ρ", mlsLen)
   ] listSignature

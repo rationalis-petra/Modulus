@@ -54,15 +54,16 @@ mlsNone = InbuiltCtor $ IndPat "none" noneMatch 1 (liftFun noneCtor mlsNoneTy) m
     noneCtor ty = pure (CollVal (ListVal [] ty))
 
 maybeSignature :: Normal
-maybeSignature = NormSig [
-  ("M", mlsMaybeCtorTy),
-  ("some", mlsSomeTy),
-  ("none", mlsNoneTy)
-  ]
+maybeSignature = NormSig
+                 [ ("M", mlsMaybeCtorTy)
+                 , ("some", mlsSomeTy)
+                 , ("none", mlsNoneTy)
+                 ]
+                 
   
 maybeStructure :: Normal
-maybeStructure = NormSct [
-  ("M", mlsMaybeCtor),
-  ("some", mlsSome),
-  ("none", mlsNone)
+maybeStructure = NormSct
+  [ ("M", mlsMaybeCtor)
+  , ("some", mlsSome)
+  , ("none", mlsNone)
   ] maybeSignature

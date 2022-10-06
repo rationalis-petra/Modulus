@@ -47,24 +47,25 @@ strShow = liftFun sshow (NormArr (PrimType StringT) (PrimType StringT))
 
 
 stringSignature :: Normal  
-stringSignature = NormSig [
-  ("String",  NormUniv 0),
-  ("t",       NormUniv 0),
-  ("append",  (NormArr t (NormArr t t))),
-  ("⋅",        (NormArr t (NormArr t t))),
-  ("show",    (NormArr t (PrimType StringT))),
-  ("!!",      (NormArr t (NormArr (PrimType IntT) (NormArr t t)))),
-  ("index",   (NormArr t (NormArr (PrimType IntT) (NormArr t t))))]
+stringSignature = NormSig
+                  [ ("String",  NormUniv 0)
+                  , ("t",       NormUniv 0)
+                  , ("append",  (NormArr t (NormArr t t)))
+                  , ("⋅",       (NormArr t (NormArr t t)))
+                  , ("show",    (NormArr t (PrimType StringT)))
+                  , ("!!",      (NormArr t (NormArr (PrimType IntT) (NormArr t t))))
+                  , ("index",   (NormArr t (NormArr (PrimType IntT) (NormArr t t))))
+                  ]
   where
     t = Neu (NeuVar "T" (NormUniv 0)) (NormUniv 0)
 
 stringStructure :: Normal
-stringStructure = NormSct [
-  ("String", PrimType StringT),
-  ("t",      PrimType StringT),
-  ("append", mlsConcat),
-  ("⋅",       mlsConcat),
-  ("show",   strShow),
-  ("!!",     mlsElement),
-  ("index",  mlsElement)
-  ] stringSignature
+stringStructure = NormSct
+                  [ ("String", PrimType StringT)
+                  , ("t",      PrimType StringT)
+                  , ("append", mlsConcat)
+                  , ("⋅",      mlsConcat)
+                  , ("show",   strShow)
+                  , ("!!",     mlsElement)
+                  , ("index",  mlsElement)
+                  ] stringSignature

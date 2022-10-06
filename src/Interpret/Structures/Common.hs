@@ -40,7 +40,20 @@ mlsComposeType = NormImplProd "A" (NormUniv 0)
 mlsCompose :: Normal
 mlsCompose = liftFun5 f mlsComposeType
   where f a _ c l r = pure $ liftFun (cmp l r) (NormArr a c)
-        cmp f1 f2 arg = eval (CApp (CApp (CNorm f1) (CNorm f2)) (CNorm arg))
+        cmp f1 f2 arg = eval (CApp (CNorm f1) (CApp (CNorm f2) (CNorm arg)))
+
+mlsOverType :: Normal  
+mlsOverType = NormImplProd "A" (NormUniv 0) 
+                 (NormImplProd "B" (NormUniv 0)
+                  (NormImplProd "C" (NormUniv 0)
+                   (NormArr (NormArr (mkVar "B") (NormArr (mkVar "B") (mkVar "C")))
+                    (NormArr (NormArr (mkVar "A") (mkVar "B"))
+                     (NormArr (mkVar "A") (NormArr (mkVar "A") (mkVar "C")))))))
+
+mlsOver :: Normal
+mlsOver = liftFun5 f mlsOverType
+  where f a b c l r = pure $ liftFun2 (over l r) (NormArr a (NormArr a c))
+        over f g x y = eval (CApp (CApp (CNorm f) (CApp (CNorm g) (CNorm x))) (CApp (CNorm g) (CNorm y)))
 
 mlsFlipType :: Normal  
 mlsFlipType = NormImplProd "A" (NormUniv 0) 
@@ -56,11 +69,14 @@ mlsFlip = liftFun4 f mlsFlipType
         newType a b c = NormArr b (NormArr a c)
 
   
+-- TODO: fork f g h = λ [x y] f (g x) (h y)
+  
 commonSignature :: Normal
 commonSignature = NormSig $
-  [("⊣", mlsLeftType)
-  ,("⊢", mlsRightType)
-  ,("∘", mlsComposeType)
+  [ ("⊣", mlsLeftType)
+  , ("⊢", mlsRightType)
+  , ("∘", mlsComposeType)
+  , ("○", mlsOverType)
   ]
 
 
@@ -69,7 +85,8 @@ commonStructure = NormSct commonTerms commonSignature
 
 commonTerms :: [(String, Normal)]
 commonTerms =
-  [("⊣", mlsLeft)
-  ,("⊢", mlsRight)
-  ,("∘", mlsCompose)
+  [ ("⊣", mlsLeft)
+  , ("⊢", mlsRight)
+  , ("∘", mlsCompose)
+  , ("○", mlsOver)
   ]
