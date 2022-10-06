@@ -7,7 +7,7 @@ module Server where
     and more. -}
 
 
-import Data.Text (Text, pack)
+import Data.Text (Text, pack, unpack)
 import Data.Text.Encoding (decodeUtf8')
 import qualified Data.Map as Map
 import Control.Concurrent
@@ -22,7 +22,8 @@ import Data (EvalM,
              Environment,
              ProgState)
 
-import Server.Message
+import qualified Server.Message as Message
+import Server.Message hiding (parse)
 import Server.Data  
 import Server.Interpret
 
@@ -77,13 +78,10 @@ serverLoop outbox socket = do
   unless (Bs.null msg) $ do
     case decodeUtf8' msg of 
       Left err -> putStrLn "packet decoding failed"
-      Right val -> case parseMessage val of 
+      Right str -> case Message.parse str of 
         Just msg -> atomically $ writeTQueue outbox msg
-        Nothing -> putStrLn "packet parsing failed"
+        Nothing -> putStrLn ("bad message: " <> unpack str)
+        --Left err -> putStrLn ("packet parsing failed: " <> err)
   serverLoop outbox socket
 
-parseMessage :: Text -> Maybe Message
-parseMessage msg | msg == (pack "Kill") = Just Kill
-                 | msg == (pack "Run") = Just RunMain
-                 | otherwise = Nothing
 

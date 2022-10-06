@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Server.Message where
 
 import Data.Text (Text, pack)
@@ -11,19 +12,20 @@ data Message
   | Compile
   | RunMain
   | Kill
+  deriving Show
 
-type Parser = Parsec Void String
+type Parser = Parsec Void Text
 
 symbol = L.symbol (pure ())  
 
-parse :: String -> Maybe Message
+parse :: Text -> Maybe Message
 parse str = case runParser pMessage "message" str of 
   Right val -> Just val
   Left _ -> Nothing
 
 
 pMessage :: Parser Message  
-pMessage = choice [pKill, pRunMain, pUpdateModule]
+pMessage = choice [pKill, pRunMain, pCompile, pUpdateModule]
     
 pKill :: Parser Message
 pKill = do
@@ -34,15 +36,22 @@ pRunMain :: Parser Message
 pRunMain = do
   symbol "RunMain"
   pure RunMain
+
+pCompile :: Parser Message
+pCompile = do
+  symbol "Compile"
+  pure Compile
   
 pUpdateModule :: Parser Message
 pUpdateModule = do
   symbol "UpdateModule"
-  path <- between (symbol "[") (symbol "]")
-            ((:) <$> pSymbol <*> many (symbol "," *> pSymbol))
+  symbol " "
+  path <- between (symbol "[") (symbol "]") (pure [])
+            -- (try ((:) <$> pSymbol <*> many (symbol "," *> pSymbol)) <|> pure [])
+  symbol " "
   body <- pack <$> (many (satisfy (\_ -> True)) <* eof)
   pure $ UpdateModule path body
 
 
 pSymbol :: Parser String  
-pSymbol = many alphaNumChar
+pSymbol = (try ((:) <$> alphaNumChar <*> many alphaNumChar) <|> pure [])
