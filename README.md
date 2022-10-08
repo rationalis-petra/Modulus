@@ -45,15 +45,24 @@ source. The steps to do so are as follows
 1. Install the [Haskell Tool Stack](https://docs.haskellstack.org/en/stable/),
    if you don't already have it
 2. Clone this repo onto your local file
-3. From inside this repository, run either
-  + `stack build`,
-  + `staack install` or
-  + `stack run`. In order to provide command line args to the modulus program
-    this way, you'll need to prefix `--`. So, to run modulus with the interpret
-    (`-i`) flag, you do: `stack run -- -i`. To run modulus in interpreted mode
-    on the file "myprog.mls", call `stack run -- -i --file myprog.mls`
+3. From inside this repository, first run `stack build`, then run either
+   `stack install` (to install) or `stack run` (to run without installing).
+   
+**Note**: If you want to provide command-line arguments to the modulus program
+with `stack run`.
+   
+The inputs modulus accepts are 
++ **Mode** required, `-m` or `--mode`. Can be either `(i)nteractive`, `(s)server`
+  or `(c)ompile`. 
++ **File** required, `-f` or `--file`. Can be any valid file-string.
+   
+
+   
+In order to provide command line args to modulus via stack run, you'll need to
+prefix arguments with `--` so `modulus --mode i` becomes `stack run -- --mode
+i`.
     
 ## Documentation
-Currently a WIP, sorry...
+Coming Shortly (ish)
 
 
