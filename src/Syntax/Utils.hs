@@ -77,7 +77,7 @@ typeVal (NormIType _ _ _) = pure (NormUniv 0)
 typeVal (NormArr _ _) = pure (NormUniv 0)
 typeVal (NormProd _ _ _) = pure (NormUniv 0)
 typeVal (NormImplProd _ _ _) = pure (NormUniv 0)
-typeVal (NormSig _) = pure (NormUniv 0)
+typeVal (NormSig _) = pure $ NormUniv 0
 
 -- Functions
 typeVal (Builtin _ ty) = pure ty

@@ -38,6 +38,7 @@ data Result
   = RValue Normal
   | RDef (Environment -> Environment)
   | RAnn String Normal
+  
 
 loopAction :: Normal -> Environment -> ProgState -> IO (Normal, ProgState)
 loopAction val env state =
@@ -537,7 +538,7 @@ neuSubst (val, var) neutral = case neutral of
 tyHead :: Normal -> EvalM Normal
 tyHead (NormArr l r) = pure l
 tyHead (NormProd sym a b) = pure a
-tyHead (NormImplProd sym a b) = pure b
+tyHead (NormImplProd sym a b) = pure a
 tyHead hd = throwError ("can't get type head of " <> show hd)
 
 tyField :: String -> Normal -> EvalM Normal  

@@ -134,7 +134,7 @@ runExprs (e : es) env state runIO = do
   --         core <- liftExcept $ toCore checked
   result <- evalToIO (macroExpand e) env state
   case result of 
-    Just (expanded, state') ->
+    Just (expanded, state') -> 
       case toIntermediate expanded env of 
         Right val -> do
           result <- evalToIO (toTIntermediateTop val) env state'

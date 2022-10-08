@@ -81,6 +81,7 @@ data Core
   deriving Show
 
 data TopCore = TopDef Definition | TopExpr Core | TopAnn String Core
+  deriving Show
 
 instance Show Pattern where  
   show WildCard = "_"

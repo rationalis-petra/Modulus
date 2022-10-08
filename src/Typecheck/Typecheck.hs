@@ -5,7 +5,6 @@ import qualified Data.Set as Set
 import Control.Monad.Except (runExcept)
 import Control.Monad.State 
 
-  
 import Data (PrimType(..),
              Normal,
              Normal'(..),
@@ -31,7 +30,7 @@ err = throwError
 typeCheckTop :: TIntTop TIntermediate' -> Ctx.Context
              -> EvalM (Either (TIntTop Normal, Normal) (TIntTop Normal))
 typeCheckTop (TExpr e) ctx = do
-      (expr, ty, subst) <- typeCheck e ctx
+      (expr, ty, subst) <-  typeCheck e ctx
       -- (expr', ty') <- buildDepFn expr ty
       pure $ Left $ (TExpr expr, ty)
 typeCheckTop (TAnnotation sym bdy) ctx = do
@@ -373,6 +372,8 @@ typeCheck expr ctx = case expr of
 
   (TAccess term field) -> do
     (term', ty, subst) <- typeCheck term ctx
+
+    -- TODO: signatures need types?
     -- TODO: what if there is a substituion 
     case ty of 
       (NormSig map) -> case getField field map of 

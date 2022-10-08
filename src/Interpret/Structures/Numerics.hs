@@ -121,7 +121,7 @@ intSignature =
 
 intStructure :: [(String, Normal)]
 intStructure = 
-  [ ("t", int_t)
+  [ ("T", int_t)
   , ("ℤ", int_t)
   , ("+", mkIntOp (+))
   , ("-", mkIntOp (-))
@@ -150,7 +150,7 @@ floatSignature =
   let binFltTy = NormArr (mkVar "T") (NormArr (mkVar "T") (mkVar "T"))
       binFltCmp = NormArr (mkVar "T") (NormArr (mkVar "T") (PrimType BoolT))
         in
-    NormSig [ ("t", NormUniv 0)
+    NormSig [ ("T", NormUniv 0)
             , ("Float", NormUniv 0)
             , ("+", binFltTy)
             , ("-", binFltTy)
@@ -173,7 +173,7 @@ floatSignature =
 
 floatStructure :: [(String, Normal)] 
 floatStructure =
-   [ ("t",     float_t)
+   [ ("T",     float_t)
    , ("Float", float_t)
    , ("+", mkFloatOp (+))
    , ("-", mkFloatOp (-))
