@@ -4,7 +4,6 @@ import Control.Concurrent
 import Control.Concurrent.STM
 
 import qualified Data.Map as Map 
-import qualified Typecheck.Context as Ctx
 import qualified Interpret.Environment as Env
 import Control.Lens hiding (Context, contains)
 import qualified Control.Monad.Except as Except
@@ -24,7 +23,8 @@ import Data(Normal,
             TopCore(..),
             Environment,
             Definition,
-            EvalM)
+            EvalM,
+            toEmpty)
 
 import Server.Data
 import Server.Message
@@ -75,7 +75,7 @@ runMain istate =
       pure istate
 
 compileTree :: RawTree -> ProgState -> Environment -> Either String (ModuleTree, ProgState)
-compileTree tree state env = evalToEither (my_mnd tree) env state
+compileTree tree state ctx = evalToEither (my_mnd tree) ctx state
   where
     my_mnd :: RawTree -> EvalM ModuleTree
     my_mnd (Node dir (Just text)) = do
@@ -93,9 +93,9 @@ compileTree tree state env = evalToEither (my_mnd tree) env state
 
       -- resolve imports statements
       imports <- liftExcept $ resolveImports inp dir'
-      localF (flip (foldr (\(k, v) env -> Env.insert k v env)) imports) $ do
+      localF (flip (foldr (\(k, (v, ty)) -> Env.insert k v ty)) imports) $ do
 
-        let foldTerms [] = pure ([], [], [])
+        let foldTerms [] = pure ([], [])
             foldTerms (def:defs) = do
               expanded <- macroExpand def
               env <- ask
@@ -103,24 +103,24 @@ compileTree tree state env = evalToEither (my_mnd tree) env state
               intermediate <- (case eintermediate of Right val -> pure val; Left err -> throwError err)
               tintermediate <- toTIntermediateTop intermediate
               env <- ask
-              checked <- typeCheckTop tintermediate (Ctx.envToCtx env)
+              checked <- typeCheckTop tintermediate ctx
 
               -- TODO: integrate type-checking results into allTypes
               let justvals = (case checked of Left (val, _) -> val; Right val -> val)
               core <- liftExcept (toTopCore justvals)
               def <- liftExcept (getAsDef core)
               vals <- evalDef def
-              allTypes <- liftExcept (mapM (\(k, v) -> ((,) k) <$> typeVal v) vals)
-              (defs, vals', allTypes') <- localF (flip (foldr (\(k, v) -> Env.insert k v)) vals) (foldTerms defs)
-              pure (def : defs, vals <> vals', allTypes <> allTypes')
+              (defs, vals') <- localF (flip (foldr (\(k, (v, ty)) -> Env.insert k v ty)) vals) (foldTerms defs)
+              pure (def : defs, vals <> vals')
 
         -- can carry forward for typechecking etc.
-        (defs, vals, allTypes) <- foldTerms terms
+        (defs, vals) <- foldTerms terms
+        let (vals', allTypes) = foldr (\(k, (v, ty)) (vals, types) -> (((k, v) : vals), ((k, ty) : types))) ([], []) vals
         -- restrict the types to be only our exports!
         let types = foldr (\(k, v) rest -> if contains k exp then ((k, v) : rest) else rest) [] allTypes
        
         pure (Node dir' (Just $ Module {
-                               _vals=vals,
+                               _vals=vals',
                                _types=types,
                                _header=ModuleHeader [] [] [],
                                _sourceCore=defs,
@@ -128,13 +128,13 @@ compileTree tree state env = evalToEither (my_mnd tree) env state
 
     my_mnd _ = throwError "no main module" 
 
-resolveImports :: [String] -> Map.Map String ModuleTree -> Except.Except String [(String, Normal)]
+resolveImports :: [String] -> Map.Map String ModuleTree -> Except.Except String [(String, (Normal, Normal))]
 resolveImports [] _ = pure []
 resolveImports (s:ss) dict = 
   case Map.lookup s dict of  
     Just (Node _ ( Just (Module {_vals=vals, _types=types}))) -> do
       tl <- resolveImports ss dict
-      pure $ (s, NormSct vals (NormSig types)) : tl
+      pure $ (s, (NormSct (toEmpty vals) (NormSig types), (NormSig types))) : tl
     _ -> Except.throwError ("couldn't find import: " <> s)
   
         

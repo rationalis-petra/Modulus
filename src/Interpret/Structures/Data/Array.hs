@@ -35,9 +35,9 @@ arraySignature = NormSig
                                 
 
 arrayStructure :: Normal
-arrayStructure = NormSct
+arrayStructure = NormSct (toEmpty
                  [ ("Array", mlsArr)
-                 ] arraySignature
+                 ]) arraySignature
 
   
   -- -- Types

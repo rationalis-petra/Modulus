@@ -13,7 +13,7 @@ import Interpret.Structures.Structures
 import Interpret.Structures.Monad 
 import Interpret.Structures.Common 
 
-import Data (Normal, Normal'(NormSct, NormSig), EvalM)
+import Data (Normal, Normal'(NormSct, NormSig), EvalM, toEmpty)
 import qualified Data.Map as Map
 
 
@@ -26,4 +26,4 @@ defaultStructure = do
             ("sys",     systemStructure),
             ("data",    dataStructure),
             ("monad",   monadStructure),
-            ("structs", NormSct structs (NormSig []))]
+            ("structs", NormSct (toEmpty structs) (NormSig []))]

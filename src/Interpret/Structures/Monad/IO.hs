@@ -40,7 +40,7 @@ ioMonadSignature = NormSig [
   (">>=", ioBindTy)] 
 
 ioMonadStructure :: Normal
-ioMonadStructure = NormSct [
-  ("pure", ioPure),
-  (">>=", ioBind)]
-  ioMonadSignature
+ioMonadStructure = NormSct (toEmpty
+                   [ ("pure", ioPure)
+                   , (">>=", ioBind)
+                   ]) ioMonadSignature

@@ -34,16 +34,16 @@ delete key ((k, v) : tl) =
 addField :: Eq a => a -> b -> [(a, b)] -> [(a, b)]
 addField key val fields = 
   (key, val) : delete key fields
-  
+
 insertLeft :: Eq a => [(a, b)] -> [(a, b)] -> [(a, b)]
 insertLeft left right =  
   foldr (uncurry addField) left right
 
-restrict :: Eq a => [(a, b)] -> [(a, c)] -> [(a, b)]
+restrict :: Eq a => [(a, b)] -> [(a, c)] -> [(a, (b, c))]
 restrict [] sig = []
 restrict ((k, v) : tail) sig =
   case getField k sig of 
-    Just _  -> (k, v) : restrict tail sig
+    Just ty  -> (k, (v, ty)) : restrict tail sig
     Nothing -> restrict tail sig
 
 
@@ -92,6 +92,10 @@ typeVal (CollVal val) = case val of
   ArrayVal _ ty dims -> pure (CollTy (ArrayTy ty dims))
 
 typeVal (Neu _ ty) = pure ty
+typeVal (Special _) = pure Undef
+typeVal (BuiltinMac _) = pure Undef
+typeVal (Keyword _) = pure Undef
+typeVal (Symbol _) = pure Undef
 typeVal e = throwError $ "untypable value: " <> show e
 
 

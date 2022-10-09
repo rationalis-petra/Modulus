@@ -58,8 +58,8 @@ data TPattern ty
   = TWildPat 
   | TBindPat String (Maybe ty)
   | TIMatch Int Int Int ty [TPattern ty]
-  | TBuiltinMatch ([Pattern] -> Normal -> (Normal -> Pattern -> EvalM (Maybe [(String, Normal)]))
-                          -> EvalM (Maybe [(String, Normal)]))
+  | TBuiltinMatch ([Pattern] -> Normal -> (Normal -> Pattern -> EvalM (Maybe [(String, (Normal, Normal))]))
+                          -> EvalM (Maybe [(String, (Normal, Normal))]))
     Int ty [TPattern ty]
 
 data TCoPattern ty

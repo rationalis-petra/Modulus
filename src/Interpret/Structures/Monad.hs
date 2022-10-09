@@ -10,8 +10,8 @@ monadSignature = NormSig
                  ]
 
 monadStructure :: Normal
-monadStructure = NormSct
+monadStructure = NormSct (toEmpty
                  [ ("io", ioMonadStructure)
-                 ] monadSignature
+                 ]) monadSignature
  
 

@@ -57,42 +57,42 @@ evalTop (TopExpr e) = eval e >>= (\val -> pure (RValue val))
 evalTop (TopDef def) = case def of
   SingleDef name (CAbs sym core norm) ty -> do
     env <- ask
-    let liftedFun = liftFun (\v -> local (Env.insert sym v liftedEnv) (eval core)) norm
-        liftedEnv = Env.insert name liftedFun env
+    let liftedFun = liftFun (\v -> local (Env.insert sym v ty liftedEnv) (eval core)) norm
+        liftedEnv = Env.insert name liftedFun norm env
     val <- local liftedEnv (eval $ CAbs sym core norm)
-    pure (RDef (Env.insertCurrent name val))
+    pure (RDef (Env.insert name val norm))
   SingleDef name body ty -> do
     val <- eval body
-    pure (RDef (Env.insertCurrent name val))
+    pure (RDef (Env.insert name val ty))
   OpenDef body sig -> do
     mdle <- eval body
     case mdle of 
       NormSct m (NormSig ty) -> do
-        let m' = (restrict (restrict m ty) sig)
-        pure (RDef (\env -> foldr (\(k, val) env -> Env.insertCurrent k val env) env m'))
+        let m' = (restrict . dropMod) (restrict (dropMod m) ty) sig
+        pure $ RDef $ (flip $ foldr (\(k, (val, ty)) -> Env.insert k val ty)) m'
       _ -> throwError "cannot open non-module"
-  InductDef sym indid params ty alts -> do 
-    let insertCtor env = Env.insertCurrent sym ty env
-        insertAlts alts env = foldr (\(k, val) env -> Env.insertCurrent k val env) env alts
+  InductDef sym indid params ctor ctorty alts -> do 
+    let insertCtor = Env.insert sym ctor ctorty 
+        insertAlts = flip (foldr (\(k, (val, ty)) env -> Env.insert k val ty env))
 
         mkAlts [] = pure []
         mkAlts ((sym, id, ty) : alts) = do
           let alt = NormIVal sym indid id (length params) [] ty
           alts' <- mkAlts alts
-          pure ((sym, alt) : alts')
+          pure ((sym, (alt, ty)) : alts')
           
     
     alts' <- mkAlts alts
     pure $ RDef (insertCtor . insertAlts alts')
-  CoinductDef sym coid params ty alts -> do 
-    let insertCtor env = Env.insertCurrent sym ty env
-        insertAlts alts env = foldr (\(k, val) env -> Env.insertCurrent k val env) env alts
+  CoinductDef sym coid params ctor ctorty alts -> do 
+    let insertCtor = Env.insert sym ctor ctorty
+        insertAlts = flip $ foldr (\(k, (val, ty)) -> Env.insert k val ty)
 
         mkAlts [] = pure []
         mkAlts ((sym, id, ty) : alts) = do
           let alt = NormCoDtor sym coid id (tySize ty) (length params) [] ty
           alts' <- mkAlts alts
-          pure ((sym, alt) : alts')
+          pure ((sym, (alt, ty)) : alts')
 
         tySize (NormArr l r) = 1 + tySize r
         tySize (NormProd _ _ r) = 1 + tySize r
@@ -105,43 +105,43 @@ evalTop (TopAnn sym term) = do
   term' <- eval term
   pure (RAnn sym term')
 
-evalDef :: Definition -> EvalM [(String, Normal)]
+evalDef :: Definition -> EvalM [(String, (Normal, Normal))]
 evalDef def = case def of
   SingleDef name (CAbs sym core norm) ty -> do
     env <- ask
-    let liftedFun = liftFun (\v -> local (Env.insert sym v liftedEnv) (eval core)) norm
-        liftedEnv = Env.insert name liftedFun env
+    let liftedFun = liftFun (\v -> local (Env.insert sym v ty liftedEnv) (eval core)) norm
+        liftedEnv = Env.insert name liftedFun norm env
     val <- local liftedEnv (eval $ CAbs sym core norm)
-    pure [(name, val)]
+    pure [(name, (val, ty))]
   SingleDef name body ty -> do
     val <- eval body
-    pure [(name, val)]
+    pure [(name, (val, ty))]
   OpenDef body sig -> do
     mdle <- eval body
     case mdle of 
       NormSct m (NormSig ty) -> 
-        pure $ (restrict (restrict m ty) sig)
+        pure $ (restrict . dropMod) (restrict (dropMod m) ty) sig
       _ -> throwError "cannot open non-module"
-  InductDef sym indid params ty alts -> do 
-    let ctor = (sym, ty)
+  InductDef sym indid params ctor ctorty alts -> do 
+    let ctorPr = (sym, (ctor, ctorty))
 
         mkAlts [] = pure []
         mkAlts ((sym, id, ty) : alts) = do
           let alt = NormIVal sym indid id (length params) [] ty
           alts' <- mkAlts alts
-          pure ((sym, alt) : alts')
+          pure ((sym, (alt, ty)) : alts')
           
     
     alts' <- mkAlts alts
-    pure $ (ctor : alts')
-  CoinductDef sym coid params ty alts -> do 
-    let ctor = (sym, ty)
+    pure $ (ctorPr : alts')
+  CoinductDef sym coid params ctor ctorty alts -> do 
+    let ctorPr = (sym, (ctor, ctorty))
 
         mkAlts [] = pure []
         mkAlts ((sym, id, ty) : alts) = do
           let alt = NormCoDtor sym coid id (tySize ty) (length params) [] ty
           alts' <- mkAlts alts
-          pure ((sym, alt) : alts')
+          pure ((sym, (alt, ty)) : alts')
 
         tySize (NormArr l r) = 1 + tySize r
         tySize (NormProd _ _ r) = 1 + tySize r
@@ -149,7 +149,7 @@ evalDef def = case def of
         tySize _ = 0
     
     alts' <- mkAlts alts
-    pure $ (ctor : alts')
+    pure $ (ctorPr : alts')
   
 -- evaluate an expression, to a normal form (not a value!). This means that the
 -- environment now contains only normal forms!
@@ -157,9 +157,7 @@ eval :: Core -> EvalM Normal
 eval (CNorm n) = pure n
 eval (CVar var) = do
   env <- ask
-  case Env.lookup var env of 
-    Just val -> pure val
-    Nothing -> throwError ("could not find variable " <> var <> " in context")
+  liftExcept $ fst <$> Env.lookup var env 
 
 eval (CArr l r) = do
   l' <- eval l
@@ -169,18 +167,18 @@ eval (CArr l r) = do
 eval (CProd var a b) = do
   a' <- eval a
   let ty = (NormUniv 0)
-  b' <- localF (Env.insert var (Neu (NeuVar var ty) ty)) (eval b)
+  b' <- localF (Env.insert var (Neu (NeuVar var ty) ty) ty) (eval b)
   pure $ NormProd var a' b'
 
 eval (CImplProd var a b) = do
   a' <- eval a
   let ty = (NormUniv 0)
-  b' <- localF (Env.insert var (Neu (NeuVar var ty) ty)) (eval b)
+  b' <- localF (Env.insert var (Neu (NeuVar var ty) ty) ty) (eval b)
   pure $ NormImplProd var a' b'
 
 eval (CAbs var body ty) = do   
   hd <- tyHead ty
-  body' <- localF (Env.insert var (Neu (NeuVar var hd) hd)) (eval body)
+  body' <- localF (Env.insert var (Neu (NeuVar var hd) hd) hd) (eval body)
   pure $ NormAbs var body' ty
 
 eval (CApp l r) = do
@@ -208,24 +206,24 @@ eval (CApp l r) = do
     other -> throwError ("tried to apply to non-function: " <> show other)
 
 eval (CSct defs ty) = do
-  defs' <- foldDefs defs
+  defs' <- foldDefs defs -- TODO: add implicits to foldDefs
   pure $ NormSct defs' ty
   where
-    foldDefs :: [Definition] -> EvalM  [(String, Normal)]
+    foldDefs :: [Definition] -> EvalM  [(String, (Normal, [Modifier]))]
     foldDefs [] = pure []
     foldDefs (def : defs) = do
       case def of  
         SingleDef var core ty -> do
           val <- eval core
-          defs' <- localF (Env.insert var val) (foldDefs defs)
-          pure ((var, val) : defs')
-        InductDef sym indid params ty alts -> do
+          defs' <- localF (Env.insert var val ty) (foldDefs defs)
+          pure ((var, (val, [])) : defs')
+        InductDef sym indid params ctor ctorty alts -> do
           let mkAlts [] = []
               mkAlts ((sym, id, ty) : alts) =
-                let alt = NormIVal sym indid id (length params) [] ty
+                let alt = NormIVal sym indid id (length params) [] ctor
                     alts' = mkAlts alts
-                in ((sym, alt) : alts')
-          pure ((sym, ty) : mkAlts alts)
+                in ((sym, (alt, [])) : alts')
+          pure ((sym, (ty, [])) : mkAlts alts)
 
 eval (CSig defs) = do
   defs' <- foldDefs defs
@@ -238,7 +236,7 @@ eval (CSig defs) = do
         SingleDef var core ty -> do
           val <- eval core
   -- TODO: is this really the solution? perhaps. 
-          defs' <- localF (Env.insert var (Neu (NeuVar var ty) ty)) (foldDefs defs)
+          defs' <- localF (Env.insert var (Neu (NeuVar var ty) ty) ty) (foldDefs defs)
           pure ((var, val) : defs')
         _ -> throwError ("eval foldDefs not implemented for def: " <> show def)
 
@@ -252,7 +250,7 @@ eval (CDot term field) = do
       Just val -> pure val
       Nothing -> throwError ("can't find field" <> field)
     -- TODO: restrict by field
-    NormSct fields ty -> case getField field fields of 
+    NormSct fields ty -> case getField field (dropMod fields) of 
       Just val -> pure val
       Nothing -> throwError ("can't find field" <> field)
     non -> throwError ("value is not record-like" <> show non)
@@ -269,16 +267,16 @@ eval (CMatch term alts ty) = do
       case binds of
         Just b -> do
           env <- ask
-          let env' = foldr (\(sym, val) env -> Env.insert sym val env) env b
+          let env' = foldr (\(sym, (val, ty)) -> Env.insert sym val ty) env b
           local env' (eval expr)
         Nothing -> match t as
 
     -- Take a value and a pattern. If the value matches the pattern, return a
     --   list of what variables to bind 
     --   otherwise, return none
-    getBinds :: Normal -> Pattern -> EvalM (Maybe [(String, Normal)])
+    getBinds :: Normal -> Pattern -> EvalM (Maybe [(String, (Normal, Normal))])
     getBinds t WildCard = pure $ Just []
-    getBinds t (VarBind sym _) = pure $ Just [(sym, t)]
+    getBinds t (VarBind sym ty) = pure $ Just [(sym, (t, ty))]
     getBinds (NormIVal _ id1 id2 strip params _) (MatchInduct id1' id2' patterns) = do
       if id1 == id1' && id2 == id2' then do
         nestedBinds <- mapM (uncurry getBinds) (zip (drop strip params) patterns)
@@ -288,7 +286,7 @@ eval (CMatch term alts ty) = do
         pure allBinds
       else pure Nothing
     getBinds n (InbuiltMatch fun) = fun n getBinds
-    getBinds _ _= pure Nothing
+    getBinds _ _ = pure Nothing
 
     -- construct a neutral matching term.
     neuMatch :: Neutral -> [(Pattern, Core)] -> EvalM Normal
@@ -300,9 +298,10 @@ eval (CMatch term alts ty) = do
         pure (pat, norm)) ps
       pure $ Neu (NeuMatch n ps' ty) ty
 
-    getPatNeu WildCard env = env
-    getPatNeu (VarBind sym ty) env = Env.insert sym (Neu (NeuVar sym ty) ty) env
-    getPatNeu (MatchInduct id1 id2 pats) env = foldr getPatNeu env pats
+    getPatNeu :: Pattern -> Environment -> Environment
+    getPatNeu WildCard = id
+    getPatNeu (VarBind sym ty) = Env.insert sym (Neu (NeuVar sym ty) ty) ty 
+    getPatNeu (MatchInduct id1 id2 pats) = flip (foldr getPatNeu) pats 
 
 eval (CCoMatch patterns ty) = do 
   funcs <- mapM evalCoPat patterns 
@@ -312,9 +311,9 @@ eval (CCoMatch patterns ty) = do
       env <- ask
       pure (pat, (local (getPatNeu pat env) (eval body)))
 
-    getPatNeu CoWildCard env = env
-    getPatNeu (CoVarBind sym ty) env = Env.insert sym (Neu (NeuVar sym ty) ty) env
-    getPatNeu (CoMatchInduct _ _ _ pats) env = foldr getPatNeu env pats
+    getPatNeu CoWildCard = id
+    getPatNeu (CoVarBind sym ty) = Env.insert sym (Neu (NeuVar sym ty) ty) ty
+    getPatNeu (CoMatchInduct _ _ _ pats) = flip (foldr getPatNeu) pats
 
 
 
@@ -410,7 +409,9 @@ normSubst (val, var) ty = case ty of
 
 
   NormSct fields ty -> do
-    NormSct <$> substFields (val, var) fields <*> normSubst (val, var) ty
+    let (fields', mods) = peelMod fields
+    fields'' <- substFields (val, var) fields'
+    NormSct (addMod fields'' mods) <$> normSubst (val, var) ty
   NormSig fields -> do
     NormSig <$> substFields (val, var) fields
 
@@ -468,7 +469,7 @@ neuSubst (val, var) neutral = case neutral of
         pure $ Neu (NeuDot n field) ty'
   -- TODO: restrict by ty
       NormSct fields ty ->
-        case (getField field fields) of
+        case (getField field (dropMod fields)) of
           Just v -> pure v
           Nothing -> throwError ("failed to find field " <> field <> " in signature")
       NormSig fields ->
@@ -547,7 +548,7 @@ tyField field (NormSig fields) =
     Just x -> pure x
     Nothing -> throwError ("can't find field: " <> field)
 tyField field (NormSct fields _) =
-  case getField field fields of
+  case getField field (dropMod fields) of
     Just x -> pure x
     Nothing -> throwError ("can't find field: " <> field)
 tyField field term = throwError ("can't get field  "<>field<>" of non struct/sig: " <> show term)

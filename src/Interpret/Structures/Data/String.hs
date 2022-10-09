@@ -60,7 +60,7 @@ stringSignature = NormSig
     t = Neu (NeuVar "T" (NormUniv 0)) (NormUniv 0)
 
 stringStructure :: Normal
-stringStructure = NormSct
+stringStructure = NormSct (toEmpty
                   [ ("String", PrimType StringT)
                   , ("t",      PrimType StringT)
                   , ("append", mlsConcat)
@@ -68,4 +68,4 @@ stringStructure = NormSct
                   , ("show",   strShow)
                   , ("!!",     mlsElement)
                   , ("index",  mlsElement)
-                  ] stringSignature
+                  ]) stringSignature

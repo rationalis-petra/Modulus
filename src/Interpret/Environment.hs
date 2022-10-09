@@ -2,42 +2,61 @@ module Interpret.Environment where
 
 import Prelude hiding (lookup)
 
+import qualified Data.Map as Map
+import Control.Monad.Except
+
 import Data
 import Interpret.Transform
 import Syntax.Utils (getField)
 
-import qualified Data.Map as Map
+import Syntax.Utils
 
 
-lookup :: String -> Environment -> Maybe Normal
+
+lookup :: String -> Environment -> Except String (Normal, Normal)
 lookup key (Environment {localCtx = lcl,
                          currentModule = curr,
                          globalModule = glbl}) = 
   case Map.lookup key lcl of 
-    Just x -> Just x
+    Just x -> pure x
     Nothing ->
       let (NormSct m ty) = curr in
-      case getField key m of
-        Just v -> Just v
+      case getField key m of 
+        Just (v, _) -> ((,) v) <$> typeVal v
+        Nothing -> throwError ("couldn't lookup " <> key)
+
+lookupMaybe :: String -> Environment -> Maybe (Normal, Normal)
+lookupMaybe key (Environment {localCtx = lcl,
+                         currentModule = curr,
+                         globalModule = glbl}) = 
+  case Map.lookup key lcl of 
+    Just x -> pure x
+    Nothing ->
+      let (NormSct m ty) = curr in
+      case getField key m of 
+        Just (v, _) -> (,) v <$> (case runExcept (typeVal v) of Right val -> Just val; _ -> Nothing)
         Nothing -> Nothing
 
-
-insert :: String -> Normal -> Environment -> Environment
-insert key val context = context{localCtx = newCtx}
+insert :: String -> Normal -> Normal -> Environment -> Environment
+insert key val ty environment = environment {localCtx = newCtx}
   where
-    newCtx = Map.insert key val (localCtx context)
+    newCtx = Map.insert key (val, ty) (localCtx environment)
 
-insertAll :: [(String, Normal)] -> Environment -> Environment
+insertAll :: [(String, (Normal, Normal))] -> Environment -> Environment
 insertAll lst context = context{localCtx = newCtx}
   where
     newCtx = foldr (uncurry Map.insert) (localCtx context) lst
 
-insertCurrent :: String -> Normal -> Environment -> Environment
-insertCurrent key val context = context {currentModule = newModule}
-  where
-    -- TODO: insert type into ty
-    (NormSct oldFields ty) = currentModule context
-    newModule = NormSct ((key, val) : oldFields) ty
+fold :: (Normal -> a -> a) -> (Normal -> Normal -> a -> a) -> a -> Environment ->  a
+fold f1 f2 z (Environment {localCtx = lcl,
+                           currentModule = curr,
+                           globalModule = glbl}) = 
+  let (NormSct currentFields _) = curr
+      (NormSct globalFields _)  = glbl
+
+      z'   = Map.foldr (uncurry f2) z lcl 
+      z''  = foldr f1 z' (map (fst . snd) currentFields)
+  in foldr f1 z'' (map (fst . snd) globalFields)
 
 empty :: Environment
 empty = Environment {localCtx = Map.empty,

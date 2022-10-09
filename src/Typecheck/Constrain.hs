@@ -22,9 +22,10 @@ import Data (PrimType(..),
              CollTy(..),
              CollVal(..),
              var_counter,
+             Environment,
              EvalM)
 
-import qualified Typecheck.Context as Ctx
+import qualified Interpret.Environment as Env
 import qualified Interpret.Eval as Eval
 import Interpret.EvalM
 import Interpret.Eval (normSubst)
@@ -51,9 +52,9 @@ type Subst = ([(Normal, String)], [((String, Normal), (String, Normal))])
 -- but the substitution of dependently-bound (string) variables occurs only on
 -- the left(right) side
 
-constrain :: Normal -> Normal -> Ctx.Context -> EvalM ([Normal], [Normal], Subst)
-constrain n1 n2 ctx = do
-  (lapp, rapp, subst) <- constrainLRApp n1 n2 ctx
+constrain :: Normal -> Normal -> Environment -> EvalM ([Normal], [Normal], Subst)
+constrain n1 n2 env = do
+  (lapp, rapp, subst) <- constrainLRApp n1 n2 env
   pure (lapp, rapp, toSing subst)
 
 
@@ -66,7 +67,7 @@ constrain n1 n2 ctx = do
 
 -- Note: constrainLRApp doesn't actually check the types!  
 -- TODO: perform α-renaming on implicit products!  
-constrainLRApp :: Normal -> Normal -> Ctx.Context -> EvalM ([Normal], [Normal], LRSubst)
+constrainLRApp :: Normal -> Normal -> Environment -> EvalM ([Normal], [Normal], LRSubst)
 constrainLRApp (NormImplProd s1 a1 b1) (NormImplProd s2 a2 b2) ctx = do
   subst <- constrain' b1 b2
   pure ([], [], subst)
@@ -177,11 +178,11 @@ constrain' (NormSig m1) (NormSig m2) =
   
 constrain' (NormSct m1 t1) (NormSct m2 t2) = 
   -- TODO: look out for binding of field-names to strings!!
-  foldr (\(k, ty1) mnd ->
+  foldr (\(k, (ty1, _)) mnd ->
                       case getField k m2 of
-                        Just ty2 -> do
+                        Just (ty2, _) -> do
                           s1 <- mnd
-                          s2 <- constrain' ty1 ty2
+                          s2 <- constrain' ty1 (ty2)
                           composelr s1 s2 
                         Nothing -> err ("cannot constrain structures, as rhs does not have field " <> k))
     (pure lrnosubst) m1
@@ -219,7 +220,7 @@ nnConstrain (NeuVar v _) norm = pure $ leftsubst norm v
 nnConstrain n1 (Neu n2 _) = neuConstrain n1 n2
 nnConstrain (NeuDot neu field) norm = do
   normTy <- liftExcept $ typeVal norm 
-  nnConstrain neu (NormSct [(field, norm)] normTy)
+  nnConstrain neu (NormSct [(field, (norm, []))] normTy)
 nnConstrain n1 n2 = err ("nnConstrain incomplete OR terms " <> show n1 <> " and " <> show n2
                           <> "have different forms")
 
@@ -439,7 +440,7 @@ occurs' v (NormSig fields) = occursFields fields
 occurs' v (NormSct fields _) = occursFields fields
   where
     occursFields [] = False
-    occursFields ((v', val) : fields) =
+    occursFields ((v', (val, _)) : fields) =
       if v == v' then False else (occurs' v val) || (occursFields fields)
 
 occurs' v (NormIType _ _ params) = foldr (\ty b -> b || occurs' v ty) False params
@@ -455,7 +456,7 @@ occursNeu v (NeuIf c e1 e2 _) = occursNeu v c || occurs' v e1 || occurs' v e2
 
 
 -- Given a type and a substitution (thus far), try and infer the variable
-inferVar :: Normal -> Normal -> Ctx.Context -> EvalM Normal
+inferVar :: Normal -> Normal -> Environment -> EvalM Normal
 inferVar n ty ctx = do
   ty' <- liftExcept $ typeVal n
   let bl = subType ty ty'
@@ -465,7 +466,7 @@ inferVar n ty ctx = do
     deduceVal n ty ctx
 
 -- TODO: how to deal with signatures of types??
-deduceVal :: Normal -> Normal -> Ctx.Context -> EvalM Normal
+deduceVal :: Normal -> Normal -> Environment -> EvalM Normal
 deduceVal (NormSct fields1 sctty) (NormSig tyfields) ctx = 
   let delta = foldr (\(k, _) fs -> case getField k fields1 of
                         Just x -> fs
@@ -482,8 +483,8 @@ deduceVal (NormSct fields1 sctty) (NormSig tyfields) ctx =
             --    has a corresponding field of equal value (parMatch)
             -- b) The candidate has type of the signature (subType)
             let parMatch [] _ = True
-                parMatch ((k, v):xs) rhs = case getField k rhs of
-                  Just v' -> v == v' && parMatch xs rhs
+                parMatch ((k, (v, _)):xs) rhs = case getField k rhs of
+                  Just (v', _) -> v == v' && parMatch xs rhs
                   Nothing -> False
             (parMatch fields1 candFields) && subType (NormSig tyfields) candTy 
           valMatch _ = False
@@ -499,9 +500,16 @@ deduceVal (NormSct fields1 sctty) (NormSig tyfields) ctx =
 
           -- TODO: what about let-bindings of constants/structures, then are
           -- they implicit?
-          f2 _ _ accum = accum 
+          f2 val _ accum = case accum of
+            Right Nothing -> if valMatch val then Right $ Just val else Right Nothing
+            Right (Just x) ->
+              if valMatch val then
+                Left "ambigous implicit module resolution"
+              else
+                Right $ Just x
+            Left err -> Left err
       in
-        case Ctx.fold f1 f2 (Right Nothing) ctx of
+        case Env.fold f1 f2 (Right Nothing) ctx of
           Right (Just v) -> pure v
           Right Nothing -> throwError ("cannot find value of type: "
                                        <> show (NormSig tyfields)

@@ -34,6 +34,7 @@ systemSignature :: Normal
 systemSignature = NormSig $ [("get_line", getType), ("put_line", putType)]
 
 systemStructure :: Normal
-systemStructure = NormSct
-                  [ ("get_line", mlsGetLine)
-                  , ("put_line", mlsPutLine) ] systemSignature
+systemStructure = NormSct (toEmpty
+                  [ ("get_line", mlsGetLine) 
+                  , ("put_line", mlsPutLine)
+                  ]) systemSignature

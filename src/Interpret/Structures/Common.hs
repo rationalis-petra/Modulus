@@ -81,7 +81,7 @@ commonSignature = NormSig $
 
 
 commonStructure :: Normal
-commonStructure = NormSct commonTerms commonSignature
+commonStructure = NormSct (toEmpty commonTerms) commonSignature
 
 commonTerms :: [(String, Normal)]
 commonTerms =

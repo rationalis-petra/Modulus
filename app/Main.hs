@@ -11,7 +11,6 @@ import Syntax.Conversions (toIntermediate,
                            toCore,
                            toTopCore)
 import Typecheck.Typecheck
-import qualified Typecheck.Context as Ctx
 import Server (startServer)
 
 
@@ -90,7 +89,7 @@ defaultContext = do
   dfm <- defaultStructure
   pure $ Environment {
   localCtx = Map.empty,
-  currentModule = NormSct dfm (NormSig []),
+  currentModule = NormSct (toEmpty dfm) (NormSig []),
   globalModule = NormSct [] (NormSig [])}
 
 
@@ -140,7 +139,7 @@ runExprs (e : es) env state runIO = do
           result <- evalToIO (toTIntermediateTop val) env state'
           case result of 
             Just (tint, state'') -> do
-              result <- evalToIO (typeCheckTop tint (Ctx.envToCtx env)) env state''
+              result <- evalToIO (typeCheckTop tint env) env state''
               case result of 
                 Just (cint, state''') -> do
                   cint' <- case cint of 

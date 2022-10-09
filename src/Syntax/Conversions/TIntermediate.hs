@@ -22,9 +22,8 @@ import Control.Monad.Except (ExceptT, Except, runExceptT, runExcept)
 import qualified Control.Monad.Except as Except
 
 import qualified Interpret.Environment as Env
-import qualified Typecheck.Context as Ctx 
-import Syntax.TIntermediate
 import qualified Interpret.Eval as Eval
+import Syntax.TIntermediate
 
 
 toTIntermediateTop :: Intermediate -> EvalM (TIntTop TIntermediate')

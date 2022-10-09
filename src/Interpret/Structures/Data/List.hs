@@ -24,9 +24,9 @@ consType = NormImplProd "A" (NormUniv 0) (NormArr (mkVar "A")
 mlsCons :: Normal
 mlsCons = InbuiltCtor $ IndPat "cons" consMatch 1 (liftFun3 consCtor consType) consType
   where
-    consMatch :: ([Pattern] -> Normal
-                            -> (Normal -> Pattern -> EvalM (Maybe [(String, Normal)]))
-                            -> EvalM (Maybe [(String, Normal)]))
+    consMatch :: Monoid m => ([Pattern] -> Normal
+                            -> (Normal -> Pattern -> EvalM (Maybe m))
+                            -> EvalM (Maybe m))
     consMatch [p1, p2] (CollVal (ListVal (x:xs) ty)) matcher = do
       p1' <- matcher x p1 
       p2' <- matcher (CollVal (ListVal xs ty)) p2 
@@ -47,10 +47,10 @@ mlsNil :: Normal
 mlsNil = InbuiltCtor $ IndPat "nil" nilMatch 1 (liftFun nilCtor nilType) nilType
   where
 
-    nilMatch :: ([Pattern] -> Normal
-                           -> (Normal -> Pattern -> EvalM (Maybe [(String, Normal)]))
-                           -> EvalM (Maybe [(String, Normal)]))
-    nilMatch [] (CollVal (ListVal [] _)) _ = pure $ Just []
+    nilMatch :: Monoid m => ([Pattern] -> Normal
+                           -> (Normal -> Pattern -> EvalM (Maybe m))
+                           -> EvalM (Maybe m))
+    nilMatch [] (CollVal (ListVal [] _)) _ = pure $ Just mempty
     nilMatch _ _ _ = pure Nothing
 
     nilCtor :: Normal -> EvalM Normal
@@ -261,7 +261,7 @@ listSignature = NormSig
   
 
 listStructure :: Normal
-listStructure = NormSct 
+listStructure = NormSct (toEmpty 
   [ ("M", mlsListCtor)
   , ("List", mlsListCtor)
   , ("nil", mlsNil)
@@ -282,4 +282,4 @@ listStructure = NormSct
   , ("↓", mlsDrop)
   , ("reverse", mlsReverse)
   , ("ρ", mlsLen)
-  ] listSignature
+  ]) listSignature

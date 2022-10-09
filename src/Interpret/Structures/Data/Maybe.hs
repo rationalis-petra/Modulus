@@ -25,8 +25,8 @@ mlsSome :: Normal
 mlsSome = InbuiltCtor $ IndPat "some" someMatch 1 (liftFun2 someCtor mlsSomeTy) mlsSomeTy
   where
     someMatch :: ([Pattern] -> Normal
-                            -> (Normal -> Pattern -> EvalM (Maybe [(String, Normal)]))
-                            -> EvalM (Maybe [(String, Normal)]))
+                            -> (Normal -> Pattern -> EvalM (Maybe [(String, (Normal, Normal))]))
+                            -> EvalM (Maybe [(String, (Normal, Normal))]))
     someMatch [p1] (CollVal (MaybeVal (Just x) ty)) matcher = do
       p1' <- matcher x p1 
       case p1' of 
@@ -45,8 +45,8 @@ mlsNone = InbuiltCtor $ IndPat "none" noneMatch 1 (liftFun noneCtor mlsNoneTy) m
   where
 
     noneMatch :: ([Pattern] -> Normal
-                           -> (Normal -> Pattern -> EvalM (Maybe [(String, Normal)]))
-                           -> EvalM (Maybe [(String, Normal)]))
+                           -> (Normal -> Pattern -> EvalM (Maybe [(String, (Normal, Normal))]))
+                           -> EvalM (Maybe [(String, (Normal, Normal))]))
     noneMatch [] (CollVal (MaybeVal Nothing _)) _ = pure $ Just []
     noneMatch _ _ _ = pure Nothing
 
@@ -62,8 +62,8 @@ maybeSignature = NormSig
                  
   
 maybeStructure :: Normal
-maybeStructure = NormSct
+maybeStructure = NormSct (toEmpty
   [ ("M", mlsMaybeCtor)
   , ("some", mlsSome)
   , ("none", mlsNone)
-  ] maybeSignature
+  ]) maybeSignature

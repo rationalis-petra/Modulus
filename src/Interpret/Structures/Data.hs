@@ -20,9 +20,9 @@ dataSignature = NormSig
                 
   
 dataStructure :: Normal
-dataStructure = NormSct
+dataStructure = NormSct (toEmpty
                 [ ("string", stringStructure)
                 , ("list",   listStructure)
                 , ("array",  arrayStructure)
                 , ("maybe",  maybeStructure)
-                ] dataSignature
+                ]) dataSignature

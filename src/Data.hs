@@ -6,6 +6,7 @@ module Data (Definition(..),
              Pattern(..),
              CoPattern(..),
              Core(..),
+             Modifier(..),
              Normal'(..),
              Normal,
              Neutral'(..),
@@ -17,6 +18,10 @@ module Data (Definition(..),
              ProgState(..),
              uid_counter,
              var_counter,
+             dropMod,
+             peelMod,
+             addMod,
+             toEmpty,
              AST(..),
              PrimVal(..),
              PrimType(..),
@@ -39,8 +44,8 @@ import qualified Data.Set as Set
 -- TODO: untangle core & Normalized values
 data Definition
   = SingleDef String Core Normal
-  | InductDef   String Int [(String, Normal)] Normal [(String, Int, Normal)] 
-  | CoinductDef String Int [(String, Normal)] Normal [(String, Int, Normal)] 
+  | InductDef   String Int [(String, Normal)] Normal Normal [(String, Int, Normal)] 
+  | CoinductDef String Int [(String, Normal)] Normal Normal [(String, Int, Normal)] 
   | OpenDef Core [(String, Normal)]
   deriving Show
 
@@ -49,8 +54,8 @@ data Pattern
   | VarBind String Normal
   | MatchInduct Int Int [Pattern]
   | MatchModule [(String, Pattern)]
-  | InbuiltMatch (Normal -> (Normal -> Pattern -> EvalM (Maybe [(String, Normal)]))
-                         -> EvalM (Maybe [(String, Normal)]))
+  | InbuiltMatch (Normal -> (Normal -> Pattern -> EvalM (Maybe [(String, (Normal, Normal))]))
+                         -> EvalM (Maybe [(String, (Normal, Normal))]))
 
 data CoPattern
   = CoWildCard
@@ -98,7 +103,7 @@ instance Show CoPattern where
 -- type TypeContext' = TypeContext ProgMonad
 
 data Environment = Environment {
-  localCtx      :: Map.Map String (Normal' EvalM),
+  localCtx      :: Map.Map String (Normal, Normal),
   currentModule :: Normal,
   globalModule  :: Normal
 }
@@ -134,8 +139,8 @@ data InbuiltCtor m
   --       name    pattern-match
   = IndPat String
            ([Pattern] -> Normal' m
-                      -> (Normal -> Pattern -> EvalM (Maybe [(String, Normal)]))
-                      -> EvalM (Maybe [(String, Normal' m)]))
+                      -> (Normal -> Pattern -> EvalM (Maybe [(String, (Normal, Normal))]))
+                      -> EvalM (Maybe [(String, (Normal, Normal' m))]))
            -- strip, ctor & type
            Int (Normal' m) (Normal' m)
 
@@ -151,6 +156,9 @@ data CollVal m
   | ArrayVal (Vector (Normal' m)) (Normal' m) [Integer]
   | IOAction (IO (EvalM (Normal' m))) (Normal' m)
 
+
+data Modifier = Implicit
+  deriving (Show, Eq, Ord)
 
 -- m is the type of monad inside the object
 type Normal = Normal' EvalM
@@ -180,7 +188,7 @@ data Normal' m
   | Builtin (Normal' m -> m (Normal' m)) (Normal' m)
   
   -- Structures & Signatures
-  | NormSct [(String, Normal' m)] Normal
+  | NormSct [(String, (Normal' m, [Modifier]))] Normal
   | NormSig [(String, Normal' m)]
 
   -- Inductive and Coinductive Types and Values
@@ -263,12 +271,12 @@ instance Show (Normal' m) where
       showAsTuple fields
     else
       "(structue" <> (foldr
-                      (\(f, val) str -> str <> (" (def " <> f <> " " <> show val <> ")"))
+                      (\(f, (val, _)) str -> str <> (" (def " <> f <> " " <> show val <> ")"))
                       "" (reverse fields)) <> ")"
     where 
-      isTuple fields = foldr (\(n, _) b -> (n == "_1" || n == "_2") && b) True fields 
+      isTuple fields = foldr (\(n, (_, _)) b -> (n == "_1" || n == "_2") && b) True fields 
       showAsTuple fields = 
-        case (getField "_1" fields, getField "_2" fields) of 
+        case ((getField "_1" . dropMod) fields, (getField "_2" . dropMod) fields) of 
           (Just v1, Just v2) -> "(" <> show v1 <> ", " <> show v2 <> ")"
   show (NormSig fields) =
     if isTuple fields then
@@ -381,7 +389,23 @@ instance Show AST where
       show_ast (Cons lst) = "(" <> foldr (\s1 s2 -> show_ast s1 <> " " <> s2) ")" lst   
       show_ast (Atom x) = show x 
   
+
+dropMod :: [(a, (b, c))] -> [(a, b)]
+dropMod ((x, (y, _)) : xs) = (x, y) : dropMod xs
+dropMod [] = []
+
+peelMod :: [(a, (b, c))] -> ([(a, b)], [c])
+peelMod lst = peelMod' lst ([], [])
+  where
+    peelMod' ((x, (y, z)) : xs) (al, ar) = ((x, y) : al, z : ar)
+    peelMod' [] accum = accum
   
+addMod :: [(a, b)] -> [c] -> [(a, (b, c))]
+addMod a b = zipWith (\(x, y) z -> (x, (y, z))) a b
+
+toEmpty :: [(a, b)] -> [(a, (b, [c]))]
+toEmpty = map (\(x, y) -> (x, (y, [])))
+
 getField f ((f', n):xs) = if f == f' then Just n else getField f xs
 getField f [] = Nothing
 

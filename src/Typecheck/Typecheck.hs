@@ -11,8 +11,9 @@ import Data (PrimType(..),
              Core(..),
              Neutral,
              Neutral'(..),
-             var_counter,
-             EvalM)
+             Environment,
+             EvalM,
+             var_counter)
 import Syntax.TIntermediate
 
 import qualified Interpret.Environment as Env
@@ -21,13 +22,12 @@ import Interpret.EvalM
 import qualified Interpret.Eval as Eval
 import Syntax.Utils (typeVal, free, getField, mkVar)
 
-import qualified Typecheck.Context as Ctx
 import Typecheck.Constrain
 
 
 err = throwError
 
-typeCheckTop :: TIntTop TIntermediate' -> Ctx.Context
+typeCheckTop :: TIntTop TIntermediate' -> Environment
              -> EvalM (Either (TIntTop Normal, Normal) (TIntTop Normal))
 typeCheckTop (TExpr e) ctx = do
       (expr, ty, subst) <-  typeCheck e ctx
@@ -42,7 +42,7 @@ typeCheckTop (TDefinition def) ctx =
     TSingleDef name expr Nothing -> do
       recTy <- freshVar
       (expr', ty, vsubst) <- typeCheck expr
-          (Ctx.insert name (Neu (NeuVar name recTy) recTy) recTy ctx)
+          (Env.insert name (Neu (NeuVar name recTy) recTy) recTy ctx)
       (_, app, csubst) <- constrain recTy ty ctx
       let (fnlSubstl, fnlSubstr) = rmSubst (show recTy) csubst
       ty' <- tyApp ty app
@@ -70,11 +70,11 @@ typeCheckTop (TDefinition def) ctx =
       index <- readIndex ty'
       (ctx', params') <- updateFromParams params ctx
       (indCtor, indTy) <- mkIndexTy params' index ty' id
-      alts' <- processAlts alts params' (Ctx.insert sym indCtor indTy ctx')
+      alts' <- processAlts alts params' (Env.insert sym indCtor indTy ctx')
       pure $ Right $ TDefinition $ TInductDef sym id params' indCtor alts'
 
       where
-        processAlts :: [(String, Int, TIntermediate')] -> [(String, Normal)] -> Ctx.Context
+        processAlts :: [(String, Int, TIntermediate')] -> [(String, Normal)] -> Environment
                     -> EvalM [(String, Int, Normal)]
         processAlts [] params ctx = pure []
         processAlts ((sym, id, (TIntermediate' ty)) : alts) ps ctx = do
@@ -87,13 +87,13 @@ typeCheckTop (TDefinition def) ctx =
             captureParams [] ty = ty
             captureParams ((sym, ty) : ps) tl = NormImplProd sym ty (captureParams ps tl)
 
-        updateFromParams :: [(String, TIntermediate')] -> Ctx.Context -> EvalM (Ctx.Context, [(String, Normal)])
+        updateFromParams :: [(String, TIntermediate')] -> Environment -> EvalM (Environment, [(String, Normal)])
         updateFromParams [] ctx = pure (ctx, [])
         updateFromParams ((sym, TIntermediate' ty) : args) ctx = do
           ty' <- evalTIntermediate ty ctx
           (ctx', args') <- updateFromParams args
-                             (Ctx.insert sym (Neu (NeuVar sym ty') ty') ty' ctx)
-          pure (Ctx.insert sym (Neu (NeuVar sym ty') ty') ty' ctx', ((sym, ty') : args'))
+                             (Env.insert sym (Neu (NeuVar sym ty') ty') ty' ctx)
+          pure (Env.insert sym (Neu (NeuVar sym ty') ty') ty' ctx', ((sym, ty') : args'))
 
         readIndex :: Normal -> EvalM [(String, Normal)]
         readIndex (NormUniv n) = pure []
@@ -131,11 +131,11 @@ typeCheckTop (TDefinition def) ctx =
       index <- readIndex ty'
       (ctx', params') <- updateFromParams params ctx
       (indCtor, indTy) <- mkIndexTy params' index ty' id
-      alts' <- processAlts alts params' (Ctx.insert sym indCtor indTy ctx')
+      alts' <- processAlts alts params' (Env.insert sym indCtor indTy ctx')
       pure $ Right $ TDefinition $ TCoinductDef sym id params' indCtor alts'
 
       where
-        processAlts :: [(String, Int, TIntermediate')] -> [(String, Normal)] -> Ctx.Context
+        processAlts :: [(String, Int, TIntermediate')] -> [(String, Normal)] -> Environment
                     -> EvalM [(String, Int, Normal)]
         processAlts [] params ctx = pure []
         processAlts ((sym, id, (TIntermediate' ty)) : alts) ps ctx = do
@@ -148,13 +148,13 @@ typeCheckTop (TDefinition def) ctx =
             captureParams [] ty = ty
             captureParams ((sym, ty) : ps) tl = NormImplProd sym ty (captureParams ps tl)
 
-        updateFromParams :: [(String, TIntermediate')] -> Ctx.Context -> EvalM (Ctx.Context, [(String, Normal)])
+        updateFromParams :: [(String, TIntermediate')] -> Environment -> EvalM (Environment, [(String, Normal)])
         updateFromParams [] ctx = pure (ctx, [])
         updateFromParams ((sym, TIntermediate' ty) : args) ctx = do
           ty' <- evalTIntermediate ty ctx
           (ctx', args') <- updateFromParams args
-                             (Ctx.insert sym (Neu (NeuVar sym ty') ty') ty' ctx)
-          pure (Ctx.insert sym (Neu (NeuVar sym ty') ty') ty' ctx', ((sym, ty') : args'))
+                             (Env.insert sym (Neu (NeuVar sym ty') ty') ty' ctx)
+          pure (Env.insert sym (Neu (NeuVar sym ty') ty') ty' ctx', ((sym, ty') : args'))
 
         readIndex :: Normal -> EvalM [(String, Normal)]
         readIndex (NormUniv n) = pure []
@@ -186,14 +186,14 @@ typeCheckTop (TDefinition def) ctx =
           
 
 
-typeCheck :: TIntermediate TIntermediate' -> Ctx.Context -> EvalM (TIntermediate Normal, Normal, Subst)
+typeCheck :: TIntermediate TIntermediate' -> Environment -> EvalM (TIntermediate Normal, Normal, Subst)
 typeCheck expr ctx = case expr of
   (TValue v) -> do
     t <- liftExcept (typeVal v)
     pure (TValue v, t, nosubst)
 
   (TSymbol s) -> do
-    case runExcept (Ctx.lookup s ctx) of 
+    case runExcept (Env.lookup s ctx) of 
       Right (_, ty) -> pure (TSymbol s, ty, nosubst)
       Left err -> throwError ("couldn't find type of symbol " <> s <> " err-msg: " <> err)
 
@@ -363,7 +363,7 @@ typeCheck expr ctx = case expr of
     case arg of  
       BoundArg var (TIntermediate' ty) -> do
         ty' <- evalTIntermediate ty ctx
-        (body', bodyTy, subst) <- typeCheck body (Ctx.insert var (Neu (NeuVar var ty') ty') ty' ctx)
+        (body', bodyTy, subst) <- typeCheck body (Env.insert var (Neu (NeuVar var ty') ty') ty' ctx)
         pure (TProd (BoundArg var ty', bl) body', NormUniv 0, subst)
       TWildCard (TIntermediate' ty) -> do
         ty' <- evalTIntermediate ty ctx
@@ -401,13 +401,13 @@ typeCheck expr ctx = case expr of
     pure (TIF cond'' e1'' e2'' (Just fnlTy), fnlTy, s4)
 
   (TStructure defs Nothing) -> do  
-    let foldDefs :: [TDefinition TIntermediate'] -> Ctx.Context
+    let foldDefs :: [TDefinition TIntermediate'] -> Environment
                  -> EvalM ([TDefinition Normal], [(String, Normal)], Subst)
         foldDefs [] _ = pure ([], [], nosubst)
         foldDefs (def : defs) ctx = do
           (def', deflist, subst) <- typeCheckDef def ctx
           (defs', fields, subst') <- foldDefs defs (foldr (\(var, val) ctx ->
-                                                             Ctx.insert var (Neu (NeuVar var val) val) val ctx)
+                                                             Env.insert var (Neu (NeuVar var val) val) val ctx)
                                                      ctx deflist)
           fnlSubst <- compose subst subst'
           pure (def' : defs',  deflist <> fields, fnlSubst)
@@ -417,13 +417,13 @@ typeCheck expr ctx = case expr of
     pure (TStructure defs' (Just (NormSig fields)), NormSig fields, subst)
 
   (TSignature defs) -> do  
-    let foldDefs :: [TDefinition TIntermediate'] -> Ctx.Context
+    let foldDefs :: [TDefinition TIntermediate'] -> Environment
                  -> EvalM ([TDefinition Normal], [(String, Normal)], Subst)
         foldDefs [] _ = pure ([], [], nosubst)
         foldDefs (def : defs) ctx = do
           (def', deflist, subst) <- typeCheckDef def ctx
           (defs', fields, subst') <- foldDefs defs (foldr (\(var, val) ctx ->
-                                                             Ctx.insert var (Neu (NeuVar var val) val) val ctx)
+                                                             Env.insert var (Neu (NeuVar var val) val) val ctx)
                                                      ctx deflist)
           fnlSubst <- compose subst subst'
           pure (def' : defs',  deflist <> fields, fnlSubst)
@@ -455,7 +455,7 @@ typeCheck expr ctx = case expr of
         (p', matchty', ctxUpd) <- getPatternType p
         
   
-        let ctx' = foldr (\(sym, ty) ctx -> Ctx.insert sym (Neu (NeuVar sym ty) ty) ty ctx) ctx ctxUpd
+        let ctx' = foldr (\(sym, ty) ctx -> Env.insert sym (Neu (NeuVar sym ty) ty) ty ctx) ctx ctxUpd
         (e', eret, esubst) <- typeCheck e ctx'
 
         -- TODO: ensure that the constrains are right way round...
@@ -539,7 +539,7 @@ typeCheck expr ctx = case expr of
         (p', fncRet, retTy', ctxUpd) <- getPatternType p
         
   
-        let ctx' = foldr (\(sym, ty) ctx -> Ctx.insert sym (Neu (NeuVar sym ty) ty) ty ctx) ctx ctxUpd
+        let ctx' = foldr (\(sym, ty) ctx -> Env.insert sym (Neu (NeuVar sym ty) ty) ty ctx) ctx ctxUpd
         (e', bodyTy, esubst) <- typeCheck e ctx'
 
         -- TODO: ensure that the constrains are right way round...
@@ -581,30 +581,30 @@ typeCheck expr ctx = case expr of
     throwError ("typecheck unimplemented for intermediate term " <> show other)
 
   where
-    updateFromArgs :: Ctx.Context -> [(TArg TIntermediate', Bool)] -> EvalM (Ctx.Context, [(TArg Normal, Bool)])
+    updateFromArgs :: Environment -> [(TArg TIntermediate', Bool)] -> EvalM (Environment, [(TArg Normal, Bool)])
     updateFromArgs ctx [] = pure (ctx, [])
     updateFromArgs ctx ((arg, bl) : args) = do 
       case arg of
         BoundArg str (TIntermediate' ty) -> do
           ty' <- evalTIntermediate ty ctx
-          (ctx', args') <- updateFromArgs (Ctx.insert str (Neu (NeuVar str ty') ty') ty' ctx) args
-          pure (Ctx.insert str (Neu (NeuVar str ty') ty') ty' ctx', ((BoundArg str ty', bl) : args'))
+          (ctx', args') <- updateFromArgs (Env.insert str (Neu (NeuVar str ty') ty') ty' ctx) args
+          pure (Env.insert str (Neu (NeuVar str ty') ty') ty' ctx', ((BoundArg str ty', bl) : args'))
         InfArg str id -> do
           (ctx', args') <- updateFromArgs ctx args
-          pure (Ctx.insert str (Neu (NeuVar str (mkVar ("#" <> show id))) (mkVar ("#" <> show id))) (mkVar ("#" <> show id))  ctx',
+          pure (Env.insert str (Neu (NeuVar str (mkVar ("#" <> show id))) (mkVar ("#" <> show id))) (mkVar ("#" <> show id))  ctx',
                                (InfArg str id, bl) : args')
 
 
 
   
 
-typeCheckDef :: TDefinition TIntermediate' -> Ctx.Context
+typeCheckDef :: TDefinition TIntermediate' -> Environment
              -> EvalM (TDefinition Normal, [(String, Normal)], Subst)
 typeCheckDef (TSingleDef name body ty) ctx = do 
   bnd <- case ty of 
     Nothing -> freshVar
     Just (TIntermediate' ty) -> evalTIntermediate ty ctx
-  (body', ty', subst) <- typeCheck body (Ctx.insert name (Neu (NeuVar name bnd) bnd) bnd ctx)
+  (body', ty', subst) <- typeCheck body (Env.insert name (Neu (NeuVar name bnd) bnd) bnd ctx)
   pure (TSingleDef name body' (Just ty'), [(name, ty')], subst)
 
 typeCheckDef (TInductDef sym id params (TIntermediate' ty) alts) ctx = do
@@ -614,7 +614,7 @@ typeCheckDef (TInductDef sym id params (TIntermediate' ty) alts) ctx = do
   index <- readIndex ty'
   (ctx', params') <- updateFromParams params ctx
   (indCtor, indTy) <- mkIndexTy params' index ty' id
-  alts' <- processAlts alts params' (Ctx.insert sym indCtor indTy ctx')
+  alts' <- processAlts alts params' (Env.insert sym indCtor indTy ctx')
 
   let defs = ((sym, indCtor) : mkAltDefs alts')
       mkAltDefs :: [(String, Int, Normal)] -> [(String, Normal)]
@@ -625,7 +625,7 @@ typeCheckDef (TInductDef sym id params (TIntermediate' ty) alts) ctx = do
           in ((sym, alt) : alts')
   pure $ (TInductDef sym id params' indCtor alts', defs, nosubst)
   where
-    processAlts :: [(String, Int, TIntermediate')] -> [(String, Normal)] -> Ctx.Context
+    processAlts :: [(String, Int, TIntermediate')] -> [(String, Normal)] -> Environment
                 -> EvalM [(String, Int, Normal)]
     processAlts [] params ctx = pure []
     processAlts ((sym, id, (TIntermediate' ty)) : alts) ps ctx = do
@@ -638,12 +638,12 @@ typeCheckDef (TInductDef sym id params (TIntermediate' ty) alts) ctx = do
         captureParams [] ty = ty
         captureParams ((sym, ty) : ps) tl = NormImplProd sym ty (captureParams ps tl)
 
-    updateFromParams :: [(String, TIntermediate')] -> Ctx.Context -> EvalM (Ctx.Context, [(String, Normal)])
+    updateFromParams :: [(String, TIntermediate')] -> Environment -> EvalM (Environment, [(String, Normal)])
     updateFromParams [] ctx = pure (ctx, [])
     updateFromParams ((sym, TIntermediate' ty) : args) ctx = do
       ty' <- evalTIntermediate ty ctx
-      (ctx', args') <- updateFromParams args (Ctx.insert sym (Neu (NeuVar sym ty') ty') ty' ctx)
-      pure (Ctx.insert sym (Neu (NeuVar sym ty') ty') ty' ctx', ((sym, ty') : args'))
+      (ctx', args') <- updateFromParams args (Env.insert sym (Neu (NeuVar sym ty') ty') ty' ctx)
+      pure (Env.insert sym (Neu (NeuVar sym ty') ty') ty' ctx', ((sym, ty') : args'))
 
     readIndex :: Normal -> EvalM [(String, Normal)]
     readIndex (NormUniv n) = pure []
@@ -710,20 +710,20 @@ freshVar = do
   pure (Neu (NeuVar ("#" <> show id) (NormUniv 0)) (NormUniv 0))
 
 
-evalTIntermediate :: TIntermediate TIntermediate' -> Ctx.Context -> EvalM Normal  
+evalTIntermediate :: TIntermediate TIntermediate' -> Environment -> EvalM Normal  
 evalTIntermediate tint ctx = do 
   (checked, _, _) <- typeCheck tint ctx -- TODO: dodge??
   c_term <- case runExcept (Conv.toCore checked) of 
         Left err -> throwError err
         Right val -> pure val
-  local (Ctx.ctxToEnv ctx) (Eval.eval c_term) 
+  local ctx (Eval.eval c_term) 
 
-evalNIntermediate :: TIntermediate Normal -> Ctx.Context -> EvalM Normal  
+evalNIntermediate :: TIntermediate Normal -> Environment -> EvalM Normal  
 evalNIntermediate tint ctx = do 
   c_term <- case runExcept (Conv.toCore tint) of 
         Left err -> throwError err
         Right val -> pure val
-  local (Ctx.ctxToEnv ctx) (Eval.eval c_term) 
+  local ctx (Eval.eval c_term) 
 
 getTypes (NormArr l r) = l : getTypes r
 getTypes (NormProd _ a b) = a : getTypes b

@@ -21,9 +21,9 @@ import Control.Monad.Except (ExceptT, Except, runExceptT, runExcept)
 import qualified Control.Monad.Except as Except
 
 import qualified Interpret.Environment as Env
-import qualified Typecheck.Context as Ctx 
-import Syntax.TIntermediate
 import qualified Interpret.Eval as Eval
+import Syntax.TIntermediate
+import Syntax.Utils (typeVal)
 
 err = Except.throwError
   
@@ -41,10 +41,12 @@ toTopCore (TDefinition def) = TopDef <$> fromDef def
       pure (OpenDef coreBody sig)
     fromDef (TOpenDef body Nothing) = err "definitions must be typed"
 
-    fromDef (TInductDef sym id params ty alts) =
-      pure (InductDef sym id params ty alts)
-    fromDef (TCoinductDef sym id params ty alts) =
-      pure (CoinductDef sym id params ty alts)
+    fromDef (TInductDef sym id params ctor alts) = do
+      ctorty <- typeVal ctor
+      pure (InductDef sym id params ctor ctorty alts)
+    fromDef (TCoinductDef sym id params ctor alts) = do
+      ctorty <- typeVal ctor
+      pure (CoinductDef sym id params ctor ctorty alts)
 toTopCore (TExpr expr) = TopExpr <$> toCore expr
 toTopCore (TAnnotation sym term) = TopAnn sym <$> toCore term
 
@@ -137,8 +139,9 @@ toCore (TStructure map (Just ty)) = do
       bdy' <- toCore bdy
       pure (OpenDef bdy' sig)
       
-    defToCore (TInductDef sym id params ty alts) = 
-      pure (InductDef sym id params ty alts)
+    defToCore (TInductDef sym id params ctor alts) = do
+      ctorty <- typeVal ctor
+      pure (InductDef sym id params ctor ctorty alts)
 
   
   -- | TOpenDef TIntermediate (Maybe Normal)

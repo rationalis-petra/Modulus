@@ -112,7 +112,7 @@ mlsMkTupleType = liftFun2 mkTupleType (NormArr (NormUniv 0) (NormArr (NormUniv 0
 -- TUPLES
 mkTuple :: Normal -> Normal -> Normal -> Normal -> EvalM Normal
 mkTuple t1 t2 e1 e2 = 
-  pure $ NormSct [("_1", e1), ("_2", e2)] (NormSig [("_1", t1), ("_2", t2)])
+  pure $ NormSct [("_1", (e1, [])), ("_2", (e2, []))] (NormSig [("_1", t1), ("_2", t2)])
 mlsMkTuple = liftFun4 mkTuple (NormImplProd "A" (NormUniv 0)
                                  (NormImplProd "B" (NormUniv 0)
                                   (NormArr (mkVar "A")

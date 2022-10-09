@@ -197,8 +197,8 @@ floatStructure =
    ]
 
   
-boolStructure :: [(String, Normal)] 
-boolStructure =
+boolFields :: [(String, Normal)] 
+boolFields =
    [ ("∧", mkBoolOp (&&))
    , ("∨", mkBoolOp (||))
    , ("⊻", mkBoolOp (/=))
@@ -212,10 +212,10 @@ numSignature = NormSig
                ]
 
 numStructure :: Normal
-numStructure = NormSct
-               [ ("int", NormSct intStructure intSignature)
-               , ("float", NormSct floatStructure floatSignature)
-               ] numSignature
+numStructure = NormSct (toEmpty
+               [ ("int", NormSct (toEmpty intStructure) intSignature)
+               , ("float", NormSct (toEmpty floatStructure) floatSignature)
+               ]) numSignature
 
   
 

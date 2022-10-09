@@ -3,7 +3,8 @@ module Interpret.Structures.BuildStructure where
 import Data(Environment(..),
             Normal'(NormSct, NormSig),
             Normal,
-            EvalM)
+            EvalM,
+            toEmpty)
 
 import Control.Monad.Except (runExcept)
 import Data.Text (pack, unpack)
@@ -14,7 +15,6 @@ import Syntax.Intermediate(Intermediate(..),
                            IDefinition(..))
 import Syntax.Conversions
 import Typecheck.Typecheck (typeCheck)
-import qualified Typecheck.Context as Ctx
 import Interpret.EvalM (local, throwError)
 import Interpret.Transform (lift)
 import Interpret.Structures.Core
@@ -25,7 +25,7 @@ import qualified Data.Map as Map
 
 moduleContext = Environment {
   localCtx = Map.empty,
-  currentModule = NormSct coreTerms (NormSig []),
+  currentModule = NormSct (toEmpty coreTerms) (NormSig []),
   globalModule = NormSct [] (NormSig [])}
 
   

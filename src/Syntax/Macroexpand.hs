@@ -30,8 +30,8 @@ macroEval ast = do
   case ast of
     (Cons (x : xs)) -> case x of
       (Atom (Symbol s)) -> 
-        case Env.lookup s env of 
-          Just val -> case val of
+        case Env.lookupMaybe s env of 
+          Just (val, _) -> case val of
             (BuiltinMac f) -> (,) <$> f xs <*> pure True
             -- (CMacro argnames bdy env ty) -> do
             --   applyMacro (CFunction argnames bdy env ty) xs
