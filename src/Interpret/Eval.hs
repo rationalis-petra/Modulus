@@ -536,11 +536,6 @@ neuSubst (val, var) neutral = case neutral of
 
   -- NeuDot sig field -> do
   --   sig' <- neuSubst 
-tyHead :: Normal -> EvalM Normal
-tyHead (NormArr l r) = pure l
-tyHead (NormProd sym a b) = pure a
-tyHead (NormImplProd sym a b) = pure a
-tyHead hd = throwError ("can't get type head of " <> show hd)
 
 tyField :: String -> Normal -> EvalM Normal  
 tyField field (NormSig fields) =

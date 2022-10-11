@@ -49,7 +49,7 @@ strShow = liftFun sshow (NormArr (PrimType StringT) (PrimType StringT))
 stringSignature :: Normal  
 stringSignature = NormSig
                   [ ("String",  NormUniv 0)
-                  , ("t",       NormUniv 0)
+                  , ("T",       NormUniv 0)
                   , ("append",  (NormArr t (NormArr t t)))
                   , ("⋅",       (NormArr t (NormArr t t)))
                   , ("show",    (NormArr t (PrimType StringT)))
@@ -62,7 +62,7 @@ stringSignature = NormSig
 stringStructure :: Normal
 stringStructure = NormSct (toEmpty
                   [ ("String", PrimType StringT)
-                  , ("t",      PrimType StringT)
+                  , ("T",      PrimType StringT)
                   , ("append", mlsConcat)
                   , ("⋅",      mlsConcat)
                   , ("show",   strShow)

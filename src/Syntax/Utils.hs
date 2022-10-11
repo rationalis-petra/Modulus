@@ -195,6 +195,7 @@ patVars (VarBind sym _) = Set.singleton sym
 patVars (MatchInduct id1 id2 subpats) = foldr Set.union Set.empty (map patVars subpats)
 
 mkVar s = Neu (NeuVar s (NormUniv 0)) (NormUniv 0)
+mkNVar s = NeuVar s (NormUniv 0)
 
 freshen :: Set.Set String -> String -> String
 freshen set str = 
@@ -203,4 +204,14 @@ freshen set str =
   else
     str
 
+tyHead :: Normal -> EvalM Normal
+tyHead (NormArr l r) = pure l
+tyHead (NormProd sym a b) = pure a
+tyHead (NormImplProd sym a b) = pure a
+tyHead hd = throwError ("can't get type tail of " <> show hd)
 
+tyTail :: Normal -> EvalM Normal
+tyTail (NormArr l r) = pure r
+tyTail (NormProd sym a b) = pure b
+tyTail (NormImplProd sym a b) = pure b
+tyTail hd = throwError ("can't get type tail of " <> show hd)

@@ -289,7 +289,7 @@ instance Show (Normal' m) where
       isTuple fields = foldr (\(n, _) b -> (n == "_1" || n == "_2") && b) True fields 
       showAsTuple fields = 
         case (getField "_1" fields, getField "_2" fields) of 
-          (Just v1, Just v2) -> "(" <> show v1 <> " × " <> show v2 <> ")"
+          (Just v1, Just v2) -> "(" <> show v1 <> " * " <> show v2 <> ")"
 
   
   show (NormIType name _ params) =

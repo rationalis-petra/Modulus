@@ -163,7 +163,7 @@ coreTerms = [
   -- TODO: universe constructor
   , ("→", Special MkProd)
   , ("sig", mlsSig)
-  , ("×", mlsMkTupleType)
+  , ("*", mlsMkTupleType)
 
   -- misc. functions (constructors etc.)
   , (",", mlsMkTuple)
