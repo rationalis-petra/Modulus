@@ -103,7 +103,7 @@ compileTree tree state ctx = evalToEither (my_mnd tree) ctx state
               intermediate <- (case eintermediate of Right val -> pure val; Left err -> throwError err)
               tintermediate <- toTIntermediateTop intermediate
               env <- ask
-              checked <- typeCheckTop tintermediate ctx
+              checked <- typeCheckTop tintermediate env
 
               -- TODO: integrate type-checking results into allTypes
               let justvals = (case checked of Left (val, _) -> val; Right val -> val)

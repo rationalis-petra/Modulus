@@ -47,8 +47,6 @@ restrict ((k, v) : tail) sig =
     Nothing -> restrict tail sig
 
 
-
-
   
 
 typeVal :: Normal -> Except String Normal

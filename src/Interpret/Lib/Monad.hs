@@ -1,7 +1,7 @@
-module Interpret.Structures.Monad (monadStructure, monadSignature) where 
+module Interpret.Lib.Monad (monadStructure, monadSignature) where 
 
 import Data
-import Interpret.Structures.Monad.IO
+import Interpret.Lib.Monad.IO
 
   
 monadSignature :: Normal

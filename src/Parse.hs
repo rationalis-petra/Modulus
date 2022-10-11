@@ -10,9 +10,31 @@ import qualified Text.Megaparsec.Char.Lexer as L
   
 import Data.Text (Text, pack, unpack)
 import Data.Void
+import qualified Data.Map as Map
 
 type Parser = Parsec Void Text
 
+
+-- specials :: Map.Map String (Normal' m)
+-- specials = Map.fromList 
+--   [ ("→", Special MkProd)
+--   , (":", Special Annotate)
+--   , (".", Special Access)
+--   , ("if", Special If)
+--   , ("do", Special Do)
+--   , ("quote", Special MkQuote)
+--   , ("λ", Special Lambda)
+--   , ("let", Special Let)
+--   , ("structure", Special MkStructure)
+--   , ("signature", Special MkSig)
+--   , ("match", Special MkMatch)
+--   , ("comatch", Special MkCoMatch)
+--   , ("let_open", Special LetOpen)
+--   , ("def", Special Def)
+--   , ("≜", Special Def)
+--   , ("induct", Special Induct)
+--   , ("coinduct", Special CoInduct)
+--   ]
 
 
 sc :: Parser ()  

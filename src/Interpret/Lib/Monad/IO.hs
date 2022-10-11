@@ -1,4 +1,4 @@
-module Interpret.Structures.Monad.IO (ioMonadStructure, ioMonadSignature) where
+module Interpret.Lib.Monad.IO (ioMonadStructure, ioMonadSignature) where
 
 import Data
 import Interpret.Eval (eval, liftFun2, liftFun4)

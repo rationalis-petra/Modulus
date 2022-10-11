@@ -1,7 +1,7 @@
-module Interpret.Structures.Structures where
+module Interpret.Lib.Structures where
 
 import qualified Data.Map as Map
-import Interpret.Structures.BuildStructure
+import Interpret.Lib.BuildStructure
 import Data(Normal, Normal'(Undef), EvalM)
 
   

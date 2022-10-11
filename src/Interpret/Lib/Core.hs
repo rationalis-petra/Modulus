@@ -1,4 +1,4 @@
-module Interpret.Structures.Core (coreTerms) where
+module Interpret.Lib.Core (coreTerms) where
 
 
 import qualified Data.Map as Map
@@ -196,7 +196,7 @@ coreTerms = [
   , ("match",       Special MkMatch)
   , ("comatch",     Special MkCoMatch)
   , ("open",        Special Open)
-  , ("let-open",    Special LetOpen)
+  , ("let_open",    Special LetOpen)
 
   , ("def",          Special Def)
   , ("≜",            Special Def)

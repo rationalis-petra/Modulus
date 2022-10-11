@@ -1,4 +1,4 @@
-module Interpret.Structures.Numerics (numStructure, numSignature) where
+module Interpret.Lib.Numerics (numStructure, numSignature) where
 
 import qualified Data.Map as Map
 

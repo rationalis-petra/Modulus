@@ -1,4 +1,4 @@
-module Interpret.Structures.System (systemStructure, systemSignature) where
+module Interpret.Lib.System (systemStructure, systemSignature) where
 
 import qualified Data.Map as Map
 

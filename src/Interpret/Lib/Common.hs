@@ -1,4 +1,4 @@
-module Interpret.Structures.Common (commonTerms, commonStructure) where
+module Interpret.Lib.Common (commonTerms, commonStructure) where
 
 
 import qualified Data.Map as Map

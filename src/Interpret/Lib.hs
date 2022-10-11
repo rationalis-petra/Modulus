@@ -1,17 +1,17 @@
-module Interpret.Structures where
+module Interpret.Lib where
 
 
 import Control.Monad.State (State)
 
 import Syntax.Utils  
 
-import Interpret.Structures.Core 
-import Interpret.Structures.Numerics 
-import Interpret.Structures.System 
-import Interpret.Structures.Data
-import Interpret.Structures.Structures
-import Interpret.Structures.Monad 
-import Interpret.Structures.Common 
+import Interpret.Lib.Core 
+import Interpret.Lib.Numerics 
+import Interpret.Lib.System 
+import Interpret.Lib.Data
+import Interpret.Lib.Structures
+import Interpret.Lib.Monad 
+import Interpret.Lib.Common 
 
 import Data (Normal, Normal'(NormSct, NormSig), EvalM, toEmpty)
 import qualified Data.Map as Map

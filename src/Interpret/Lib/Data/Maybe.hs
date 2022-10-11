@@ -1,4 +1,4 @@
-module Interpret.Structures.Data.Maybe (maybeStructure, maybeSignature) where
+module Interpret.Lib.Data.Maybe (maybeStructure, maybeSignature) where
 
 import qualified Data.Map as Map
 import Data.Text as Text

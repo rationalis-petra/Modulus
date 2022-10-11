@@ -1,4 +1,4 @@
-module Interpret.Structures.BuildStructure where
+module Interpret.Lib.BuildStructure where
 
 import Data(Environment(..),
             Normal'(NormSct, NormSig),
@@ -17,7 +17,7 @@ import Syntax.Conversions
 import Typecheck.Typecheck (typeCheck)
 import Interpret.EvalM (local, throwError)
 import Interpret.Transform (lift)
-import Interpret.Structures.Core
+import Interpret.Lib.Core
 import qualified Interpret.Eval as Eval
 
 import qualified Data.Map as Map

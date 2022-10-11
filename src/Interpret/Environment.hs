@@ -58,7 +58,23 @@ fold f1 f2 z (Environment {localCtx = lcl,
       z''  = foldr f1 z' (map (fst . snd) currentFields)
   in foldr f1 z'' (map (fst . snd) globalFields)
 
+foldImpl :: (Normal -> a -> a) -> (Normal -> Normal -> a -> a) -> a -> Environment ->  a
+foldImpl f1 f2 z (Environment {localCtx = lcl,
+                               currentModule = curr,
+                               globalModule = glbl}) = 
+  let (NormSct currentFields _) = curr
+      (NormSct globalFields _)  = glbl
+
+      f1' (v, mods) = if member Implicit mods then f1 v else id
+
+      z'   = Map.foldr (uncurry f2) z lcl 
+      z''  = foldr f1' z' (map snd currentFields)
+  in foldr f1' z'' (map snd globalFields)
+
 empty :: Environment
 empty = Environment {localCtx = Map.empty,
                      currentModule = NormSct [] (NormSig []),
                      globalModule = NormSct [] (NormSig [])}
+
+member _ [] = False
+member x' (x:xs) = if x == x' then True else member x' xs

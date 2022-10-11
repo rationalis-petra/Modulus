@@ -1,4 +1,4 @@
-module Interpret.Structures.Data.List (listStructure, listSignature) where
+module Interpret.Lib.Data.List (listStructure, listSignature) where
 
 import qualified Data.Map as Map
 
@@ -7,7 +7,6 @@ import Data
 import Interpret.Eval (eval, liftFun, liftFun2, liftFun3, liftFun4, liftFun5, liftFun6)
 import Interpret.EvalM
 import Interpret.Transform
-import Interpret.Structures.BuildStructure
 import Syntax.Utils (mkVar)
 
 mlsListCtorTy :: Normal

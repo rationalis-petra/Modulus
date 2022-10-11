@@ -15,7 +15,7 @@ import Server (startServer)
 
 
 import System.IO
-import Interpret.Structures (defaultStructure)
+import Interpret.Lib (defaultStructure)
 import qualified Interpret.Environment as Env
 
 import Data.Text (pack)

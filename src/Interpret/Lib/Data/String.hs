@@ -1,4 +1,4 @@
-module Interpret.Structures.Data.String (stringStructure, stringSignature) where
+module Interpret.Lib.Data.String (stringStructure, stringSignature) where
 
 
 import qualified Data.Map as Map
