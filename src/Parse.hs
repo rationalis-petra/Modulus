@@ -55,7 +55,7 @@ many1 p = (:) <$> p <*> (many p)
 pSym :: Parser Normal
 pSym = (lexeme $ Symbol <$> pSymStr) <|> (try (between (symbol "(") (symbol ")") pSpecial))
   where
-    pSymStr = (:) <$> (letterChar <|> char '_') <*> many (alphaNumChar <|> char '_')
+    pSymStr = (:) <$> (letterChar <|> char '_') <*> many (alphaNumChar <|> char '_' <|> char '-')
 
 
 pSpecial :: Parser Normal

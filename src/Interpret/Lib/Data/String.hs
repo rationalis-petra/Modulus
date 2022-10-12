@@ -1,14 +1,15 @@
-module Interpret.Lib.Data.String (stringStructure, stringSignature) where
+module Interpret.Lib.Data.String where
 
 
 import qualified Data.Map as Map
 import Data.Text as Text
 
 import Data
+import Interpret.Lib.LibUtils
+import Syntax.Utils (mkVar)
 import Interpret.Eval (liftFun, liftFun2)
 import Interpret.EvalM (throwError)
 import Interpret.Transform
-
 
   
 
@@ -27,7 +28,6 @@ mlsElement = liftFun2 element (NormArr (PrimType StringT)
     element (PrimVal (String s)) (PrimVal (Int i)) =
       pure $ PrimVal $ Char (index s (fromEnum i))
     element _ _ = throwError "element expects string/idx as arguments"
-    
 
 mlsLength :: Normal
 mlsLength = liftFun len (NormArr (PrimType StringT) (PrimType IntT))
@@ -43,13 +43,34 @@ strShow = liftFun sshow (NormArr (PrimType StringT) (PrimType StringT))
     sshow :: Normal -> EvalM Normal
     sshow (PrimVal (String s)) = pure (PrimVal (String s))
     sshow _ = throwError "length expects string as an argument"
-                                  
 
+showableTy :: Normal  
+showableTy = NormUniv 0
 
+showable :: Normal
+showable = NormSig 
+  [ ("T", NormUniv 0)
+  , ("show", NormArr (mkVar "T") (PrimType StringT))
+  ]
+
+implShowTy :: Normal
+implShowTy = NormImplProd "s" showable 
+             (NormArr st (PrimType StringT))
+  where st = Neu (NeuDot (NeuVar "s" showable) "T") showable
+
+implShow :: Normal
+implShow =
+  NormAbs "s" (NormAbs "x" (Neu (NeuApp (NeuDot (NeuVar "s" showable) "show") (Neu (NeuVar "x" t2) t2)) t2) t1) t0
+  where
+    t0 = implShowTy
+    t1 = tyTail t0
+    t2 = tyTail t1
+  
 stringSignature :: Normal  
 stringSignature = NormSig
                   [ ("String",  NormUniv 0)
                   , ("T",       NormUniv 0)
+                  , ("Showable", showableTy)
                   , ("append",  (NormArr t (NormArr t t)))
                   , ("⋅",       (NormArr t (NormArr t t)))
                   , ("show",    (NormArr t (PrimType StringT)))
@@ -63,6 +84,7 @@ stringStructure :: Normal
 stringStructure = NormSct (toEmpty
                   [ ("String", PrimType StringT)
                   , ("T",      PrimType StringT)
+                  , ("Showable", showable)
                   , ("append", mlsConcat)
                   , ("⋅",      mlsConcat)
                   , ("show",   strShow)

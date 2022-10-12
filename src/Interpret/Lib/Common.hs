@@ -5,7 +5,7 @@ import qualified Data.Map as Map
 
 import Data
 import Syntax.Utils
-import Interpret.Eval (eval, liftFun, liftFun2, liftFun3, liftFun4, liftFun5)
+import Interpret.Eval (eval, liftFun, liftFun2, liftFun3, liftFun4, liftFun5, liftFun6)
 import Interpret.EvalM (throwError)
 import Syntax.Utils (mkVar)
 import Interpret.Transform
@@ -68,8 +68,53 @@ mlsFlip = liftFun4 f mlsFlipType
         newFnc f x y = eval $ (CApp (CApp (CNorm f) (CNorm x)) (CNorm y))
         newType a b c = NormArr b (NormArr a c)
 
+-- before: λ [f g x] (g (f x) x)
+-- f : a → b 
+-- g : b → a → c
+-- x : a
+mlsBeforeType :: Normal
+mlsBeforeType = NormImplProd "A" (NormUniv 0)
+                (NormImplProd "B" (NormUniv 0)
+                 (NormImplProd "C" (NormUniv 0)
+                  (NormArr (NormArr (mkVar "A") (mkVar "B"))
+                   (NormArr (NormArr (mkVar "B") (NormArr (mkVar "A") (mkVar "C")))
+                    (NormArr (mkVar "A") (mkVar "C"))))))
+
+mlsBefore :: Normal  
+mlsBefore = liftFun5 f mlsBeforeType
+  where f a b c f g = pure $ liftFun (newFnc f g) (newType a c)
+        newFnc f g x = eval $ (CApp (CApp (CNorm g) (CApp (CNorm f) (CNorm x))) (CNorm x))
+        newType a c = NormArr a c 
+  
+  
+-- after: λ [f g x] (f x (g x))
+-- f : a → b → c 
+-- g : a → b
+-- x : a
+
+mlsAfterType :: Normal
+mlsAfterType = NormImplProd "A" (NormUniv 0)
+                (NormImplProd "B" (NormUniv 0)
+                 (NormImplProd "C" (NormUniv 0)
+                  (NormArr (NormArr (mkVar "A") (NormArr (mkVar "B") (mkVar "C")))
+                   (NormArr (NormArr (mkVar "A") (mkVar "C"))
+                    (NormArr (mkVar "A") (mkVar "C"))))))
+
+mlsAfter :: Normal  
+mlsAfter = liftFun5 f mlsBeforeType
+  where f a b c f g = pure $ liftFun (newFnc f g) (newType a c)
+        newFnc f g x = eval $ (CApp (CApp (CNorm f) (CNorm x)) (CApp (CNorm g) (CNorm x)))
+        newType a c = NormArr a c 
   
 -- TODO: fork f g h = λ [x y] f (g x) (h y)
+-- f : a → b → c
+-- g : d → a
+-- h : e → b
+-- mlsForkType :: Normal
+-- mlsForkType 
+
+-- mlsFork :: Normal
+
   
 commonSignature :: Normal
 commonSignature = NormSig $
@@ -77,6 +122,9 @@ commonSignature = NormSig $
   , ("⊢", mlsRightType)
   , ("∘", mlsComposeType)
   , ("○", mlsOverType)
+  , ("⊸", mlsBeforeType)
+  , ("⟜", mlsAfterType)
+  -- , ("ᛸ", mlsForkType)
   ]
 
 
@@ -89,4 +137,7 @@ commonTerms =
   , ("⊢", mlsRight)
   , ("∘", mlsCompose)
   , ("○", mlsOver)
+  , ("⊸", mlsBefore)
+  , ("⟜", mlsAfter)
+  -- , ("ᛸ", mlsFork)
   ]

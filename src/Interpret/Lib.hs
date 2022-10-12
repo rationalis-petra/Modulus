@@ -14,6 +14,10 @@ import Interpret.Lib.Monad
 import Interpret.Lib.Common 
 import Interpret.Lib.Algebra 
 
+import qualified Interpret.Lib.Algebra.Semigroup as Semigroup
+import qualified Interpret.Lib.Algebra.Ring as Ring
+import qualified Interpret.Lib.Data.String as String
+
 import Data (Normal, Normal'(NormSct, NormSig), EvalM, toEmpty)
 import qualified Data.Map as Map
 
@@ -21,7 +25,10 @@ import qualified Data.Map as Map
   
 
 implTerms =
-  [("⋅", pathLookup ["semigroup", "⋅"] algebraStructure)
+  [ ("⋅", Semigroup.implStar)
+  , ("+", Ring.implAdd)
+  , ("✕", Ring.implMul)
+  , ("show", String.implShow)
   ]
   where pathLookup :: [String] -> Normal -> Normal
         pathLookup [] v = v

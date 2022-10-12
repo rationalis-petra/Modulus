@@ -47,16 +47,16 @@ insertAll lst context = context{localCtx = newCtx}
   where
     newCtx = foldr (uncurry Map.insert) (localCtx context) lst
 
-fold :: (Normal -> a -> a) -> (Normal -> Normal -> a -> a) -> a -> Environment ->  a
-fold f1 f2 z (Environment {localCtx = lcl,
-                           currentModule = curr,
-                           globalModule = glbl}) = 
+fold :: (Normal -> a -> a) -> a -> Environment ->  a
+fold f z (Environment { localCtx = lcl
+                          , currentModule = curr
+                          , globalModule = glbl }) = 
   let (NormSct currentFields _) = curr
       (NormSct globalFields _)  = glbl
 
-      z'   = Map.foldr (uncurry f2) z lcl 
-      z''  = foldr f1 z' (map (fst . snd) currentFields)
-  in foldr f1 z'' (map (fst . snd) globalFields)
+      z'   = Map.foldr f z (Map.map fst lcl) 
+      z''  = foldr f z' (map (fst . snd) currentFields)
+  in foldr f z'' (map (fst . snd) globalFields)
 
 foldImpl :: (Normal -> a -> a) -> (Normal -> Normal -> a -> a) -> a -> Environment ->  a
 foldImpl f1 f2 z (Environment {localCtx = lcl,
@@ -72,9 +72,10 @@ foldImpl f1 f2 z (Environment {localCtx = lcl,
   in foldr f1' z'' (map snd globalFields)
 
 empty :: Environment
-empty = Environment {localCtx = Map.empty,
-                     currentModule = NormSct [] (NormSig []),
-                     globalModule = NormSct [] (NormSig [])}
+empty = Environment { localCtx = Map.empty
+                    , currentModule = NormSct [] (NormSig [])
+                    , globalModule = NormSct [] (NormSig [])
+                    }
 
 member _ [] = False
 member x' (x:xs) = if x == x' then True else member x' xs

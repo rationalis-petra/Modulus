@@ -489,7 +489,7 @@ deduceVal (NormSct fields1 sctty) (NormSig tyfields) ctx =
             (parMatch fields1 candFields) && subType (NormSig tyfields) candTy 
           valMatch _ = False
           
-          f1 val accum = case accum of 
+          f val accum = case nestedSearch val accum of
             Right Nothing -> if valMatch val then Right $ Just val else Right Nothing
             Right (Just x) ->
               if valMatch val then
@@ -498,23 +498,18 @@ deduceVal (NormSct fields1 sctty) (NormSig tyfields) ctx =
                 Right $ Just x
             Left err -> Left err
 
-          -- TODO: what about let-bindings of constants/structures, then are
-          -- they implicit?
-          f2 val _ accum = case accum of
-            Right Nothing -> if valMatch val then Right $ Just val else Right Nothing
-            Right (Just x) ->
-              if valMatch val then
-                Left "ambigous implicit module resolution"
-              else
-                Right $ Just x
-            Left err -> Left err
+
+          nestedSearch (NormSct lst _) accum = foldr f accum (map (fst . snd) lst)
+          nestedSearch _ accum = accum
+
       in
-        case Env.fold f1 f2 (Right Nothing) ctx of
+        case Env.fold f (Right Nothing) ctx of
           Right (Just v) -> pure v
-          Right Nothing -> throwError ("cannot find value of type: "
-                                       <> show (NormSig tyfields)
-                                       <> "\npartially matching "
-                                       <> show (NormSct fields1 sctty))
+          Right Nothing ->
+            throwError ("cannot find value of type: "
+                        <> show (NormSig tyfields)
+                        <> "\npartially matching "
+                        <> show (NormSct fields1 sctty))
           Left err -> throwError err
 deduceVal v1 v2 _ = throwError ("deduce val used for non-struct values " <> show v1 <> " and " <> show v2)
 

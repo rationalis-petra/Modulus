@@ -1,31 +1,32 @@
-module Interpret.Lib.Algebra.Semigroup (semiGroupSignature, semiGroupStructure) where
+module Interpret.Lib.Algebra.Semigroup where
 
 import Data  
 
 import Interpret.Eval
+import Interpret.Lib.LibUtils
 import Syntax.Utils hiding (tyTail)
 
 
-semiGroupTy :: Normal  
-semiGroupTy = NormUniv 0
+semigroupTy :: Normal  
+semigroupTy = NormUniv 0
 
-semiGroup :: Normal
-semiGroup = NormSig 
+semigroup :: Normal
+semigroup = NormSig 
   [ ("T", NormUniv 0)
   , ("⋅", NormArr (mkVar "T") (NormArr (mkVar "T") (mkVar "T")))
   ]
 
 implStarTy :: Normal
-implStarTy = NormImplProd "g" semiGroup 
+implStarTy = NormImplProd "g" semigroup 
              (NormArr gt (NormArr gt gt))
-  where gt = Neu (NeuDot (NeuVar "g" semiGroup) "T") semiGroup
+  where gt = Neu (NeuDot (NeuVar "g" semigroup) "T") semigroup
 
 implStar :: Normal
 implStar =
   NormAbs "g"
   (NormAbs "x"
    (NormAbs "y"
-    (Neu (NeuApp (NeuApp (NeuDot (NeuVar "g" semiGroup) "⋅") (Neu (NeuVar "x" t3) t3)) (Neu (NeuVar "y" t3) t3)) t3)
+    (Neu (NeuApp (NeuApp (NeuDot (NeuVar "g" semigroup) "⋅") (Neu (NeuVar "x" t3) t3)) (Neu (NeuVar "y" t3) t3)) t3)
     t2) t1) t0
   where
     t0 = implStarTy
@@ -34,20 +35,15 @@ implStar =
     t3 = tyTail t2
 
 
-semiGroupSignature :: Normal
-semiGroupSignature = NormSig
-  [ ("Semigroup", semiGroupTy)
+semigroupSignature :: Normal
+semigroupSignature = NormSig
+  [ ("Semigroup", semigroupTy)
   , ("⋅",         implStarTy)
   ]
 
 
-semiGroupStructure :: Normal
-semiGroupStructure = NormSct
-  [ ("Semigroup", (semiGroup, []))
+semigroupStructure :: Normal
+semigroupStructure = NormSct
+  [ ("Semigroup", (semigroup, []))
   , ("⋅", (implStar, [Implicit]))
-  ] semiGroupSignature
-
-tyTail :: Normal -> Normal
-tyTail (NormArr l r) = r
-tyTail (NormProd sym a b) = b
-tyTail (NormImplProd sym a b) = b
+  ] semigroupSignature

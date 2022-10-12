@@ -1,0 +1,69 @@
+module Interpret.Lib.Algebra.Ring where
+
+import Data  
+
+import Interpret.Eval
+import Interpret.Lib.LibUtils
+import Syntax.Utils hiding (tyTail)
+
+
+ringTy :: Normal  
+ringTy = NormUniv 0
+
+ring :: Normal
+ring = NormSig 
+  [ ("T", NormUniv 0)
+  , ("+", NormArr (mkVar "T") (NormArr (mkVar "T") (mkVar "T")))
+  , ("✕", NormArr (mkVar "T") (NormArr (mkVar "T") (mkVar "T")))
+  ]
+
+implAddTy :: Normal
+implAddTy = NormImplProd "r" ring 
+             (NormArr gt (NormArr gt gt))
+  where gt = Neu (NeuDot (NeuVar "r" ring) "T") ring
+
+implAdd :: Normal
+implAdd =
+  NormAbs "g"
+  (NormAbs "x"
+   (NormAbs "y"
+    (Neu (NeuApp (NeuApp (NeuDot (NeuVar "g" ring) "+") (Neu (NeuVar "x" t3) t3)) (Neu (NeuVar "y" t3) t3)) t3)
+    t2) t1) t0
+  where
+    t0 = implAddTy
+    t1 = tyTail t0
+    t2 = tyTail t1
+    t3 = tyTail t2
+
+  
+implMulTy :: Normal
+implMulTy = implAddTy
+
+implMul :: Normal
+implMul =
+  NormAbs "g"
+  (NormAbs "x"
+   (NormAbs "y"
+    (Neu (NeuApp (NeuApp (NeuDot (NeuVar "g" ring) "✕") (Neu (NeuVar "x" t3) t3)) (Neu (NeuVar "y" t3) t3)) t3)
+    t2) t1) t0
+  where
+    t0 = implMulTy
+    t1 = tyTail t0
+    t2 = tyTail t1
+    t3 = tyTail t2
+
+
+ringSignature :: Normal
+ringSignature = NormSig
+  [ ("Ring", ringTy)
+  , ("+",    implAddTy)
+  , ("✕",    implMulTy)
+  ]
+
+
+ringStructure :: Normal
+ringStructure = NormSct
+  [ ("Ring", (ring, []))
+  , ("+", (implAdd, [Implicit]))
+  , ("✕", (implMul, [Implicit]))
+  ] ringSignature
