@@ -52,7 +52,7 @@ type Subst = ([(Normal, String)], [((String, Normal), (String, Normal))])
 -- but the substitution of dependently-bound (string) variables occurs only on
 -- the left(right) side
 
-constrain :: Normal -> Normal -> Environment -> EvalM ([Normal], [Normal], Subst)
+constrain ::  Normal -> Normal -> Environment -> EvalM ([Normal], [Normal], Subst)
 constrain n1 n2 env = do
   (lapp, rapp, subst) <- constrainLRApp n1 n2 env
   pure (lapp, rapp, toSing subst)
@@ -67,7 +67,7 @@ constrain n1 n2 env = do
 
 -- Note: constrainLRApp doesn't actually check the types!  
 -- TODO: perform α-renaming on implicit products!  
-constrainLRApp :: Normal -> Normal -> Environment -> EvalM ([Normal], [Normal], LRSubst)
+constrainLRApp ::  Normal -> Normal -> Environment -> EvalM ([Normal], [Normal], LRSubst)
 constrainLRApp (NormImplProd s1 a1 b1) (NormImplProd s2 a2 b2) ctx = do
   subst <- constrain' b1 b2
   pure ([], [], subst)
@@ -115,7 +115,7 @@ constrainLRApp l r ctx = do
   pure ([], [], subst)
 
   
-constrain' :: Normal -> Normal -> EvalM LRSubst
+constrain' ::  Normal -> Normal -> EvalM LRSubst
 constrain' (Neu (NeuVar v1 t1) _) (Neu (NeuVar v2 t2) _) =
     if v1 == v2 then pure lrnosubst
     else pure (varsame (v1, t1) (v2, t2))

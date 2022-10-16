@@ -11,8 +11,6 @@ module Data (Definition(..),
              Normal,
              Neutral'(..),
              Neutral,
-             ActionMonadT(..),
-             MaybeEffect(..),
              EvalM,
              Environment(..),
              ProgState(..),
@@ -33,13 +31,14 @@ module Data (Definition(..),
 
 import Data.Text (Text, pack, unpack)
 import Data.Vector (Vector)
+import qualified Data.Set as Set
+import qualified Data.Map as Map
+  
 import Control.Lens hiding (Context, Refl)
 import Control.Monad.State (StateT) 
 import Control.Monad.Except (ExceptT) 
 import Control.Monad.Reader (ReaderT) 
 
-import qualified Data.Map as Map
-import qualified Data.Set as Set
 
 -- TODO: untangle core & Normalized values
 data Definition
@@ -79,6 +78,7 @@ data Core
   | CLet [(String, Core)] Core Normal      -- Local binding
   | CMatch Core [(Pattern, Core)] Normal   -- Pattern-Match
   | CCoMatch [(CoPattern, Core)] Normal    -- Pattern-Comatch (for coinductive types)
+
   -- TODO: remove this via lazy functions (induction?!)
   | CIf Core Core Core Normal              -- Conditional 
   | CSct [Definition] Normal               -- Structure Definition
@@ -94,19 +94,27 @@ instance Show Pattern where
   show (MatchInduct _ _ _) = "inductive match"
   show (InbuiltMatch _) = "inbuilt match"
 
-  
 instance Show CoPattern where  
   show CoWildCard = "_"
   show (CoVarBind sym _) = sym
   show (CoMatchInduct _ _ _ _) = "coinductive match"
--- type Context = Map.Map String Expr
--- type TypeContext' = TypeContext ProgMonad
+
+-- The Value type class is used as an existential type to enable
+-- extensions of the language (e.g. the FFI libraries 
+class Value a where
+  eval :: a -> EvalM a
+  typeVal :: a -> Normal
+  -- compile :: a -> Backend -> Maybe a (??)
+  
 
 data Environment = Environment {
   localCtx      :: Map.Map String (Normal, Normal),
   currentModule :: Normal,
   globalModule  :: Normal
 }
+
+
+  
 
 data Special
   -- Definition Forms 
@@ -119,6 +127,8 @@ data Special
   | MkSig | MkProd  
   -- Syntax-Manipulation
   | MkQuote | Do  | Access | Mac |  Annotate
+  -- Foreign function stuf 
+  | ForeignAdapter
   deriving Show
 
 data PrimVal
@@ -163,8 +173,8 @@ data Modifier = Implicit
 -- m is the type of monad inside the object
 type Normal = Normal' EvalM
 type Neutral = Neutral' EvalM
-  
-data Normal' m  
+
+data Normal' m 
   -- Neutral term
   = Neu (Neutral' m) (Normal' m)
   -- Basic & Inbuilt Values and Types
@@ -210,7 +220,6 @@ data Normal' m
   | Symbol String 
   | AST AST
   -- stuff related to macros etc.
-  | Undef
 
 data Neutral' m
   = NeuVar String (Normal' m)
@@ -225,24 +234,10 @@ data Neutral' m
   
 
 
-
-
 -- data AST = Atom Expr | Cons AST 
 data AST
   = Atom Normal
   | Cons [AST]
-
-
-data MaybeEffect m a 
-  = RaiseAction (Normal' (ActionMonadT m) -> ActionMonadT m a)
-                Int
-                Int
-                [Normal' (ActionMonadT m)]
-                (Maybe ([Normal' (ActionMonadT m)]
-                        -> IO ((ActionMonadT m) (Normal' (ActionMonadT m)))))
-  | Value a
-
-
 
 
 instance Show (Normal' m) where
@@ -309,7 +304,6 @@ instance Show (Normal' m) where
   show (Symbol sym) = "<" <> sym <> ">"
   show (AST ast) = "AST" <> show ast
 
-  show Undef = "$Undef"
 
 instance Show (Neutral' m) where
   show (NeuVar var _) = var
@@ -327,24 +321,24 @@ instance Show (Neutral' m) where
 
   show (NeuBuiltinApp fn neu ty)  = "(fnc :" <> show ty  <> ") " <> show neu
 
-
   
-data PrimType = BoolT | CharT | IntT | NatT | FloatT | UnitT | StringT | AbsurdT
+data PrimType
+  = BoolT | SpecialT | CharT | IntT | NatT | FloatT | UnitT | StringT | AbsurdT
+  -- TODO: refactor ctypes via a plugin system!
+  | CIntT
   deriving (Eq, Ord)
   
 
-type EvalEnvM env m = ReaderT env (ExceptT String (StateT ProgState m))
-type EvalM = EvalEnvM Environment Identity
-type EvalMIO = EvalEnvM Environment IO
+type EvalMT m = ReaderT Environment (ExceptT String (StateT ProgState m))
+type EvalM = EvalMT Identity
 
-
-newtype ActionMonadT m a = ActionMonadT (m (MaybeEffect m a))
 
 data ProgState = ProgState { _uid_counter :: Int, _var_counter :: Int }  
 
   
 instance Show PrimType where 
   show BoolT   = "Bool"
+  show SpecialT = "Special"
   show IntT    = "ℤ"
   show NatT    = "ℕ"
   show UnitT   = "Unit"
@@ -352,6 +346,8 @@ instance Show PrimType where
   show CharT   = "Char"
   show StringT = "String"
   show AbsurdT = "Absurd"
+
+  show CIntT   = "CInt"
 
 
 instance Show PrimVal where   

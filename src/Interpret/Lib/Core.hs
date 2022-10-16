@@ -7,7 +7,6 @@ import Data
 import Syntax.Utils
 import Interpret.Eval (liftFun, liftFun2, liftFun3, liftFun4)
 import Interpret.EvalM (throwError)
-import Interpret.Transform
 
 -- import Typecheck.Typecheck2 (subtype)
 
@@ -40,7 +39,7 @@ toDefs _ = throwError "error: expected symbol value pair"
 opDot :: [AST] -> EvalM AST
 opDot [(Cons (op : xs)), rhs] = 
   pure $ (Cons [op, (Cons xs), rhs])
-opDot args =  (throwError $ "bad args to macro: dot " ++ show args)
+opDot args =  (throwError $ "bad args to macro: dot " <> show args)
 mlsDot = BuiltinMac opDot
 
 defStructure :: [AST] -> EvalM AST
@@ -59,35 +58,22 @@ defSig :: [AST] -> EvalM AST
 defSig (sym : bdy) = 
   pure $ Cons ([Atom (Special Def), sym, Cons (Atom (Special MkSig) : bdy)])
 defSig _ = throwError "Bad Number of to macro: module" 
-mlsDefSig = BuiltinMac defSig
+mlsDefSignature = BuiltinMac defSig
 
 defFun :: [AST] -> EvalM AST
 defFun (sym : fncdef) = 
   pure $ (Cons [Atom (Special Def), sym, Cons (Atom (Special Lambda) : fncdef)])
-defFun args =  throwError $ "bad args to macro: defn" ++ show args
+defFun args =  throwError $ "bad args to macro: defn" <> show args
 mlsDefun = BuiltinMac defFun
 
 defMac :: [AST] -> EvalM AST
 defMac [sym, symlist, bdy] = 
   pure $ Cons [Atom (Special Def), sym, Cons [Atom (Special Mac), symlist, bdy]]
-defMac args =  throwError $ "bad args to macro: defsyntax" ++ show args
+defMac args =  throwError $ "bad args to macro: defsyntax" <> show args
 mlsDefmac = BuiltinMac defMac
 
 
 --- Structures
-with :: Normal -> Normal -> EvalM Normal 
-  -- TODO: constrain based on type
-with (NormSct fm1 ty1) (NormSct m2 ty2) = pure $ NormSct (insertLeft fm1 m2) ty1
-with _ _ = throwError "bad args to with expected types"
-mlsWith = liftFun2 with (NormArr Undef (NormArr Undef Undef))
-
-upd :: [AST] -> EvalM AST
-upd [mdle, Cons bindlist] = do
-  mldebdy <- toDefs bindlist 
-  pure $ Cons [(Atom mlsWith), mdle, Cons (Atom (Special MkStructure) : mldebdy)]
-upd _ = throwError "bad args to macro: | "
-mlsUpd = BuiltinMac upd
-
 struct :: [AST] -> EvalM AST
 struct bindlist = do
   mldebdy <- toDefs bindlist 
@@ -103,7 +89,7 @@ mlsSig = BuiltinMac sig
   
 -- TYPES 
 
-  -- TODO: to be well formed, these must accept types...
+-- TODO: to be well formed, these must accept types...
 mkTupleType :: Normal -> Normal -> EvalM Normal
 mkTupleType t1 t2 = 
   pure $ NormSig [("_1", t1), ("_2", t2)]
@@ -121,23 +107,6 @@ mlsMkTuple = liftFun4 mkTuple (NormImplProd "A" (NormUniv 0)
 
   
 -- CONSTRAINTS
--- TODO: update the ty in NormSct
-doConstrain :: Normal -> Normal -> EvalM Normal
-doConstrain (NormSct mod ty) (NormSig sig) = 
-  case constrain mod sig of
-    Just x -> pure $ NormSct x ty
-    Nothing -> throwError ("could not constrain structure " <> show mod <> " with signature " <> show sig)
-  where
-    constrain m ((l, _) : xs) = 
-      case getField l m of 
-        Just x -> case (constrain m xs) of
-          Just mp -> Just $ addField l x mp
-          Nothing -> Nothing
-        Nothing -> Nothing
-    constrain _ [] = Just []
-doConstrain _ _ = throwError "bad args to <: expected structure and signature"
-mlsConstrain = liftFun2 doConstrain (NormArr Undef (NormArr Undef Undef))
-
 
 mkPropEqType :: Normal
 mkPropEqType = NormImplProd "A" (NormUniv 0) (NormArr (mkVar "A") (NormArr (mkVar "A") (NormUniv 0)))
@@ -156,34 +125,27 @@ mkRefl = liftFun2 f mkReflType
 
   
 coreTerms :: [(String, Normal)]
-coreTerms = [
-    ("Bool", PrimType BoolT)
+coreTerms =
+  [ ("Bool", PrimType BoolT)
   , ("Unit", PrimType UnitT)
-  , ("𝒰", NormUniv 0)
-  -- TODO: universe constructor
-  , ("→", Special MkProd)
-  , ("sig", mlsSig)
-  , ("*", mlsMkTupleType)
+  , ("𝒰",    NormUniv 0)
+  , ("→",    Special MkProd)
 
-  -- misc. functions (constructors etc.)
+  -- misc functions
+  , ("*", mlsMkTupleType)
   , (",", mlsMkTuple)
-  , ("<:", mlsConstrain)
-  , (":", Special Annotate)
-  , ("|", mlsUpd)
-  , ("with", mlsWith)
 
   , ("refl", mkRefl)
   , ("≡", mkPropEq)
 
   -- TODO macro stuff
-  -- ("Atom", mlsAtom),
-  -- ("Node", mlsNode),
-  -- ("syntax", Special Mac),
-  -- ("macro-expand", (mlsMacroExpand, Undef))
-  -- ("subtype", mlsSubtype),
+
+  -- FFI
+  , ("foreign-adapter", Special ForeignAdapter)
   
   -- language constructs
   , (".",           Special Access)
+  , (":",           Special Annotate)
   , ("if",          Special If)
   , ("do",          Special Do)
   , ("quote",       Special MkQuote)
@@ -196,17 +158,16 @@ coreTerms = [
   , ("match",       Special MkMatch)
   , ("comatch",     Special MkCoMatch)
   , ("open",        Special Open)
-  , ("let_open",    Special LetOpen)
+  , ("let-open",    Special LetOpen)
 
-  , ("def",          Special Def)
-  , ("≜",            Special Def)
-  , ("defn",         mlsDefun)
-  , ("defsyntax",    mlsDefmac)
-  , ("defstructure", mlsDefStructure)
-  , ("defstruct",    mlsDefStruct)
-  , ("defsignature", mlsDefSig)
-  , ("induct",       Special Induct)
-  , ("coinduct",     Special Coinduct)
-  -- ("signature", (mlsDefSignature, Undef))
+  , ("def",           Special Def)
+  , ("≜",             Special Def)
+  , ("defn",          mlsDefun)
+  , ("def-syntax",    mlsDefmac)
+  , ("def-structure", mlsDefStructure)
+  , ("def-struct",    mlsDefStruct)
+  , ("def-signature", mlsDefSignature)
+  , ("induct",        Special Induct)
+  , ("coinduct",      Special Coinduct)
   ]
 

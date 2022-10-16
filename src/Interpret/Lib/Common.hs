@@ -8,7 +8,6 @@ import Syntax.Utils
 import Interpret.Eval (eval, liftFun, liftFun2, liftFun3, liftFun4, liftFun5, liftFun6)
 import Interpret.EvalM (throwError)
 import Syntax.Utils (mkVar)
-import Interpret.Transform
 
 
 mlsLeftType :: Normal  

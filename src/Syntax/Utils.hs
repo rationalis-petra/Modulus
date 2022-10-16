@@ -90,10 +90,7 @@ typeVal (CollVal val) = case val of
   ArrayVal _ ty dims -> pure (CollTy (ArrayTy ty dims))
 
 typeVal (Neu _ ty) = pure ty
-typeVal (Special _) = pure Undef
-typeVal (BuiltinMac _) = pure Undef
-typeVal (Keyword _) = pure Undef
-typeVal (Symbol _) = pure Undef
+typeVal (Special _) = pure $ PrimType SpecialT
 typeVal e = throwError $ "untypable value: " <> show e
 
 

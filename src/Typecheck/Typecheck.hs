@@ -25,8 +25,6 @@ import Syntax.Utils (typeVal, free, getField, mkVar)
 import Typecheck.Constrain
 
 
-err = throwError
-
 typeCheckTop :: TIntTop TIntermediate' -> Environment
              -> EvalM (Either (TIntTop Normal, Normal) (TIntTop Normal))
 typeCheckTop (TExpr e) ctx = do

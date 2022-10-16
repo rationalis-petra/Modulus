@@ -32,8 +32,6 @@ dependencies:
 - stm                  # concurrency/transactional memory
 - network              # networking 
 - bytestring
-# - bindings-libffi
-# - libffi
 # - llvm-hs
 
 library:
@@ -47,6 +45,8 @@ executables:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+    extra-libraries:
+    - ltdl
     dependencies:
     - modulus
 

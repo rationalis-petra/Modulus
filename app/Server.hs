@@ -27,7 +27,9 @@ import Server.Message hiding (parse)
 import Server.Data  
 import Server.Interpret
 
-import Control.Monad (unless, forever, void)
+import Bindings.Libtdl
+
+import Control.Monad (when, unless, forever, void)
 import qualified Data.ByteString as Bs
 import Network.Socket
 import Network.Socket.ByteString (recv, sendAll)
@@ -39,9 +41,13 @@ import qualified Control.Exception as Ex
 
 startServer :: ProgState -> Environment -> IO ()  
 startServer dstate denvironment  = do 
-  messageQueue <- atomically $ newTQueue 
-  forkIO $ runTCPServer Nothing "4008" (serverLoop messageQueue)
-  interpreter (IState dstate denvironment (Right emptyTree)) messageQueue
+  retCode <- dlinit 
+  if (retCode == 0) then do
+    messageQueue <- atomically $ newTQueue 
+    forkIO $ runTCPServer Nothing "4008" (serverLoop messageQueue)
+    interpreter (IState dstate denvironment (Right emptyTree)) messageQueue
+  else
+    putStrLn "dlinit failed"
 
 
 

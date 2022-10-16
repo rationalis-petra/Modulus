@@ -16,8 +16,6 @@ import Syntax.Intermediate(Intermediate(..),
 
 import Interpret.EvalM (local, fresh_id, throwError)
 import Control.Monad.State (State, runState)
-import Control.Monad.Except (ExceptT, runExceptT)
-import Interpret.Transform
 
 
 -- Typed Intermediate Module  

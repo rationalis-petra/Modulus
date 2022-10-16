@@ -9,7 +9,6 @@ import Interpret.Lib.LibUtils
 import Syntax.Utils (mkVar)
 import Interpret.Eval (liftFun, liftFun2)
 import Interpret.EvalM (throwError)
-import Interpret.Transform
 
   
 

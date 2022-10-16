@@ -203,8 +203,9 @@ pNormal =
 pHeader = do
   pHeaderDecl  
   imports <- try (parens pImports) <|> pure []
+  foreignLibs <- try (parens pForeign) <|> pure []
   exports <- try (parens pExports) <|> pure []
-  pure (imports, exports, [])
+  pure (imports, foreignLibs, exports, [])
   where
     pHeaderDecl = do 
       symbol "module"
@@ -213,6 +214,10 @@ pHeader = do
 
     pImports = do
       symbol "import"
+      many pSymStr
+
+    pForeign = do
+      symbol "foreign"
       many pSymStr
 
     pExports = do

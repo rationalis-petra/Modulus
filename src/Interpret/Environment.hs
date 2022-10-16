@@ -6,7 +6,6 @@ import qualified Data.Map as Map
 import Control.Monad.Except
 
 import Data
-import Interpret.Transform
 import Syntax.Utils (getField)
 
 import Syntax.Utils

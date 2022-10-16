@@ -6,7 +6,6 @@ import Data
 import Data.Text (pack)
 import Interpret.EvalM (throwError)
 import Interpret.Eval (liftFun, liftFun2)
-import Interpret.Transform
 
 int_t = PrimType IntT
 bool_t = PrimType BoolT

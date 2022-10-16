@@ -7,7 +7,6 @@ import Data
 import Interpret.Eval (liftFun)
   
 import Data.Text(pack, unpack)
-import Interpret.Transform
 
 mlsGetLine :: Normal
 mlsGetLine = CollVal (IOAction m getType)

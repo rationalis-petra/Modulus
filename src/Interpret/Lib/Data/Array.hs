@@ -8,7 +8,6 @@ import Interpret.EvalM
 import Interpret.Eval (liftFun2,
                        liftFun3)
 import qualified Interpret.Environment as Env
-import Interpret.Transform
 
 mlsArrTy :: Normal
 mlsArrTy = (NormArr (NormUniv 0) (NormArr (CollTy (ListTy (PrimType IntT))) (NormUniv 0)))

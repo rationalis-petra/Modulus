@@ -16,7 +16,6 @@ import Syntax.Intermediate(Intermediate(..),
 import Syntax.Conversions
 import Typecheck.Typecheck (typeCheck)
 import Interpret.EvalM (local, throwError)
-import Interpret.Transform (lift)
 import Interpret.Lib.Core
 import qualified Interpret.Eval as Eval
 
@@ -27,24 +26,3 @@ moduleContext = Environment {
   localCtx = Map.empty,
   currentModule = NormSct (toEmpty coreTerms) (NormSig []),
   globalModule = NormSct [] (NormSig [])}
-
-  
--- buildModule :: Map.Map String Normal -> String -> EvalM Normal
--- buildModule mp s = 
---   -- TODO: replace with parseModule
---   case parseScript "internal-module" (pack s) of 
---     Left err -> throwError (show err)
---     Right ast -> do
---       expanded <- local moduleContext (macroExpand ast)
---       case toIntermediate expanded moduleContext of 
---         Left err -> do 
---           throwError err
---         Right val -> do
---           result <- toTIntermediate val
---           (checked, _, _) <- typeCheck result (Ctx.envToCtx moduleContext) 
---           core <- case runExcept (toCore checked) of 
---             Left err -> throwError err
---             Right val -> pure val
---           local moduleContext (Eval.eval core)
-
-  

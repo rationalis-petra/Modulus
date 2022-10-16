@@ -4,7 +4,7 @@ import Control.Monad.Except (runExcept)
 
 import Parse (parseScript, parseRepl)
 import Data
-import Interpret.Eval (evalToIO, evalTop, Result(..), loopAction)
+import Interpret.Eval (evalToEither, evalTop, Result(..), loopAction)
 import Syntax.Macroexpand 
 import Syntax.Conversions (toIntermediate,
                            toTIntermediateTop,
@@ -12,7 +12,6 @@ import Syntax.Conversions (toIntermediate,
                            toTopCore)
 import Typecheck.Typecheck
 import Server (startServer)
-
 
 import System.IO
 import Interpret.Lib (defaultStructure)
@@ -25,10 +24,9 @@ import qualified Data.Map as Map
 import Options.Applicative
 import Data.Semigroup ((<>))
 
-defaultState = ProgState { _uid_counter = 0, _var_counter = 0 }  
+defaultState = ProgState { _uid_counter = 0, _var_counter = 0 }
 
-data Mode = Script | Interactive | Compile  
-
+data Mode = Script | Interactive | Compile
 
 data Args = Args { file :: String,
                    mode :: String }
@@ -178,3 +176,9 @@ evalTopCore core env state = do
   
 
 printFlush s = print s >> hFlush stdout   
+
+
+evalToIO v e s = case evalToEither v e s of
+  Right val -> pure $ Just val
+  Left err -> printFlush err >> pure Nothing
+

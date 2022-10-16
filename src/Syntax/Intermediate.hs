@@ -58,6 +58,7 @@ data Intermediate
   | IMatch Intermediate [(IPattern, Intermediate)]
   | ICoMatch [(ICoPattern, Intermediate)]
   | IAnnotation String Intermediate
+  -- | IAdaptForeign String FModule [IDefinition] 
   deriving Show
 
 data IPattern

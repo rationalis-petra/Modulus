@@ -13,6 +13,7 @@ import Interpret.Lib.Structures
 import Interpret.Lib.Monad 
 import Interpret.Lib.Common 
 import Interpret.Lib.Algebra 
+import Interpret.Lib.Foreign 
 
 import qualified Interpret.Lib.Algebra.Semigroup as Semigroup
 import qualified Interpret.Lib.Algebra.Ring as Ring
@@ -48,4 +49,5 @@ defaultStructure = do
            , ("monad",   monadStructure)
            , ("algebra", algebraStructure)
            , ("structs", NormSct (toEmpty structs) (NormSig []))
+           , ("foreign", foreignStructure)
            ]

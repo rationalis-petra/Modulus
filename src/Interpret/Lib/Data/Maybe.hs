@@ -6,7 +6,6 @@ import Data.Text as Text
 import Data
 import Interpret.Eval (liftFun, liftFun2)
 import Interpret.EvalM (throwError)
-import Interpret.Transform
 import Syntax.Utils (mkVar)
 
 

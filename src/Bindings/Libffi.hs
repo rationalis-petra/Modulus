@@ -1,6 +1,6 @@
 -- | <http://sourceware.org/libffi>.
 
-module Foreign.Libffi where
+module Bindings.Libffi where
 -- import Foreign
 -- import Foreign.C
 

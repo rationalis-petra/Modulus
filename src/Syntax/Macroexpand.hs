@@ -9,7 +9,6 @@ import Data(-- Intermediate(..),
             ProgState) 
 
 import qualified Interpret.Eval as Eval
-import Interpret.Transform (lift)
 import qualified Interpret.Environment as Env
 import Interpret.EvalM(ask, throwError) 
 
