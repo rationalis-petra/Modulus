@@ -9,7 +9,6 @@ import Interpret.Lib.Core
 import Interpret.Lib.Numerics 
 import Interpret.Lib.System 
 import Interpret.Lib.Data
-import Interpret.Lib.Structures
 import Interpret.Lib.Monad 
 import Interpret.Lib.Common 
 import Interpret.Lib.Algebra 
@@ -38,16 +37,13 @@ implTerms =
   
 
 
-defaultStructure :: EvalM [(String, Normal)]
-defaultStructure = do
-  structs <- structStructure 
-  pure $ insertLeft
-           (coreTerms <> commonTerms <> implTerms)
+defaultStructure :: [(String, Normal)]
+defaultStructure =
+  insertLeft (coreTerms <> commonTerms <> implTerms)
            [ ("num",     numStructure)
            , ("sys",     systemStructure)
            , ("data",    dataStructure)
            , ("monad",   monadStructure)
            , ("algebra", algebraStructure)
-           , ("structs", NormSct (toEmpty structs) (NormSig []))
            , ("foreign", foreignStructure)
            ]

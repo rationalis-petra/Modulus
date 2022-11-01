@@ -59,36 +59,27 @@ main = do
         case m of 
           m | m == "c" || m == "compiled" ->
               putStrLn "compilation not implemented yet!"
-            | m == "i" || m == "interactive" ->  do
-                dfc <- evalToIO defaultContext (Env.empty) defaultState
-                case dfc of
-                  Just (env, state) ->
-                    if null f then
-                      repl env state
-                    else do
-                      handle <- openFile f ReadMode
-                      contents <- hGetContents handle
-                      (env', state') <- runInteractively contents env state
-                      repl env' state'
-                  Nothing -> putStrLn "error in initialisation"
-            | m == "s" || m == "server" -> do
-                dfc <- evalToIO defaultContext (Env.empty) defaultState
-                case dfc of
-                  Just (env, state) ->
-                    startServer state env
-                  Nothing -> putStrLn "error in initialisation"
+            | m == "i" || m == "interactive" ->
+              if null f then
+                repl defaultEnv defaultState
+              else do
+                handle <- openFile f ReadMode
+                contents <- hGetContents handle
+                (env', state') <- runInteractively contents defaultEnv defaultState
+                repl env' state'
+            | m == "s" || m == "server" ->
+              startServer defaultState defaultEnv
 
                 
             | otherwise -> putStrLn "bad mode argument"
   
 -- The REPL 
-defaultContext :: EvalM Environment 
-defaultContext = do
-  dfm <- defaultStructure
-  pure $ Environment {
-  localCtx = Map.empty,
-  currentModule = NormSct (toEmpty dfm) (NormSig []),
-  globalModule = NormSct [] (NormSig [])}
+defaultEnv :: Environment 
+defaultEnv = Environment
+  { localCtx = Map.empty
+  , currentModule = NormSct (toEmpty defaultStructure) (NormSig [])
+  , globalModule = NormSct [] (NormSig [])
+  }
 
 
 repl :: Environment -> ProgState -> IO ()

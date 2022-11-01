@@ -3,6 +3,7 @@ module Parse where
 
 import Data
 -- import Interpret.Eval (Normal'(..), Normal)
+
   
 import Text.Megaparsec
 import Text.Megaparsec.Char
@@ -11,6 +12,8 @@ import qualified Text.Megaparsec.Char.Lexer as L
 import Data.Text (Text, pack, unpack)
 import Data.Void
 import qualified Data.Map as Map
+
+import Interpret.Lib.Data.String (mlsConcat, implShow)
 
 type Parser = Parsec Void Text
 
@@ -103,13 +106,13 @@ pString = toStringTemplate <$> lexeme (between (char '"') (char '"') (many (pSub
     toStringTemplate = joinall . map toAST
     
     toAST :: Either AST String -> AST
-    toAST (Left ast)  = Cons [Atom (Symbol "show"), ast]
+    toAST (Left ast)  = Cons [Atom implShow, ast]
     toAST (Right str) = (Atom . PrimVal . String . pack $ str)
 
     joinall :: [AST] -> AST
     joinall [] = (Atom . PrimVal . String . pack $ "")
     joinall [x] = x
-    joinall (x:xs) = Cons [Atom (Symbol "⋅"), x, joinall xs]
+    joinall (x:xs) = Cons [Atom mlsConcat, x, joinall xs]
 
     pStrVal :: Parser (Either AST String)
     pStrVal = Left <$> between (string "${") (string "}") pNormal
