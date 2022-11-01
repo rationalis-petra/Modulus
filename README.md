@@ -2,22 +2,29 @@
 
 🚧🔨 **Under Construction**  🪛🚧
 
-Modulus is a programming language which is currently under heavy development. As
-such, it is rife with bugs, idiosyncrasies and unimplemented features. However,
-you can still try it out if you're interested.
+Modulus is currently under heavy development. As such, it is rife with bugs,
+idiosyncrasies and unimplemented features. However, you can still try it out if
+you're interested.
 
-## Desired Features
-+ **Structures** Tired of class hierarchy headaches? mechanism for packaging
-  type(s) and associated behaviour. They offer a compelling alternative to
-  object systems for implementing dynamic behaviour.
+## Overview
+Modulus is intended to bring together the development experience of the two
+halves of the funcitonal programming world, offering the live-programming
+experience of the Lisp family combined with the confidence inspired by the type
+systems of the ML family.
+
+### Features
++ **Structures** Tired of class hierarchy headaches? Structs are a mechanism for
+  packaging type(s) and associated behaviour. They double as both a basis for a
+  module system, and offer a compelling alternative to object systems for
+  implementing dynamic behaviour.
 
 + **Dependent Types** A powerful generalisation of existing type-systems,
   dependent types enable the type-system to express arbitrary properties, like
   "a function which returns only even numbers" or "a function which outputs
   strings containing only the letters a, b and c".
 
-+ **Metaprogramming** Write code which writes code. You can write
-  two types of macros, either modifying the parser, or rewriting syntax trees. 
++ **Metaprogramming** Write code which writes code. Modulus has two types of
+  macros, which either modify the parser, or rewrite syntax trees.
 
 + **Powerful Libraries** Modulus has a powerful set of standard libraries which
   implement not just collections, IO and networking, but also powerful parsing

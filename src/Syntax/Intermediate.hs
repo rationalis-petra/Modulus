@@ -7,6 +7,9 @@ import Prelude hiding (lookup)
 
 import Control.Monad.Except (Except, runExcept) 
 import qualified Data.Set as Set
+
+import Bindings.Libtdl (CModule)
+  
 import qualified Interpret.Environment as Env
 import Data (AST(..),
              Environment,
@@ -15,7 +18,6 @@ import Data (AST(..),
              Normal'(Symbol, Special, Keyword, NormIVal),
              Neutral,
              Neutral')
-
 
 
 -- arguments to functions may have optional type annotations
@@ -42,7 +44,6 @@ data Intermediate
   | IImplApply Intermediate Intermediate
   | IQuote AST
   | IAccess Intermediate String
-  | IDo [Intermediate]
   | IIF Intermediate Intermediate Intermediate
   | ISymbol String
   | ILet [(String, Intermediate)] Intermediate
@@ -58,7 +59,7 @@ data Intermediate
   | IMatch Intermediate [(IPattern, Intermediate)]
   | ICoMatch [(ICoPattern, Intermediate)]
   | IAnnotation String Intermediate
-  -- | IAdaptForeign String FModule [IDefinition] 
+  | IAdaptForeign String CModule [IDefinition] 
   deriving Show
 
 data IPattern

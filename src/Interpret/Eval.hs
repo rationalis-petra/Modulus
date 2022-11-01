@@ -47,7 +47,10 @@ loopAction val env state =
         Right (val, state') -> 
           loopAction val env state'
         Left _ -> pure (val, state)
-    _ -> pure (val, state)
+    (PrimVal Unit) -> pure (val, state)
+    _ -> do
+      putStrLn ("final value of main: " <> show val)
+      pure (val, state)
 
 evalTop ::  TopCore -> EvalM Result
 evalTop (TopExpr e) = eval e >>= (\val -> pure (RValue val))

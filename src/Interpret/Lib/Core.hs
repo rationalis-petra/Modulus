@@ -64,7 +64,7 @@ defFun :: [AST] -> EvalM AST
 defFun (sym : fncdef) = 
   pure $ (Cons [Atom (Special Def), sym, Cons (Atom (Special Lambda) : fncdef)])
 defFun args =  throwError $ "bad args to macro: defn" <> show args
-mlsDefun = BuiltinMac defFun
+mlsDefn = BuiltinMac defFun
 
 defMac :: [AST] -> EvalM AST
 defMac [sym, symlist, bdy] = 
@@ -162,7 +162,7 @@ coreTerms =
 
   , ("def",           Special Def)
   , ("≜",             Special Def)
-  , ("defn",          mlsDefun)
+  , ("defn",          mlsDefn)
   , ("def-syntax",    mlsDefmac)
   , ("def-structure", mlsDefStructure)
   , ("def-struct",    mlsDefStruct)

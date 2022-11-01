@@ -30,10 +30,10 @@ getType :: Normal
 getType = CollTy (IOMonadTy (PrimType StringT))
 
 systemSignature :: Normal  
-systemSignature = NormSig $ [("get_line", getType), ("put_line", putType)]
+systemSignature = NormSig $ [("get-line", getType), ("put-line", putType)]
 
 systemStructure :: Normal
 systemStructure = NormSct (toEmpty
-                  [ ("get_line", mlsGetLine) 
-                  , ("put_line", mlsPutLine)
+                  [ ("get-line", mlsGetLine) 
+                  , ("put-line", mlsPutLine)
                   ]) systemSignature

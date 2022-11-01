@@ -8,7 +8,13 @@ import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 
 data Message
+  -- updates
   = UpdateModule [String] Text
+
+  -- queries
+  | Describe [String]
+
+  -- commands
   | Compile
   | RunMain
   | Kill
@@ -41,6 +47,13 @@ pCompile :: Parser Message
 pCompile = do
   symbol "Compile"
   pure Compile
+
+pDescribe :: Parser Message  
+pDescribe = do
+  symbol "Describe"
+  symbol " "
+  path <- between (symbol "[") (symbol "]") (pure [])
+  pure $ Describe path
   
 pUpdateModule :: Parser Message
 pUpdateModule = do

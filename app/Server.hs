@@ -42,7 +42,7 @@ import qualified Control.Exception as Ex
 startServer :: ProgState -> Environment -> IO ()  
 startServer dstate denvironment  = do 
   retCode <- dlinit 
-  if (retCode == 0) then do
+  if not (retCode < 0) then do
     messageQueue <- atomically $ newTQueue 
     forkIO $ runTCPServer Nothing "4008" (serverLoop messageQueue)
     interpreter (IState dstate denvironment (Right emptyTree)) messageQueue

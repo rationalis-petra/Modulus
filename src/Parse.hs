@@ -78,9 +78,10 @@ pRightSym :: Parser Normal
 pRightSym = lexeme $ Symbol . unpack <$> (try (choice [symbol "→", symbol ":"]))
 
 
-pLiteral :: Parser Normal
-pLiteral = (PrimVal <$> choice [pUnit, pBool, pFloat, pInteger, pString])
-           <|> pSym
+pLiteral :: Parser AST
+pLiteral = choice[(Atom <$> (PrimVal <$> choice [pUnit, pBool, pFloat, pInteger])),
+                  pString,
+                  (Atom <$> pSym)]
   where
     pBool = Bool <$> (pTrue <|> pFalse) 
       where
@@ -93,9 +94,30 @@ pLiteral = (PrimVal <$> choice [pUnit, pBool, pFloat, pInteger, pString])
     pFloat = Float <$> (try $ lexeme $ sign L.float)
     pUnit = try (symbol "()") *> return Unit
 
-    pString = (String . pack)
-      <$> (lexeme (between (char '"') (char '"') (many $ satisfy (\x -> x /= '"'))))
 
+-- Strings can be template strings, i.e. allow arbitrary code-execution!  
+pString :: Parser AST
+pString = toStringTemplate <$> lexeme (between (char '"') (char '"') (many (pSubStr <|> pStrVal)))
+  where
+    toStringTemplate :: [Either AST String] -> AST
+    toStringTemplate = joinall . map toAST
+    
+    toAST :: Either AST String -> AST
+    toAST (Left ast)  = Cons [Atom (Symbol "show"), ast]
+    toAST (Right str) = (Atom . PrimVal . String . pack $ str)
+
+    joinall :: [AST] -> AST
+    joinall [] = (Atom . PrimVal . String . pack $ "")
+    joinall [x] = x
+    joinall (x:xs) = Cons [Atom (Symbol "⋅"), x, joinall xs]
+
+    pStrVal :: Parser (Either AST String)
+    pStrVal = Left <$> between (string "${") (string "}") pNormal
+    pSubStr :: Parser (Either AST String)
+    pSubStr = do
+      notFollowedBy (string "\"" <|> string "${")
+      Right <$> many (notFollowedBy (string "${") >> satisfy (/= '"'))
+    -- (notFollowedBy "${" *> satisfy (\x -> x /= '"'))
   
 
 parens   = between (symbol "(") (symbol ")")
@@ -105,7 +127,7 @@ curens   = between (symbol "{") (symbol "}")
 
 
 pTerm :: Parser AST 
-pTerm = choice [Atom <$> pLiteral,
+pTerm = choice [pLiteral,
                 (parens pNormal),
                 ((\x -> Cons [(Atom $ Keyword "implicit"), x]) <$> curens pNormal),
                 squarens (mkCall <$> pNormalNoFun <*> (many pNormalNoFun))]
@@ -224,7 +246,7 @@ pHeader = do
       symbol "export"
       many pSymStr
       
-    pSymStr = lexeme ((:) <$> (letterChar <|> char '_') <*> many (alphaNumChar <|> char '_'))
+    pSymStr = lexeme ((:) <$> (letterChar <|> char '_') <*> many (alphaNumChar <|> char '_' <|> choice (map char "!<>:*-+/.,")))
  
 -- pNormal :: Parser AST
 -- pNormal = makeNormalParser pTerm operatorTable

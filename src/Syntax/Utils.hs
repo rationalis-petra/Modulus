@@ -91,6 +91,9 @@ typeVal (CollVal val) = case val of
 
 typeVal (Neu _ ty) = pure ty
 typeVal (Special _) = pure $ PrimType SpecialT
+typeVal (NormCModule _) = pure $ PrimType CModuleT
+typeVal (NormCValue _ ty) = pure $ ty
+typeVal (BuiltinMac _) = pure $ PrimType MacroT -- TODO: add proper macro types!!
 typeVal e = throwError $ "untypable value: " <> show e
 
 

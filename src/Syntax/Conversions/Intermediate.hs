@@ -391,32 +391,47 @@ mkAccess [hd, (Atom (Symbol s))] globctx = do
   pure $ IAccess hd' s
 mkAccess args _ = throwError ("malformed access: " <> show args)
 
+-- TODO: make do a macro!
 mkDo :: [AST] -> GlobCtx -> Except String Intermediate
 mkDo es globctx = do
-  vals <- foldLet es globctx 
-  pure $ (IDo vals)
+  -- TODO: applicative do (see haskell) 
+  term <- foldDo es globctx 
+  pure $ term
   where
-    foldLet :: [AST] -> GlobCtx -> Except String [Intermediate]
-    foldLet [] _ = return []
-    foldLet [x] ctx = do
-      val <- toIntermediateM x ctx
-      pure [val] 
+    foldDo :: [AST] -> GlobCtx -> Except String Intermediate
+    foldDo [] _ = throwError ("empty do")
+    foldDo [x] ctx = toIntermediateM x ctx
+    foldDo (x:xs) ctx = case x of 
+      -- TODO: replace >> and >>= with their actual implicit versions!
+      Cons [Atom (Symbol "←"), Atom (Symbol s), expr] -> do
+        rest <- foldDo xs ctx
+        expr' <- toIntermediateM expr ctx
+        pure $ IApply (IApply (ISymbol ">>=") expr') (ILambda [(Sym s, False)] rest)
+      expr -> do
+        expr' <- toIntermediateM expr ctx
+        rest <- foldDo xs ctx
+        pure $ IApply (IApply (ISymbol ">>") expr') rest
+    -- foldLet :: [AST] -> GlobCtx -> Except String [Intermediate]
+    -- foldLet [] _ = return []
+    -- foldLet [x] ctx = do
+    --   val <- toIntermediateM x ctx
+    --   pure [val] 
       
-    foldLet (Cons [(Atom (Symbol s)), defs] : xs) ctx = 
-      case lookup s ctx of 
-        Just (Special Let) -> do
-          let newForm = [Cons [Atom (Symbol s), defs, newTl]]
-              newTl = Cons (Atom (Special Do) : xs)
-          foldLet newForm ctx 
-        _ -> do
-          result <- toIntermediateM (Cons [(Atom (Symbol s)), defs]) ctx
-          tail <- foldLet xs ctx
-          pure (result : tail)
+    -- foldLet (Cons [(Atom (Symbol s)), defs] : xs) ctx = 
+    --   case lookup s ctx of 
+    --     Just (Special Let) -> do
+    --       let newForm = [Cons [Atom (Symbol s), defs, newTl]]
+    --           newTl = Cons (Atom (Special Do) : xs)
+    --       foldLet newForm ctx 
+    --     _ -> do
+    --       result <- toIntermediateM (Cons [(Atom (Symbol s)), defs]) ctx
+    --       tail <- foldLet xs ctx
+    --       pure (result : tail)
 
-    foldLet (x : xs) ctx = do
-      hd <- toIntermediateM x ctx
-      rest <- (foldLet xs ctx)
-      pure $ hd : rest
+    -- foldLet (x : xs) ctx = do
+    --   hd <- toIntermediateM x ctx
+    --   rest <- (foldLet xs ctx)
+    --   pure $ hd : rest
 
 mkAnnotate :: [AST] -> GlobCtx -> Except String Intermediate
 mkAnnotate [(Atom (Symbol str)), term] ctx  = do

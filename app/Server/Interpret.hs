@@ -11,7 +11,8 @@ import qualified Control.Monad.Except as Except
 import Bindings.Libtdl  
 
 import Data(Normal,
-            Normal'(NormSct, NormSig),
+            Normal'(NormSct, NormSig, NormCModule, PrimType),
+            PrimType(CModuleT),
             ProgState,
             TopCore(..),
             Environment,
@@ -86,8 +87,10 @@ compileTree (Node dir mtext) state ctx = do
         Right (dir', state') -> 
           case parseModule "main" text of
             Right ((inp, fmdles, exp, _), terms) -> do
-              fModules <- resolveForeign fmdles
-              pure $ evalToEither ((Node dir' . Just) <$> compileModule ((inp, fModules, exp), terms) text dir') ctx state' 
+              mfmodules  <- resolveForeign fmdles
+              case mfmodules of 
+                Just fModules -> pure $ evalToEither ((Node dir' . Just) <$> compileModule ((inp, fModules, exp), terms) text dir') ctx state' 
+                Nothing -> pure $ Left ("failed to load foreign modules " <> show fmdles)
             Left err -> pure $ Left $ show err
         Left err -> pure $ Left err
     Nothing -> do
@@ -113,7 +116,8 @@ compileTree (Node dir mtext) state ctx = do
       
     compileModule ((inp, fmdles, exp), terms) source dir = do
       imports <- liftExcept $ resolveImports inp dir
-      localF (flip (foldr (\(k, (v, ty)) -> Env.insert k v ty)) imports) $ do
+      let addToEnv = flip (foldr (\(k, (v, ty)) -> Env.insert k v ty))
+      localF (addToEnv imports . addToEnv fmdles) $ do
 
         let foldTerms [] = pure ([], [])
             foldTerms (def:defs) = do
@@ -209,8 +213,10 @@ resolveImports (s:ss) dict =
     _ -> Except.throwError ("couldn't find import: " <> s)
 
   
-resolveForeign :: [String] -> IO [FModule]
-resolveForeign = mapM loadModule 
+resolveForeign :: [String] -> IO (Maybe [(String, (Normal, Normal))])
+resolveForeign vals = do
+  maybes <- mapM loadModule vals
+  pure $ zip vals <$> mapM (fmap $ flip (,) (PrimType CModuleT) . NormCModule) maybes
         
        
 toRaw :: (Either RawTree ModuleTree ) -> RawTree

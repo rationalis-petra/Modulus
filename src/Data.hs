@@ -39,6 +39,7 @@ import Control.Monad.State (StateT)
 import Control.Monad.Except (ExceptT) 
 import Control.Monad.Reader (ReaderT) 
 
+import Bindings.Libtdl
 
 -- TODO: untangle core & Normalized values
 data Definition
@@ -219,7 +220,11 @@ data Normal' m
   | Keyword String
   | Symbol String 
   | AST AST
-  -- stuff related to macros etc.
+
+  -- Foreign values
+  | NormCModule CModule    -- a foreign library
+  | NormCValue CValue (Normal' m) -- a foreign value + its' type
+
 
 data Neutral' m
   = NeuVar String (Normal' m)
@@ -229,12 +234,9 @@ data Neutral' m
   | NeuIf (Neutral' m) (Normal' m) (Normal' m) (Normal' m)
   | NeuMatch (Neutral' m) [(Pattern, Normal)] (Normal' m)
   | NeuCoMatch (Neutral' m) [(CoPattern, Normal)]
-
   | NeuBuiltinApp (Normal' m -> m (Normal' m)) (Neutral' m) (Normal' m)
-  
 
 
--- data AST = Atom Expr | Cons AST 
 data AST
   = Atom Normal
   | Cons [AST]
@@ -304,6 +306,9 @@ instance Show (Normal' m) where
   show (Symbol sym) = "<" <> sym <> ">"
   show (AST ast) = "AST" <> show ast
 
+  show (NormCModule _) = "<c-module>"
+  show (NormCValue _ ty) = "<cvalue: " <> show ty <> ">"
+
 
 instance Show (Neutral' m) where
   show (NeuVar var _) = var
@@ -325,7 +330,7 @@ instance Show (Neutral' m) where
 data PrimType
   = BoolT | SpecialT | CharT | IntT | NatT | FloatT | UnitT | StringT | AbsurdT
   -- TODO: refactor ctypes via a plugin system!
-  | CIntT
+  | CModuleT | CIntT | MacroT
   deriving (Eq, Ord)
   
 
@@ -347,7 +352,9 @@ instance Show PrimType where
   show StringT = "String"
   show AbsurdT = "Absurd"
 
+  show MacroT  = "Macro"
   show CIntT   = "CInt"
+  show CModuleT  = "CModule"
 
 
 instance Show PrimVal where   
@@ -382,7 +389,8 @@ instance Show (InbuiltCtor m) where
 instance Show AST where
   show e = "AST: " <> show_ast e
     where
-      show_ast (Cons lst) = "(" <> foldr (\s1 s2 -> show_ast s1 <> " " <> s2) ")" lst   
+      show_ast (Cons [x]) = "(" <> show_ast x <>  ")"
+      show_ast (Cons (x:xs)) = "(" <> show_ast x <> foldr (\s1 s2 -> " " <> show_ast s1 <> s2) ")" xs   
       show_ast (Atom x) = show x 
   
 
