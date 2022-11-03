@@ -27,7 +27,8 @@ foreign import ccall "ltdl.h lt_dlopen" dlopen :: CString -> IO (Ptr OpaqueDlHan
 foreign import ccall "ltdl.h lt_dlopenext" dlopenext :: CString -> IO (Ptr OpaqueDlHandle)
 
 -- loading symbols
-foreign import ccall "ltdl.h lt_dlsym" dlsym :: (Ptr OpaqueDlHandle) -> CString -> IO (FunPtr a)
+foreign import ccall "ltdl.h lt_dlsym" dlsymfun :: (Ptr OpaqueDlHandle) -> CString -> IO (FunPtr a)
+foreign import ccall "ltdl.h lt_dlsym" dlsym :: (Ptr OpaqueDlHandle) -> CString -> IO (Ptr a)
 
 foreign import ccall "ltdl.h lt_dlerror" dlerr :: IO CString
 -- error message reporting
@@ -72,11 +73,20 @@ loadModule str = do
   else
     pure $ Just (CModule result)
 
-lookupForeignSym :: CModule -> String -> Maybe (FunPtr a)
-lookupForeignSym cmodule str = 
-  let result = unsafePerformIO $ withCString str (dlsym . unwrap $ cmodule)
+lookupForeignFun :: CModule -> String -> Maybe (FunPtr a)
+lookupForeignFun cmodule str = 
+  let result = unsafePerformIO $ withCString str (dlsymfun . unwrap $ cmodule)
   in
     if nullFunPtr == result then
+      Nothing
+    else
+      Just result
+
+lookupForeignVal :: CModule -> String -> Maybe (Ptr a)
+lookupForeignVal cmodule str = 
+  let result = unsafePerformIO $ withCString str (dlsym . unwrap $ cmodule)
+  in
+    if nullPtr == result then
       Nothing
     else
       Just result

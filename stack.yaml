@@ -41,6 +41,7 @@ packages:
 #   commit: e7b331f14bcffb8367cd58fbfc8b40ec7642100a
 #
 # extra-deps: 
+# - libffi-0.2.1
 # - bindings-libffi-0.3
 # - llvm-hs-9.0.1
 

@@ -32,6 +32,7 @@ dependencies:
 - stm                  # concurrency/transactional memory
 - network              # networking 
 - bytestring
+- libffi
 # - llvm-hs
 
 library:

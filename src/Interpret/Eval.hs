@@ -18,6 +18,10 @@ module Interpret.Eval (Normal,
 
 import Prelude hiding (lookup)
 
+import Foreign.Ptr (FunPtr, Ptr)
+import Foreign.LibFFI (Arg, callFFI, argCDouble, retCDouble) 
+import System.IO.Unsafe (unsafePerformIO)
+
 import Control.Monad.State (State, runState, runStateT)
 import Control.Monad.Except (ExceptT, runExceptT)
 import Control.Monad.Reader (ReaderT, runReaderT)
@@ -26,7 +30,7 @@ import qualified Interpret.Environment as Env
 import Syntax.Utils  
 import Interpret.EvalM
 
-import Bindings.Libtdl (CModule, lookupForeignSym, mkFun)
+import Bindings.Libtdl (CModule, lookupForeignFun, mkFun)
 import Foreign.C.Types (CDouble)
   
 import Data
@@ -335,7 +339,7 @@ eval (CAdaptForeign lang libsym imports) = do
       lib <- eval $ CVar libsym
       case lib of
         NormCModule m -> do
-          vals <- mapM (\(_, fsym, ty) -> getAsBuiltin m fsym ty) imports
+          vals <- mapM (\(_, fsym, ty) -> getAsBuiltin2 m fsym ty) imports
           let ty = NormSig $ map (\(s, _, ty) -> (s, ty)) imports
           pure $ NormSct (toEmpty $ zipWith (\(s, _, ty) val -> (s, val)) imports vals) ty
         _ -> throwError "foreign-adapter only works if module is available at compile?-time!"
@@ -762,7 +766,7 @@ getAsBuiltin :: CModule -> String -> Normal -> EvalM Normal
 getAsBuiltin m sym ty = 
   case ty of 
     NormArr (PrimType CDoubleT) (PrimType CDoubleT) -> do
-      case lookupForeignSym m sym of
+      case lookupForeignFun m sym of
         Just funPtr -> pure $ liftFun (liftToHask (mkFun funPtr)) ty
           where liftToHask f (PrimVal (CDouble d)) = 
                   pure . PrimVal . CDouble $ f d 
@@ -770,3 +774,42 @@ getAsBuiltin m sym ty =
 
     _ -> throwError ("bad ty to getAsbuiltin: " <> show ty)
   -- case lookupForeignSym m sym of 
+
+getAsBuiltin2 :: CModule -> String -> Normal -> EvalM Normal
+getAsBuiltin2 m sym ty = 
+  if isFncType ty then 
+    case lookupForeignFun m sym of 
+      Just f -> do 
+        let retTy = getRet ty
+            lst = argList ty
+        ty' <- tyTail ty
+        pure $ liftFun (cCall f lst [] retTy ty') ty
+  else
+    throwError ("cannot currently convert " <> show ty)
+
+  where 
+    argList (NormArr l r) = l : argList r
+    argList (NormProd sym a b) = a : argList b
+    argList (NormImplProd sym a b) = a : argList b
+    argList _ = []
+
+    cCall :: FunPtr CDouble -> [Normal] -> [Arg] -> Normal -> Normal -> Normal -> EvalM Normal
+    cCall fnc [argTy] cargs retTy ty' arg = do
+      carg <- getArg argTy arg
+      case retTy of 
+        (PrimType CDoubleT) ->
+          pure . PrimVal . CDouble $ unsafePerformIO $ callFFI fnc retCDouble (carg:cargs)
+      -- TODO: IO/Monad type
+    cCall fnc (argty:args) cargs retTy ty' val = do
+      carg <- getArg argty val
+      ty'' <- tyTail ty'
+      pure $ liftFun (cCall fnc args (carg:cargs) retTy ty'') ty'
+
+    getArg (PrimType CDoubleT) (PrimVal (CDouble d)) =  
+      pure $ argCDouble d
+    getArg _ _ = throwError "bed getArg in getAsBuiltin"
+
+    getRet (NormArr _ r) = getRet r
+    getRet (NormProd _ _ r) = getRet r
+    getRet (NormImplProd _ _ r) = getRet r
+    getRet v = v
