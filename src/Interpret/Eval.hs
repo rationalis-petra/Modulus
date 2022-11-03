@@ -25,6 +25,9 @@ import qualified Interpret.Environment as Env
 
 import Syntax.Utils  
 import Interpret.EvalM
+
+import Bindings.Libtdl (CModule, lookupForeignSym, mkFun)
+import Foreign.C.Types (CDouble)
   
 import Data
 import qualified Data.Map as Map
@@ -315,8 +318,6 @@ eval (CCoMatch patterns ty) = do
     getPatNeu (CoVarBind sym ty) = Env.insert sym (Neu (NeuVar sym ty) ty) ty
     getPatNeu (CoMatchInduct _ _ _ pats) = flip (foldr getPatNeu) pats
 
-
-
 eval (CIf cond e1 e2 ty) = do 
   cond' <- eval cond
   case cond' of 
@@ -327,6 +328,18 @@ eval (CIf cond e1 e2 ty) = do
     PrimVal (Bool True) -> eval e1
     PrimVal (Bool False) -> eval e2
     _ -> throwError "eval expects condition to be bool"
+
+eval (CAdaptForeign lang libsym imports) = do
+  case lang of 
+    "c" -> do
+      lib <- eval $ CVar libsym
+      case lib of
+        NormCModule m -> do
+          vals <- mapM (\(_, fsym, ty) -> getAsBuiltin m fsym ty) imports
+          let ty = NormSig $ map (\(s, _, ty) -> (s, ty)) imports
+          pure $ NormSct (toEmpty $ zipWith (\(s, _, ty) val -> (s, val)) imports vals) ty
+        _ -> throwError "foreign-adapter only works if module is available at compile?-time!"
+    _ -> throwError "can only load c modules"
 
 eval other = throwError ("eval not implemented for" <> show other)
 
@@ -744,3 +757,16 @@ applyDtor id1 id2 strip (arg:args)
 
 
 applyDtor _ _ _ _ = throwError "bad destructor application"  
+
+getAsBuiltin :: CModule -> String -> Normal -> EvalM Normal
+getAsBuiltin m sym ty = 
+  case ty of 
+    NormArr (PrimType CDoubleT) (PrimType CDoubleT) -> do
+      case lookupForeignSym m sym of
+        Just funPtr -> pure $ liftFun (liftToHask (mkFun funPtr)) ty
+          where liftToHask f (PrimVal (CDouble d)) = 
+                  pure . PrimVal . CDouble $ f d 
+        Nothing -> throwError ("couldn't find foreign symbol: " <> sym)
+
+    _ -> throwError ("bad ty to getAsbuiltin: " <> show ty)
+  -- case lookupForeignSym m sym of 

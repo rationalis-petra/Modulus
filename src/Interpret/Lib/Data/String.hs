@@ -43,6 +43,14 @@ strShow = liftFun sshow (NormArr (PrimType StringT) (PrimType StringT))
     sshow (PrimVal (String s)) = pure (PrimVal (String s))
     sshow _ = throwError "length expects string as an argument"
 
+  
+strEq :: Normal  
+strEq = liftFun2 eq (NormArr (PrimType StringT) (NormArr (PrimType StringT) (PrimType BoolT)))
+  where
+    eq :: Normal -> Normal -> EvalM Normal
+    eq (PrimVal (String s1)) (PrimVal (String s2)) = pure (PrimVal (Bool (s1 == s2)))
+    eq _ _ = throwError "string = expects two strings as arguments"
+
 showableTy :: Normal  
 showableTy = NormUniv 0
 
@@ -74,6 +82,7 @@ stringSignature = NormSig
                   , ("⋅",       (NormArr t (NormArr t t)))
                   , ("show",    (NormArr t (PrimType StringT)))
                   , ("!!",      (NormArr t (NormArr (PrimType IntT) (NormArr t t))))
+                  , ("=",       (NormArr (PrimType StringT) (NormArr (PrimType StringT) (PrimType BoolT))))
                   , ("index",   (NormArr t (NormArr (PrimType IntT) (NormArr t t))))
                   ]
   where
@@ -88,5 +97,6 @@ stringStructure = NormSct (toEmpty
                   , ("⋅",      mlsConcat)
                   , ("show",   strShow)
                   , ("!!",     mlsElement)
+                  , ("=",      strEq)
                   , ("index",  mlsElement)
                   ]) stringSignature

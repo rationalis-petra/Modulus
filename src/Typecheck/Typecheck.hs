@@ -185,44 +185,44 @@ typeCheckTop (TDefinition def) ctx =
 
 
 typeCheck :: TIntermediate TIntermediate' -> Environment -> EvalM (TIntermediate Normal, Normal, Subst)
-typeCheck expr ctx = case expr of
+typeCheck expr env = case expr of
   (TValue v) -> do
     t <- liftExcept (typeVal v)
     pure (TValue v, t, nosubst)
 
   (TSymbol s) -> do
-    case runExcept (Env.lookup s ctx) of 
+    case runExcept (Env.lookup s env) of 
       Right (_, ty) -> pure (TSymbol s, ty, nosubst)
       Left err -> throwError ("couldn't find type of symbol " <> s <> " err-msg: " <> err)
 
   
   (TImplApply l r) -> do 
-    (l', tl, substl) <- typeCheck l ctx
-    (r', tr, substr) <- typeCheck r ctx
+    (l', tl, substl) <- typeCheck l env
+    (r', tr, substr) <- typeCheck r env
     substboth <- compose substl substr
     case tl of  
       NormImplProd var t1 t2 -> do
-        (lapp, rapp, substcomb) <- constrain t1 tr ctx
+        (lapp, rapp, substcomb) <- constrain t1 tr env
         subst <- compose substcomb substboth
-        appTy <- evalNIntermediate r' ctx
+        appTy <- evalNIntermediate r' env
         retTy <- Eval.normSubst (appTy, var) t2
         pure (TImplApply l' r', retTy, subst)
       t -> throwError ("implicit application to non-implicit type" <> show t)
 
   (TApply l r) -> do 
-    (l', tl, substl) <- typeCheck l ctx
-    (r', tr, substr) <- typeCheck r ctx
+    (l', tl, substl) <- typeCheck l env
+    (r', tr, substr) <- typeCheck r env
     substboth <- compose substl substr
     case tl of  
       NormArr t1 t2 -> do 
-        (_, app, substcomb) <- constrain t1 tr ctx
+        (_, app, substcomb) <- constrain t1 tr env
         let r'' = mkApp r' app
         subst <- compose substcomb substboth
         pure (TApply l' r'', t2, subst)
       NormProd var a t2 -> do 
-        (_, app, substcomb) <- constrain a tr ctx
+        (_, app, substcomb) <- constrain a tr env
         subst <- compose substcomb substboth
-        depApp <- evalNIntermediate r' ctx
+        depApp <- evalNIntermediate r' env
         let r'' = mkApp r' app -- TODO: use depApp instead of r'?? (possibly just an optimisation?)
         retTy <- Eval.normSubst (depApp, var) t2
         pure (TApply l' r'', retTy, subst)
@@ -254,7 +254,7 @@ typeCheck expr ctx = case expr of
         (args, unbnd, subst, rettype) <- deriveFn t2 tr r
         case findStrSubst var subst of 
           Just val -> do
-            val' <- inferVar val a ctx
+            val' <- inferVar val a env
             retTy <- Eval.normSubst (val', var) rettype
             pure (((True, (TValue val')) : args),
                            unbnd,
@@ -263,11 +263,11 @@ typeCheck expr ctx = case expr of
           Nothing -> pure ((True, TValue (mkVar var)) : args, ((NormUniv 0, var):unbnd),
                            rmSubst var subst, rettype)
       deriveFn (NormArr t1 t2) tr r = do
-        (app, lapp, subst) <- constrain tr t1 ctx
+        (app, lapp, subst) <- constrain tr t1 env
         pure ([(False, mkApp r app)], [], subst, t2)
       deriveFn t tr r = do
         var' <- freshVar 
-        (lapp, rapp, subst) <- constrain (NormArr tr var') t ctx
+        (lapp, rapp, subst) <- constrain (NormArr tr var') t env
         -- TODO
         -- if not (null lapp && null rapp) then err "unsure of how to handle non-empty l/rapp in deriveFn"
         -- else
@@ -303,8 +303,8 @@ typeCheck expr ctx = case expr of
           
 
   (TLambda args body mty) -> do 
-     (ctx', args') <- updateFromArgs ctx args
-     (body', ty, subst) <- typeCheck body ctx'
+     (env', args') <- updateFromArgs env args
+     (body', ty, subst) <- typeCheck body env'
      case mty of 
        Nothing -> do
          let (fnlArgs, fnlsubst) = fixArgs args' subst
@@ -360,16 +360,16 @@ typeCheck expr ctx = case expr of
   (TProd (arg, bl) body) -> do
     case arg of  
       BoundArg var (TIntermediate' ty) -> do
-        ty' <- evalTIntermediate ty ctx
-        (body', bodyTy, subst) <- typeCheck body (Env.insert var (Neu (NeuVar var ty') ty') ty' ctx)
+        ty' <- evalTIntermediate ty env
+        (body', bodyTy, subst) <- typeCheck body (Env.insert var (Neu (NeuVar var ty') ty') ty' env)
         pure (TProd (BoundArg var ty', bl) body', NormUniv 0, subst)
       TWildCard (TIntermediate' ty) -> do
-        ty' <- evalTIntermediate ty ctx
-        (body', bodyTy, subst) <- typeCheck body ctx
+        ty' <- evalTIntermediate ty env
+        (body', bodyTy, subst) <- typeCheck body env
         pure (TProd (TWildCard ty', bl) body', NormUniv 0, subst)
 
   (TAccess term field) -> do
-    (term', ty, subst) <- typeCheck term ctx
+    (term', ty, subst) <- typeCheck term env
 
     -- TODO: signatures need types?
     -- TODO: what if there is a substituion 
@@ -381,11 +381,11 @@ typeCheck expr ctx = case expr of
          
        
   (TIF cond e1 e2 Nothing) -> do 
-    (cond', tcond, substcond) <- typeCheck cond ctx
-    (e1', te1, subste1) <- typeCheck e1 ctx
-    (e2', te2, subste2) <- typeCheck e2 ctx
-    (capp, _, substcnd') <- constrain tcond (PrimType BoolT) ctx
-    (lapp, rapp, substterms) <- constrain te1 te2 ctx
+    (cond', tcond, substcond) <- typeCheck cond env
+    (e1', te1, subste1) <- typeCheck e1 env
+    (e2', te2, subste2) <- typeCheck e2 env
+    (capp, _, substcnd') <- constrain tcond (PrimType BoolT) env
+    (lapp, rapp, substterms) <- constrain te1 te2 env
 
     let cond'' = mkApp cond' capp
         e1'' = mkApp e1' lapp
@@ -402,15 +402,15 @@ typeCheck expr ctx = case expr of
     let foldDefs :: [TDefinition TIntermediate'] -> Environment
                  -> EvalM ([TDefinition Normal], [(String, Normal)], Subst)
         foldDefs [] _ = pure ([], [], nosubst)
-        foldDefs (def : defs) ctx = do
-          (def', deflist, subst) <- typeCheckDef def ctx
-          (defs', fields, subst') <- foldDefs defs (foldr (\(var, val) ctx ->
-                                                             Env.insert var (Neu (NeuVar var val) val) val ctx)
-                                                     ctx deflist)
+        foldDefs (def : defs) env = do
+          (def', deflist, subst) <- typeCheckDef def env
+          (defs', fields, subst') <- foldDefs defs (foldr (\(var, val) env ->
+                                                             Env.insert var (Neu (NeuVar var val) val) val env)
+                                                     env deflist)
           fnlSubst <- compose subst subst'
           pure (def' : defs',  deflist <> fields, fnlSubst)
           
-    (defs', fields, subst) <- foldDefs defs ctx
+    (defs', fields, subst) <- foldDefs defs env
 
     pure (TStructure defs' (Just (NormSig fields)), NormSig fields, subst)
 
@@ -418,20 +418,20 @@ typeCheck expr ctx = case expr of
     let foldDefs :: [TDefinition TIntermediate'] -> Environment
                  -> EvalM ([TDefinition Normal], [(String, Normal)], Subst)
         foldDefs [] _ = pure ([], [], nosubst)
-        foldDefs (def : defs) ctx = do
-          (def', deflist, subst) <- typeCheckDef def ctx
-          (defs', fields, subst') <- foldDefs defs (foldr (\(var, val) ctx ->
-                                                             Env.insert var (Neu (NeuVar var val) val) val ctx)
-                                                     ctx deflist)
+        foldDefs (def : defs) env = do
+          (def', deflist, subst) <- typeCheckDef def env
+          (defs', fields, subst') <- foldDefs defs (foldr (\(var, val) env ->
+                                                             Env.insert var (Neu (NeuVar var val) val) val env)
+                                                     env deflist)
           fnlSubst <- compose subst subst'
           pure (def' : defs',  deflist <> fields, fnlSubst)
           
-    (defs', fields, subst) <- foldDefs defs ctx
+    (defs', fields, subst) <- foldDefs defs env
 
     pure (TSignature defs', NormUniv 0, subst)
 
   (TMatch term patterns Nothing) -> do
-    (term', ty, subst) <- typeCheck term ctx
+    (term', ty, subst) <- typeCheck term env
     retTy <- freshVar 
     (patterns', subst') <- checkPatterns patterns ty retTy
     outSubst <- compose subst subst'
@@ -450,16 +450,16 @@ typeCheck expr ctx = case expr of
       checkPatterns [] _ _ = pure ([], nosubst)
       checkPatterns ((p, e) : ps) matchty retty = do
         -- an updated pattern, and the type thereof  
-        (p', matchty', ctxUpd) <- getPatternType p
+        (p', matchty', envUpd) <- getPatternType p
         
   
-        let ctx' = foldr (\(sym, ty) ctx -> Env.insert sym (Neu (NeuVar sym ty) ty) ty ctx) ctx ctxUpd
-        (e', eret, esubst) <- typeCheck e ctx'
+        let env' = foldr (\(sym, ty) env -> Env.insert sym (Neu (NeuVar sym ty) ty) ty env) env envUpd
+        (e', eret, esubst) <- typeCheck e env'
 
         -- TODO: ensure that the constrains are right way round...
         -- TODO: what to do with lapp1, lapp2 etc...
-        (lapp1, rapp1, restMatchSubst) <- constrain matchty matchty' ctx
-        (lapp2, rapp2, restRetSubst) <- constrain retty eret ctx
+        (lapp1, rapp1, restMatchSubst) <- constrain matchty matchty' env
+        (lapp2, rapp2, restRetSubst) <- constrain retty eret env
         (ps', pssubst) <- checkPatterns ps matchty retty
         restRetSubst' <- varRight restRetSubst
 
@@ -485,7 +485,7 @@ typeCheck expr ctx = case expr of
         ty <- freshVar
         pure $ (TBindPat sym (Just ty), ty, [(sym, ty)])
       getPatternType (TIMatch indid altid strip (TIntermediate' ctorTy) subPatterns) = do 
-        ctorTy' <- evalTIntermediate ctorTy ctx
+        ctorTy' <- evalTIntermediate ctorTy env
         let types = getTypes (dropTypes strip ctorTy')
         lst <- mapM getPatternType' (zip subPatterns types)
         let (subPatterns', types, binds) = foldr (\(p, t, b) (ps, ts, bs) -> (p:ps, t:ts, b<>bs))
@@ -498,7 +498,7 @@ typeCheck expr ctx = case expr of
         lst <- mapM getPatternType pats
         let (subpatterns', norms, vars) =
               foldr (\(s, n, v) (ss, ns, vs) -> (s:ss, n:ns, v <> vs)) ([], [], []) lst
-        ty' <- evalTIntermediate ty ctx
+        ty' <- evalTIntermediate ty env
         retty <- foldTyApp strip ty' norms
         pure $ (TBuiltinMatch fnc strip ty' subpatterns', retty, vars)
         where 
@@ -534,16 +534,16 @@ typeCheck expr ctx = case expr of
       checkPatterns [] _ = pure ([], nosubst)
       checkPatterns ((p, e) : ps) retTy = do
         -- an updated pattern, and the type thereof  
-        (p', fncRet, retTy', ctxUpd) <- getPatternType p
+        (p', fncRet, retTy', envUpd) <- getPatternType p
         
   
-        let ctx' = foldr (\(sym, ty) ctx -> Env.insert sym (Neu (NeuVar sym ty) ty) ty ctx) ctx ctxUpd
-        (e', bodyTy, esubst) <- typeCheck e ctx'
+        let env' = foldr (\(sym, ty) env -> Env.insert sym (Neu (NeuVar sym ty) ty) ty env) env envUpd
+        (e', bodyTy, esubst) <- typeCheck e env'
 
         -- TODO: ensure that the constrains are right way round...
         -- TODO: what to do with lapp1, lapp2 etc...
-        (lapp1, rapp1, bodySubst) <- constrain fncRet bodyTy ctx
-        (lapp2, rapp2, retSubst) <- constrain retTy retTy' ctx
+        (lapp1, rapp1, bodySubst) <- constrain fncRet bodyTy env
+        (lapp2, rapp2, retSubst) <- constrain retTy retTy' env
         (ps', pssubst) <- checkPatterns ps retTy
 
         if not (null lapp1 && null lapp2 && null rapp1 && null rapp2) then
@@ -560,7 +560,7 @@ typeCheck expr ctx = case expr of
         
       getPatternType :: TCoPattern TIntermediate' -> EvalM (TCoPattern Normal, Normal, Normal, [(String, Normal)]) 
       getPatternType (TCoinductPat name indid altid strip (TIntermediate' altTy) subpatterns) = do 
-        altTy' <- evalTIntermediate altTy ctx
+        altTy' <- evalTIntermediate altTy env
         let types = getTypes (dropTypes strip altTy')
             fncRetTy = fnlType altTy'
             retTy = head types
@@ -574,6 +574,15 @@ typeCheck expr ctx = case expr of
       getPatternType' :: (Normal, TCoPattern TIntermediate') -> EvalM (TCoPattern Normal, Normal, [(String, Normal)]) 
       getPatternType' (ty, TCoWildPat) = pure (TCoWildPat, ty, [])
       getPatternType' (ty, TCoBindPat sym Nothing) = pure (TCoBindPat sym (Just ty), ty, [(sym, ty)])
+
+
+  
+  (TAdaptForeign lang lib types Nothing) -> do
+    types' <- mapM (\(s1, s2, (TIntermediate' i)) -> (,,) s1 s2 <$> evalTIntermediate i env) types
+    let ty = NormSig $ map (\(s, _, v) -> (s, v)) types'
+    pure $ (TAdaptForeign lang lib types' (Just ty), ty, nosubst)
+     
+    
       
   other -> 
     throwError ("typecheck unimplemented for intermediate term " <> show other)

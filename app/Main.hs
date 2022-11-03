@@ -2,7 +2,9 @@ module Main where
 
 import Control.Monad.Except (runExcept)
 
-import Parse (parseScript, parseRepl)
+import Bindings.Libtdl  
+
+import Parse (parseScript, parseRepl, parsePreRepl, ReplMessage(..))
 import Data
 import Interpret.Eval (evalToEither, evalTop, Result(..), loopAction)
 import Syntax.Macroexpand 
@@ -59,14 +61,18 @@ main = do
         case m of 
           m | m == "c" || m == "compiled" ->
               putStrLn "compilation not implemented yet!"
-            | m == "i" || m == "interactive" ->
-              if null f then
-                repl defaultEnv defaultState
-              else do
-                handle <- openFile f ReadMode
-                contents <- hGetContents handle
-                (env', state') <- runInteractively contents defaultEnv defaultState
-                repl env' state'
+            | m == "i" || m == "interactive" -> do
+              succ <- initModuleLoader 
+              if succ then do
+                if null f then
+                  repl defaultEnv defaultState
+                else do
+                  handle <- openFile f ReadMode
+                  contents <- hGetContents handle
+                  (env', state') <- runInteractively contents defaultEnv defaultState
+                  repl env' state'
+              else
+                putStrLn "module loader failed to initialize"
             | m == "s" || m == "server" ->
               startServer defaultState defaultEnv
 
@@ -86,12 +92,18 @@ repl :: Environment -> ProgState -> IO ()
 repl env state = do
   putStr "> "
   hFlush stdout
-  lne <- getLine
-  case lne of 
-    ":q" -> pure ()
-    ":t" -> repl env state
-    _ -> do
-      case parseRepl "stdin" (pack lne) of
+  line <- getLine
+  case parsePreRepl "repl" (pack line) of 
+    Left err -> printFlush err >> repl env state
+    Right Quit -> pure ()
+    Right (LoadForeign str) -> do
+      mdle <- loadModuleWithErr str
+      case mdle of  
+        Right v -> printFlush "success!"
+        Left err -> printFlush ("failed to load " <> str <> ": " <> err)
+      repl env state 
+    Right Continue ->
+      case parseRepl "stdin" (pack line) of
         Left err -> do
           printFlush err
           repl env state 

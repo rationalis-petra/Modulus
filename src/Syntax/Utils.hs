@@ -62,6 +62,9 @@ typeVal (PrimVal e) = pure (PrimType (typePrim e))
       Float _ -> FloatT
       Char _ -> CharT
       String _ -> StringT
+
+      CInt _ -> CIntT
+      CDouble _ -> CDoubleT
 typeVal (Refl ty) = pure $ PropEq ty ty
 typeVal (PropEq _ _) = pure $ NormUniv 0
 typeVal (InbuiltCtor ctor) = case ctor of 
@@ -215,3 +218,9 @@ tyTail (NormArr l r) = pure r
 tyTail (NormProd sym a b) = pure b
 tyTail (NormImplProd sym a b) = pure b
 tyTail hd = throwError ("can't get type tail of " <> show hd)
+
+isFncType :: Normal -> Bool
+isFncType (NormArr _ _) = True
+isFncType (NormProd _ _ _) = True
+isFncType (NormImplProd _ _ _) = True
+isFncType _ = False

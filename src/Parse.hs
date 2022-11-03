@@ -57,8 +57,8 @@ many1 p = (:) <$> p <*> (many p)
   
 pSym :: Parser Normal
 pSym = (lexeme $ Symbol <$> pSymStr) <|> (try (between (symbol "(") (symbol ")") pSpecial))
-  where
-    pSymStr = (:) <$> (letterChar <|> char '_') <*> many (alphaNumChar <|> char '_' <|> char '-')
+  
+pSymStr = (:) <$> (letterChar <|> char '_') <*> many (alphaNumChar <|> char '_' <|> char '-')
 
 
 pSpecial :: Parser Normal
@@ -243,19 +243,42 @@ pHeader = do
 
     pForeign = do
       symbol "foreign"
-      many pSymStr
+      many pForeignTerm
+        where
+          pForeignTerm = parens ((,) <$> lexeme pSymStr <*> pString)
 
     pExports = do
       symbol "export"
       many pSymStr
-      
-    pSymStr = lexeme ((:) <$> (letterChar <|> char '_') <*> many (alphaNumChar <|> char '_' <|> choice (map char "!<>:*-+/.,")))
+
+    pString :: Parser String
+    pString = lexeme $ between (char '"') (char '"') (many $ satisfy (/= '"'))
+
+    pSymStr =
+      lexeme $ (:) <$> (letterChar <|> char '_') <*> many (alphaNumChar <|> char '_' <|> char '-')
  
--- pNormal :: Parser AST
--- pNormal = makeNormalParser pTerm operatorTable
 
 pTop :: Parser [AST]
 pTop = sc *> try (many (parens pNormal)) <* sc
+
+
+data ReplMessage
+  = Quit
+  | LoadForeign String
+  | Continue
+  
+  
+pPreRepl :: Parser ReplMessage 
+pPreRepl = choice
+  [ ((string ":q") >> pure Quit)
+  , (LoadForeign <$> (symbol ":foreign" >> pLibStr))
+  , (many (satisfy (const True)) >> pure Continue)
+  ]
+  where 
+    pLibStr = (:) <$> (letterChar <|> char '_') <*> many (alphaNumChar <|> oneOf "_-.")
+
+    oneOf :: [Char] -> Parser Char
+    oneOf x = choice (map char x)
 
 pRepl :: Parser AST
 pRepl = sc *> pNormal
@@ -266,6 +289,9 @@ pMod = do
   defs <- pTop
   eof
   pure (header, defs)
+
+  
+parsePreRepl = runParser (pPreRepl <* eof)
 
 parseScript = runParser (pTop <* eof)
 

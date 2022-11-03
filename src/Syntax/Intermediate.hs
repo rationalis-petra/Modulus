@@ -59,7 +59,9 @@ data Intermediate
   | IMatch Intermediate [(IPattern, Intermediate)]
   | ICoMatch [(ICoPattern, Intermediate)]
   | IAnnotation String Intermediate
-  | IAdaptForeign String CModule [IDefinition] 
+
+  -- TODO: plugin system!!
+  | IAdaptForeign String String [(String, String, Intermediate)]
   deriving Show
 
 data IPattern

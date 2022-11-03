@@ -216,4 +216,6 @@ toCore (TCoMatch patterns (Just ty)) = do
       pure $ (CoMatchInduct name id1 id2 pats')
 
 
+toCore (TAdaptForeign lang lib imports (Just ty)) =
+  pure $ CAdaptForeign lang lib imports
 toCore x = err ("toCore: unimplemented for " <> show x)

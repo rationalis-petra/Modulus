@@ -152,6 +152,10 @@ toTIntermediate (ICoMatch cases) = do
           pure (TCoinductPat name altid vid strip (TIntermediate' (TValue ty)) subPatterns)
         _ -> throwError ("couldn't extract pattern from val: " <> show val)
 
+toTIntermediate (IAdaptForeign lang lib annotations) = do 
+  annotations' <- mapM (\(s1, s2, i) -> (,,) s1 s2 .  TIntermediate' <$> toTIntermediate i) annotations
+  pure $ TAdaptForeign lang lib annotations' Nothing
+
 toTIntermediate (IDefinition _) = throwError ("defs must be toplevel! ")
 toTIntermediate x = throwError ("toTIntermediate not implemented for: "  <> show x)
 

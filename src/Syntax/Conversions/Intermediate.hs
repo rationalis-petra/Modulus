@@ -1,6 +1,7 @@
 module Syntax.Conversions.Intermediate where
 
 import Prelude hiding (lookup)
+import Data.Text (unpack)
 
 import Control.Monad.Except (Except, runExcept, throwError) 
 import qualified Data.Set as Set
@@ -9,7 +10,8 @@ import Data (AST(..),
              Environment,
              Special(..),
              Normal,
-             Normal'(Symbol, Special, Keyword, NormIVal, NormCoDtor),
+             Normal'(Symbol, Special, Keyword, NormIVal, NormCoDtor, PrimVal),
+             PrimVal(String),
              Neutral,
              Neutral')
 
@@ -67,6 +69,7 @@ toIntermediateM (Cons (e : es)) ctx = do
     (IValue (Special MkMatch)) -> mkMatch es ctx
     (IValue (Special MkCoMatch)) -> mkCoMatch es ctx
     (IValue (Special Annotate)) -> mkAnnotate es ctx
+    (IValue (Special ForeignAdapter)) -> mkAdapter es ctx
     _ -> do
       args <- mapM (\v -> toIntermediateM v ctx) es
       let mkApply v [] = v
@@ -411,27 +414,6 @@ mkDo es globctx = do
         expr' <- toIntermediateM expr ctx
         rest <- foldDo xs ctx
         pure $ IApply (IApply (ISymbol ">>") expr') rest
-    -- foldLet :: [AST] -> GlobCtx -> Except String [Intermediate]
-    -- foldLet [] _ = return []
-    -- foldLet [x] ctx = do
-    --   val <- toIntermediateM x ctx
-    --   pure [val] 
-      
-    -- foldLet (Cons [(Atom (Symbol s)), defs] : xs) ctx = 
-    --   case lookup s ctx of 
-    --     Just (Special Let) -> do
-    --       let newForm = [Cons [Atom (Symbol s), defs, newTl]]
-    --           newTl = Cons (Atom (Special Do) : xs)
-    --       foldLet newForm ctx 
-    --     _ -> do
-    --       result <- toIntermediateM (Cons [(Atom (Symbol s)), defs]) ctx
-    --       tail <- foldLet xs ctx
-    --       pure (result : tail)
-
-    -- foldLet (x : xs) ctx = do
-    --   hd <- toIntermediateM x ctx
-    --   rest <- (foldLet xs ctx)
-    --   pure $ hd : rest
 
 mkAnnotate :: [AST] -> GlobCtx -> Except String Intermediate
 mkAnnotate [(Atom (Symbol str)), term] ctx  = do
@@ -439,8 +421,19 @@ mkAnnotate [(Atom (Symbol str)), term] ctx  = do
   pure (IAnnotation str term')
 mkAnnotate args _ = throwError ("malformed annotate: " <> show args)
 
-
-
+mkAdapter :: [AST] -> GlobCtx -> Except String Intermediate
+mkAdapter ((Atom (Symbol lang)) : (Atom (Symbol lib)) : annotations) ctx = do
+  annotations' <- mapM (flip mkForeignAnnotate ctx) annotations
+  pure $ IAdaptForeign lang lib annotations'
+  where
+    mkForeignAnnotate :: AST -> GlobCtx -> Except String (String, String, Intermediate)
+    mkForeignAnnotate (Cons [ (Atom (Symbol ":"))
+                            , Cons [Atom (Symbol sym), Atom (PrimVal (String fsym))]
+                            , term]) ctx = do
+      term' <- toIntermediateM term ctx
+      pure (sym, unpack fsym, term')
+    mkForeignAnnotate args _ = throwError ("malformed foreign annotate: " <> show args)
+mkAdapter args _ = throwError ("malformed foreign-adapter: " <> show args)
 
 
 

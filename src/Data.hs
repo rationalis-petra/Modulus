@@ -33,11 +33,13 @@ import Data.Text (Text, pack, unpack)
 import Data.Vector (Vector)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
+
+import Foreign.C.Types (CDouble, CInt)  
   
 import Control.Lens hiding (Context, Refl)
 import Control.Monad.State (StateT) 
 import Control.Monad.Except (ExceptT) 
-import Control.Monad.Reader (ReaderT) 
+import Control.Monad.Reader (ReaderT)
 
 import Bindings.Libtdl
 
@@ -84,6 +86,10 @@ data Core
   | CIf Core Core Core Normal              -- Conditional 
   | CSct [Definition] Normal               -- Structure Definition
   | CSig [Definition]                      -- Signature Definition (similar to dependent sum)
+
+  -- TODO: plugin
+  -- TODO: we want compile-time + run-time variants!
+  | CAdaptForeign String String [(String, String, Normal)]
   deriving Show
 
 data TopCore = TopDef Definition | TopExpr Core | TopAnn String Core
@@ -140,6 +146,10 @@ data PrimVal
   | Float Float
   | Char Char
   | String Text
+
+  -- TODO: plugin system!!
+  | CInt CInt
+  | CDouble CDouble
   deriving Eq
 
 
@@ -271,7 +281,7 @@ instance Show (Normal' m) where
                       (\(f, (val, _)) str -> str <> (" (def " <> f <> " " <> show val <> ")"))
                       "" (reverse fields)) <> ")"
     where 
-      isTuple fields = foldr (\(n, (_, _)) b -> (n == "_1" || n == "_2") && b) True fields 
+      isTuple fields = foldr (\(n, (_, _)) b -> (n == "_1" || n == "_2") && b) True fields && not (null fields)
       showAsTuple fields = 
         case ((getField "_1" . dropMod) fields, (getField "_2" . dropMod) fields) of 
           (Just v1, Just v2) -> "(" <> show v1 <> ", " <> show v2 <> ")"
@@ -283,7 +293,7 @@ instance Show (Normal' m) where
                        (\(f, val) str -> str <> (" (" <> f <> " : " <> show val <> ")"))
                        "" (reverse fields)) <> ")"
     where 
-      isTuple fields = foldr (\(n, _) b -> (n == "_1" || n == "_2") && b) True fields 
+      isTuple fields = foldr (\(n, _) b -> (n == "_1" || n == "_2") && b) True fields && not (null fields)
       showAsTuple fields = 
         case (getField "_1" fields, getField "_2" fields) of 
           (Just v1, Just v2) -> "(" <> show v1 <> " * " <> show v2 <> ")"
@@ -324,13 +334,14 @@ instance Show (Neutral' m) where
     <> ")"
   show (NeuIf cond e1 e2 _) = "(if " <> show e1 <> " " <> show e2 <> ")"
 
-  show (NeuBuiltinApp fn neu ty)  = "(fnc :" <> show ty  <> ") " <> show neu
+  show (NeuBuiltinApp fn neu ty)  = "(neu-app :" <> show ty  <> ") " <> show neu
 
   
 data PrimType
   = BoolT | SpecialT | CharT | IntT | NatT | FloatT | UnitT | StringT | AbsurdT
   -- TODO: refactor ctypes via a plugin system!
-  | CModuleT | CIntT | MacroT
+  | CModuleT | CIntT | CDoubleT
+  | MacroT
   deriving (Eq, Ord)
   
 
@@ -354,6 +365,7 @@ instance Show PrimType where
 
   show MacroT  = "Macro"
   show CIntT   = "CInt"
+  show CDoubleT  = "CDouble"
   show CModuleT  = "CModule"
 
 
@@ -365,6 +377,7 @@ instance Show PrimVal where
     Bool x -> if x then "true" else "false"
     Char c -> show c
     String str -> show str
+    CDouble d -> show d
 
   
 instance Show (CollVal m) where   

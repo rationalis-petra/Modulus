@@ -213,10 +213,10 @@ resolveImports (s:ss) dict =
     _ -> Except.throwError ("couldn't find import: " <> s)
 
   
-resolveForeign :: [String] -> IO (Maybe [(String, (Normal, Normal))])
+resolveForeign :: [(String, String)] -> IO (Maybe [(String, (Normal, Normal))])
 resolveForeign vals = do
-  maybes <- mapM loadModule vals
-  pure $ zip vals <$> mapM (fmap $ flip (,) (PrimType CModuleT) . NormCModule) maybes
+  maybes <- mapM loadModule (map snd vals)
+  pure $ zip (map fst vals) <$> mapM (fmap $ flip (,) (PrimType CModuleT) . NormCModule) maybes
         
        
 toRaw :: (Either RawTree ModuleTree ) -> RawTree

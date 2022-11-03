@@ -80,6 +80,9 @@ data TIntermediate ty
   | TAccess (TIntermediate ty) String
   | TMatch (TIntermediate ty) [(TPattern ty, TIntermediate ty)] (Maybe ty)
   | TCoMatch [(TCoPattern ty, TIntermediate ty)] (Maybe ty)
+
+  -- TODO: plugins!
+  | TAdaptForeign String String [(String, String, ty)] (Maybe ty)
   deriving Show
 
 newtype TIntermediate' = TIntermediate' (TIntermediate TIntermediate')
