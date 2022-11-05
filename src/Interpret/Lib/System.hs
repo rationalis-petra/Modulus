@@ -9,19 +9,21 @@ import Interpret.Eval (liftFun)
 import Data.Text(pack, unpack)
 
 mlsGetLine :: Normal
-mlsGetLine = CollVal (IOAction m getType)
-  where m :: IO (EvalM Normal)
+mlsGetLine = CollVal (IOAction (IOThread m) getType)
+  where m :: IO (IEThread EvalM)
         m = do
           line <- getLine
-          pure $ pure $ PrimVal $ String (pack line)
+          pure . Pure . PrimVal $ String (pack line)
 
 mlsPutLine :: Normal
 mlsPutLine = liftFun f putType  
   where f :: Normal -> EvalM Normal
-        f (PrimVal (String str)) = pure $ CollVal $ IOAction (do
-          putStrLn (unpack str)
-          hFlush stdout
-          pure $ pure $ PrimVal Unit) (CollTy (IOMonadTy (PrimType UnitT)))
+        f (PrimVal (String str)) = pure $ CollVal $ IOAction
+                                    (IOThread $ do
+                                        putStrLn (unpack str)
+                                        hFlush stdout
+                                        pure . Pure $ PrimVal Unit)
+                                    (CollTy (IOMonadTy (PrimType UnitT)))
 
 putType :: Normal
 putType = NormArr (PrimType StringT) (CollTy (IOMonadTy (PrimType UnitT)))

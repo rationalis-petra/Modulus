@@ -25,6 +25,12 @@ throwError err = Reader.lift $ Except.throwError err
 use v = Reader.lift $ Except.lift $ Lens.use v
 a += b = Reader.lift $ Except.lift $ a Lens.+= b
 
+get :: EvalM ProgState  
+get = Reader.lift $ Except.lift $ State.get
+
+put :: ProgState -> EvalM ()
+put v = Reader.lift $ Except.lift $ State.put v
+
 fresh_id :: EvalM Int
 fresh_id = do
   id <- use uid_counter

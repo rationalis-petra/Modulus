@@ -1,7 +1,10 @@
 module Interpret.Lib.Monad.IO (ioMonadStructure, ioMonadSignature) where
 
+import Debug.Trace
+
 import Data
-import Interpret.Eval (eval, liftFun2, liftFun4)
+import Interpret.EvalM (ask, get, put, local, throwError)
+import Interpret.Eval (eval, evalToEither, liftFun, liftFun2, liftFun4)
 
 mkVar s = (Neu (NeuVar s (NormUniv 0)) (NormUniv 0))
         
@@ -13,7 +16,7 @@ ioPureTy = NormImplProd "A" (NormUniv 0)
 ioPure :: Normal
 ioPure = liftFun2 f ioPureTy
   where f :: Normal -> Normal -> EvalM Normal
-        f _ v = pure $ CollVal $ IOAction (pure $ pure v) ioPureTy
+        f _ v = pure $ CollVal $ IOAction (Pure v) ioPureTy
 
 -- Bind :: {A B} → M A → (A → M B) → M B
 ioBindTy :: Normal
@@ -25,12 +28,9 @@ ioBindTy = NormImplProd "A" (NormUniv 0)
 ioBind :: Normal
 ioBind = liftFun4 f ioBindTy
   where f :: Normal -> Normal -> Normal -> Normal -> EvalM Normal
-        f a b (CollVal (IOAction action ty)) func =
-          pure $ CollVal $ IOAction (do
-                       evalResult <- action
-                       pure $ do
-                         result' <- evalResult
-                         eval (CApp (CNorm func) (CNorm result')))
+        f a b (CollVal (IOAction action ty)) func = do
+          pure $ CollVal $ IOAction
+            (Bind action func)
             (CollTy (IOMonadTy b))
 
 -- Seq :: {A B} → M A → M B → M B
@@ -44,22 +44,25 @@ ioSeq :: Normal
 ioSeq = liftFun4 f ioSeqTy
   where f :: Normal -> Normal -> Normal -> Normal -> EvalM Normal
         f a b (CollVal (IOAction action ty)) (CollVal (IOAction action' ty')) =
-          pure $ CollVal $ IOAction (do
-                       action
-                       result <- action'
-                       pure $ result)
-            ty'
+          pure $ CollVal $ IOAction (Seq action action') ty'
+
+ioTyCtor :: Normal   
+ioTyCtor = liftFun f (NormArr (NormUniv 0) (NormUniv 0))
+  where f :: Normal -> EvalM Normal
+        f ty = pure . CollTy . IOMonadTy $ ty
   
 ioMonadSignature :: Normal
 ioMonadSignature = NormSig
-  [ ("pure", ioPureTy)
+  [ ("IO", (NormArr (NormUniv 0) (NormUniv 0)))
+  , ("pure", ioPureTy)
   , (">>=", ioBindTy)
   , (">>", ioSeqTy)
   ] 
 
 ioMonadStructure :: Normal
 ioMonadStructure = NormSct (toEmpty
-                   [ ("pure", ioPure)
+                   [ ("IO", ioTyCtor)
+                   , ("pure", ioPure)
                    , (">>=", ioBind)
                    , (">>", ioSeq)
                    ]) ioMonadSignature

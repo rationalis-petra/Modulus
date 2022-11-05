@@ -18,8 +18,12 @@ module Interpret.Eval (Normal,
 
 import Prelude hiding (lookup)
 
+import Data.Text (pack, unpack)
 import Foreign.Ptr (FunPtr, Ptr)
-import Foreign.LibFFI (Arg, callFFI, argCDouble, retCDouble) 
+import Foreign.LibFFI (Arg, callFFI,
+                       argCInt, argCDouble, argString, argPtr,
+                       retCDouble, retVoid, retCString)
+import Foreign.C.String (peekCString)
 import System.IO.Unsafe (unsafePerformIO)
 
 import Control.Monad.State (State, runState, runStateT)
@@ -45,15 +49,42 @@ data Result
   | RAnn String Normal
   
 
+loopThread :: IEThread EvalM -> Environment -> ProgState -> IO (Either String (Normal, ProgState))
+loopThread thread env state = 
+  case thread of 
+    IOThread io -> io >>= (\t -> loopThread t env state)
+    MThread e -> case evalToEither e env state of
+      Right (val, state') -> loopThread val env state'
+      Left err -> pure $ Left err
+    Seq l r -> do
+      res <- loopThread l env state
+      case res of
+        Right (val, state') -> loopThread r env state' 
+        Left err -> pure $ Left err
+    Bind thread' fnc -> do
+      res  <- loopThread thread' env state
+      case res of 
+        Right (val, state') ->
+          let mnd = do res <- eval (CApp (CNorm fnc) (CNorm val))
+                       case res of 
+                         (CollVal (IOAction action' ty')) -> pure action'
+                         _ -> throwError ("io->>= expects result of called function to be IO monad, not: " <> show res)
+          in case evalToEither mnd env state' of
+            Right (val, state'') -> loopThread val env state'
+            Left err -> pure $ Left err
+        Left err -> pure $ Left err
+    Pure val -> pure (Right (val, state))
+
 loopAction :: Normal -> Environment -> ProgState -> IO (Normal, ProgState)
 loopAction val env state =
   case val of
     (CollVal (IOAction action ty)) -> do
-      evalMAction <- action
-      case evalToEither evalMAction env state of
-        Right (val, state') -> 
-          loopAction val env state'
-        Left _ -> pure (val, state)
+      res <- loopThread action env state
+      case res of 
+        Right val -> pure val
+        Left err -> do
+          putStrLn ("loopThread err: " <> err)
+          pure (val, state)
     (PrimVal Unit) -> pure (val, state)
     _ -> do
       putStrLn ("final value of main: " <> show val)
@@ -339,7 +370,7 @@ eval (CAdaptForeign lang libsym imports) = do
       lib <- eval $ CVar libsym
       case lib of
         NormCModule m -> do
-          vals <- mapM (\(_, fsym, ty) -> getAsBuiltin2 m fsym ty) imports
+          vals <- mapM (\(_, fsym, ty) -> getAsBuiltin m fsym ty) imports
           let ty = NormSig $ map (\(s, _, ty) -> (s, ty)) imports
           pure $ NormSct (toEmpty $ zipWith (\(s, _, ty) val -> (s, val)) imports vals) ty
         _ -> throwError "foreign-adapter only works if module is available at compile?-time!"
@@ -359,6 +390,7 @@ normSubst (val, var) ty = case ty of
     ListTy a -> (CollTy . ListTy) <$> normSubst (val, var) a
     ArrayTy a dims -> CollTy <$> (ArrayTy <$> normSubst (val, var) a <*> pure dims)
     IOMonadTy a -> (CollTy . IOMonadTy) <$> normSubst (val, var) a
+    CPtrTy a -> (CollTy . CPtrTy) <$> normSubst (val, var) a
   CollVal cvl -> case cvl of 
     MaybeVal m ty -> case m of 
       Just some -> CollVal <$> (MaybeVal <$> (Just <$> (normSubst (val, var) some))
@@ -367,7 +399,15 @@ normSubst (val, var) ty = case ty of
     ListVal vals ty -> CollVal <$> (ListVal <$> mapM (normSubst (val, var)) vals <*> normSubst (val, var) ty)
     ArrayVal vec ty shape -> CollVal <$> (ArrayVal <$> Vector.mapM (normSubst (val, var)) vec
                                       <*> normSubst (val, var) ty <*> pure shape)
-    IOAction fn ty -> (CollVal . IOAction fn) <$> normSubst (val, var) ty  
+    IOAction thread ty -> do
+      ty' <- normSubst (val, var) ty  
+      case thread of
+        IOThread _ -> pure . CollVal $ IOAction thread ty'
+        MThread _ -> pure . CollVal $ IOAction thread ty'
+        Seq l r -> pure . CollVal $ IOAction thread ty'
+
+        Bind v f -> CollVal . (flip IOAction ty') . Bind v <$> normSubst (val, var) f
+        Pure v -> CollVal . (flip IOAction ty') . Pure <$> normSubst (val, var) v
   NormCoVal pats ty -> do
     let pats' = map substCoPat pats
     ty' <- normSubst (val, var) ty
@@ -475,8 +515,10 @@ neuSubst (val, var) neutral = case neutral of
       Neu n ty -> do
         ty' <- tyApp ty r'
         pure $ Neu (NeuApp n r') ty'
+      NormAbs var body ty -> do 
+        normSubst (r', var) body
       Builtin fn ty -> fn r'
-      v -> throwError ("bad app:" <> show v)
+      v -> throwError ("bad app to:" <> show v <> ", attempted to apply: " <> show r')
 
   NeuDot n field -> do
     mdle <- neuSubst (val, var) n
@@ -762,30 +804,18 @@ applyDtor id1 id2 strip (arg:args)
 
 applyDtor _ _ _ _ = throwError "bad destructor application"  
 
+
 getAsBuiltin :: CModule -> String -> Normal -> EvalM Normal
-getAsBuiltin m sym ty = 
-  case ty of 
-    NormArr (PrimType CDoubleT) (PrimType CDoubleT) -> do
-      case lookupForeignFun m sym of
-        Just funPtr -> pure $ liftFun (liftToHask (mkFun funPtr)) ty
-          where liftToHask f (PrimVal (CDouble d)) = 
-                  pure . PrimVal . CDouble $ f d 
-        Nothing -> throwError ("couldn't find foreign symbol: " <> sym)
-
-    _ -> throwError ("bad ty to getAsbuiltin: " <> show ty)
-  -- case lookupForeignSym m sym of 
-
-getAsBuiltin2 :: CModule -> String -> Normal -> EvalM Normal
-getAsBuiltin2 m sym ty = 
-  if isFncType ty then 
-    case lookupForeignFun m sym of 
-      Just f -> do 
+getAsBuiltin m sym ty =
+  case lookupForeignFun m sym of
+    Just f ->
+      if isFncType ty then do
         let retTy = getRet ty
             lst = argList ty
         ty' <- tyTail ty
         pure $ liftFun (cCall f lst [] retTy ty') ty
-  else
-    throwError ("cannot currently convert " <> show ty)
+      else doCall ty f []
+    _ -> throwError ("cannot currently interpret as foreign c type " <> show ty)
 
   where 
     argList (NormArr l r) = l : argList r
@@ -793,23 +823,41 @@ getAsBuiltin2 m sym ty =
     argList (NormImplProd sym a b) = a : argList b
     argList _ = []
 
-    cCall :: FunPtr CDouble -> [Normal] -> [Arg] -> Normal -> Normal -> Normal -> EvalM Normal
+    cCall :: FunPtr () -> [Normal] -> [Arg] -> Normal -> Normal -> Normal -> EvalM Normal
     cCall fnc [argTy] cargs retTy ty' arg = do
       carg <- getArg argTy arg
-      case retTy of 
-        (PrimType CDoubleT) ->
-          pure . PrimVal . CDouble $ unsafePerformIO $ callFFI fnc retCDouble (carg:cargs)
-      -- TODO: IO/Monad type
+      doCall retTy fnc (carg:cargs)
     cCall fnc (argty:args) cargs retTy ty' val = do
       carg <- getArg argty val
       ty'' <- tyTail ty'
       pure $ liftFun (cCall fnc args (carg:cargs) retTy ty'') ty'
 
+    doCall retTy fnc cargs = 
+      case retTy of 
+        (PrimType CDoubleT) ->
+          pure . PrimVal . CDouble $ unsafePerformIO $ callFFI fnc retCDouble cargs
+
+        (CollTy (IOMonadTy ty)) -> case ty of 
+          (PrimType UnitT) -> 
+            pure . CollVal $ IOAction
+              (IOThread (callFFI fnc retVoid cargs >> (pure . Pure $ PrimVal Unit)))
+              (CollTy (IOMonadTy (PrimType UnitT)))
+        _ -> throwError ("bad cffi ret ty: " <> show retTy)
+
+  
+
     getArg (PrimType CDoubleT) (PrimVal (CDouble d)) =  
       pure $ argCDouble d
-    getArg _ _ = throwError "bed getArg in getAsBuiltin"
+    getArg (PrimType CIntT) (PrimVal (CInt i)) =  
+      pure $ argCInt i 
+    getArg (PrimType CStringT) (PrimVal (CString s)) =  
+      pure $ argString (unsafePerformIO $ peekCString s) -- TODO: fix CStrings!!
+    getArg (CollTy (CPtrTy _)) (CollVal (CPtr val)) = 
+      pure $ argPtr val -- TODO: fix CStrings!!
+    getArg ty val = throwError ("bad getArg in getAsBuiltin: " <> show ty <> "," <> show val)
 
     getRet (NormArr _ r) = getRet r
     getRet (NormProd _ _ r) = getRet r
     getRet (NormImplProd _ _ r) = getRet r
     getRet v = v
+

@@ -17,7 +17,16 @@ data Module = Module { _vals :: [(String, Normal)],
                        _sourceCore :: [Definition],
                        _sourceString :: Text  }
 
+instance Show Module where    
+  show Module { _vals=vals } = showVals vals
+    where
+      showVals [] = ""
+      showVals [(string, normal)] = "(def " <> show string <> "\n" <> show normal <> ")"
+      showVals ((string, normal) : defs) = 
+        "(def " <> show string <> "\n" <> show normal <> ")" <> "\n\n" <> showVals defs
+
 data DTree a b = Node (Map.Map a (DTree a b)) (Maybe b)
+  deriving Show
 emptyTree :: DTree a b
 emptyTree = Node Map.empty Nothing
 

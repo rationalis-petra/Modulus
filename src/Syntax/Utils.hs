@@ -65,6 +65,7 @@ typeVal (PrimVal e) = pure (PrimType (typePrim e))
 
       CInt _ -> CIntT
       CDouble _ -> CDoubleT
+      CString _ -> CStringT
 typeVal (Refl ty) = pure $ PropEq ty ty
 typeVal (PropEq _ _) = pure $ NormUniv 0
 typeVal (InbuiltCtor ctor) = case ctor of 
@@ -120,6 +121,7 @@ instance Expression (Normal' m) where
     ListTy a -> free a
     ArrayTy a _ -> free a
     IOMonadTy a -> free a
+    CPtrTy a -> free a
   free (CollVal val) = case val of 
     ListVal lst ty -> foldr (Set.union . free) (free ty) lst
     IOAction _ ty -> free ty

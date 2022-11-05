@@ -20,6 +20,7 @@ module Data (Definition(..),
              peelMod,
              addMod,
              toEmpty,
+             IEThread(..),
              AST(..),
              PrimVal(..),
              PrimType(..),
@@ -34,7 +35,9 @@ import Data.Vector (Vector)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 
+import Foreign.Ptr (FunPtr, Ptr)
 import Foreign.C.Types (CDouble, CInt)  
+import Foreign.C.String (CString)  
   
 import Control.Lens hiding (Context, Refl)
 import Control.Monad.State (StateT) 
@@ -150,6 +153,7 @@ data PrimVal
   -- TODO: plugin system!!
   | CInt CInt
   | CDouble CDouble
+  | CString CString
   deriving Eq
 
 
@@ -170,12 +174,23 @@ data CollTy m
   | ListTy (Normal' m)
   | ArrayTy (Normal' m) [Integer]
   | IOMonadTy (Normal' m)
+  -- TODO: plugin
+  | CPtrTy (Normal' m)
 
 data CollVal m
   = MaybeVal (Maybe (Normal' m)) (Normal' m)
   | ListVal [(Normal' m)] (Normal' m)
   | ArrayVal (Vector (Normal' m)) (Normal' m) [Integer]
-  | IOAction (IO (EvalM (Normal' m))) (Normal' m)
+  | IOAction (IEThread m) (Normal' m)
+
+  | CPtr (Ptr ())
+
+data IEThread m
+  = IOThread (IO (IEThread m))
+  | MThread (m (IEThread m))
+  | Pure (Normal' m)
+  | Bind (IEThread m) (Normal' m)
+  | Seq (IEThread m) (IEThread m)
 
 
 data Modifier = Implicit
@@ -340,7 +355,7 @@ instance Show (Neutral' m) where
 data PrimType
   = BoolT | SpecialT | CharT | IntT | NatT | FloatT | UnitT | StringT | AbsurdT
   -- TODO: refactor ctypes via a plugin system!
-  | CModuleT | CIntT | CDoubleT
+  | CModuleT | CIntT | CDoubleT | CStringT
   | MacroT
   deriving (Eq, Ord)
   
@@ -366,6 +381,7 @@ instance Show PrimType where
   show MacroT  = "Macro"
   show CIntT   = "CInt"
   show CDoubleT  = "CDouble"
+  show CStringT  = "CString"
   show CModuleT  = "CModule"
 
 
@@ -377,6 +393,7 @@ instance Show PrimVal where
     Bool x -> if x then "true" else "false"
     Char c -> show c
     String str -> show str
+    CString str -> show str
     CDouble d -> show d
 
   
@@ -388,6 +405,7 @@ instance Show (CollVal m) where
     ListVal l _ -> show l
     ArrayVal v _ _ -> show v
     IOAction _ ty -> "<_ : IO " <> show ty <> ">" 
+    CPtr _ -> "<cptr>" 
 
 instance Show (CollTy m) where   
   show e = case e of  
@@ -395,6 +413,7 @@ instance Show (CollTy m) where
     ListTy ty -> "List " <> show ty
     ArrayTy n1 n2 -> "Array " <> show n1 <> show n2
     IOMonadTy ty -> "IO " <> show ty
+    CPtrTy ty -> "CPtr " <> show ty
 
 instance Show (InbuiltCtor m) where
   show (IndPat sym _ _ _ ty) = show sym <> " " <> show ty

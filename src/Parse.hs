@@ -264,8 +264,8 @@ pTop = sc *> try (many (parens pNormal)) <* sc
 
 data ReplMessage
   = Quit
-  | LoadForeign String
   | Continue
+  | LoadForeign String
   
   
 pPreRepl :: Parser ReplMessage 

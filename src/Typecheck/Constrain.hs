@@ -131,9 +131,6 @@ constrain' (PrimVal p1) (PrimVal p2) =
 constrain' (PrimType p1) (PrimType p2) =
   if p1 == p2 then pure lrnosubst else err ("non-equal primitives in constrain: "
                                             <> show p1 <> " and " <> show p2)
-constrain' (CollTy (ListTy a)) (CollTy (ListTy b)) = do
-  constrain' a b
-  
 constrain' (NormUniv n1) (NormUniv n2) =
   if n1 == n2 then pure lrnosubst else err ("non-equal primitives in constrain"
                                             <> show (NormUniv n1) <> " and " <> show (NormUniv n2))
@@ -210,6 +207,10 @@ constrain' (NormIType name1 id1 vals1) (NormIType name2 id2 vals2) =
 constrain' (CollTy t1) (CollTy t2) =   
   case (t1, t2) of 
     (IOMonadTy l, IOMonadTy r) -> constrain' l r
+    (ListTy    l, ListTy    r) -> constrain' l r
+    (MaybeTy   l, MaybeTy   r) -> constrain' l r
+    (CPtrTy    l, CPtrTy    r) -> constrain' l r
+    _ -> err ("cannot constrian non-matching types families: " <> show t1 <> show t2)
 
 constrain' t1 t2 =   
   err ("cannot constrain terms " <> show t1 <> " and " <> show t2 <> " as they have different forms")
