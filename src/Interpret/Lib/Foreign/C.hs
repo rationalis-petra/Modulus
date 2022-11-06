@@ -1,6 +1,6 @@
 module Interpret.Lib.Foreign.C where
 
-import Foreign.Ptr (FunPtr, Ptr, castPtr)
+import Foreign.Ptr (FunPtr, Ptr, castPtr, nullPtr)
 import Foreign.Storable (peek, poke)
 import Foreign.C.Types (CDouble, CInt)
 import Foreign.C.String (CString, peekCString, newCString)  
@@ -58,6 +58,14 @@ fromCString = liftFun f (NormArr (PrimType CStringT) (CollTy . IOMonadTy $ (Prim
 strRefTy :: Normal
 strRefTy = (NormArr (PrimType CStringT)
              (CollTy . IOMonadTy $ CollTy . CPtrTy $ (PrimType CStringT)))
+
+nullPtrTy :: Normal
+nullPtrTy = (NormImplProd "A" (NormUniv 0) (CollTy . CPtrTy $ (mkVar "A")))
+
+mnullPtr :: Normal
+mnullPtr = liftFun f nullPtrTy 
+  where
+    f a =pure . CollVal . CPtr $ nullPtr
   
 strRef :: Normal
 strRef = liftFun f strRefTy
@@ -77,6 +85,7 @@ csignature = NormSig
   , ("CString", NormUniv 0)
   , ("CPtr", NormArr (NormUniv 0) (NormUniv 0))
 
+  , ("nullptr", nullPtrTy)
   , ("str-ref", NormArr (PrimType CStringT) (CollTy . CPtrTy $ (PrimType CStringT)))
 
   , ("to-c-int", NormArr (PrimType IntT) (PrimType CIntT))
@@ -95,6 +104,7 @@ cstructure = NormSct (toEmpty
              , ("CString", PrimType CStringT)
              , ("CPtr", mkCPtr)
 
+             , ("nullptr", mnullPtr)
              , ("str-ref", strRef)
 
              , ("to-c-int", toCInt)

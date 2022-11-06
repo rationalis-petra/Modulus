@@ -30,6 +30,7 @@ import Server.Interpret
 import Bindings.Libtdl
 
 import Control.Monad (when, unless, forever, void)
+import Data.ByteString (empty, ByteString)
 import qualified Data.ByteString as Bs
 import Network.Socket
 import Network.Socket.ByteString (recv, sendAll)
@@ -80,14 +81,34 @@ runTCPServer mhost port server = withSocketsDo $ do
 
 serverLoop :: TQueue Message -> Socket -> IO ()  
 serverLoop outbox socket = do 
-  msg <- recv socket 1024
+  msg <- getMessage socket 
   unless (Bs.null msg) $ do
     case decodeUtf8' msg of 
-      Left err -> putStrLn "packet decoding failed"
+      Left err -> putStrLn ("packet decoding failed. error: " <> show err)
       Right str -> case Message.parse str of 
         Just msg -> atomically $ writeTQueue outbox msg
         Nothing -> putStrLn ("bad message: " <> unpack str)
         --Left err -> putStrLn ("packet parsing failed: " <> err)
   serverLoop outbox socket
 
+getMessage :: Socket -> IO ByteString
+getMessage socket = do
+  -- just get the header (always 4 bytes)
+  sizeStr <- recv socket 4
+  if Bs.length sizeStr /= 4 then do
+    putStrLn "header size < 4!"
+    -- TODO flush/clear data?
+    getMessage socket
+  else accumTill (getSize sizeStr) Bs.empty
 
+  where 
+    accumTill :: Int -> Bs.ByteString -> IO ByteString
+    accumTill 0 str = pure str
+    accumTill n str = do
+      let amt = if n < 1024 then n else 1024
+      bytes <- recv socket amt
+      accumTill (n - Bs.length bytes) (str <> bytes) 
+
+    getSize :: ByteString -> Int
+    getSize bs =   
+      snd $ Bs.foldr (\byte (count, accum) -> (count * 256, fromEnum byte * count + accum)) (1, 0) bs
