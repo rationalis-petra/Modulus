@@ -14,10 +14,12 @@ import Data(Normal,
             Normal'(NormSct, NormSig, NormCModule, PrimType),
             PrimType(CModuleT),
             ProgState,
+            Core,
             TopCore(..),
             Environment,
             Definition,
             EvalM,
+            AST,
             toEmpty)
 import Parse (parseModule)
 import Interpret.Eval (evalToEither, eval, evalDef, loopAction)
@@ -25,9 +27,7 @@ import Interpret.EvalM (throwError, liftExcept, ask, localF)
 import Syntax.Utils (typeVal, getField)
 import Syntax.Macroexpand (macroExpand)
 import Syntax.Conversions (toIntermediate, toTIntermediateTop, toTopCore)
-import Typecheck.Typecheck (typeCheckTop)
-
-
+import Typecheck.Typecheck (typeCheckTop, annotate)
 
 import Server.Data
 import Server.Message
@@ -56,7 +56,6 @@ interpreter istate inbox = do
     UpdateModule path text -> do
       let rawTree = insert path text (toRaw (istate^.modules))
       interpreter (set modules (Left rawTree) istate) inbox
-      
 
 
 runMain :: IState -> IO IState
@@ -119,26 +118,39 @@ compileTree (Node dir mtext) state ctx = do
       let addToEnv = flip (foldr (\(k, (v, ty)) -> Env.insert k v ty))
       localF (addToEnv imports . addToEnv fmdles) $ do
 
-        let foldTerms [] = pure ([], [])
-            foldTerms (def:defs) = do
+        let foldTerms ty [] = pure ([], [])
+            foldTerms ty (def:defs) = do
               expanded <- macroExpand def
               env <- ask
               let eintermediate = toIntermediate expanded env  
               intermediate <- (case eintermediate of Right val -> pure val; Left err -> throwError err)
               tintermediate <- toTIntermediateTop intermediate
               env <- ask
-              checked <- typeCheckTop tintermediate env
+              -- TODO: typechecking should be monadic
+              checked <- case ty of 
+                Just ty -> do
+                  annotated <- liftExcept $ annotate tintermediate ty
+                  typeCheckTop annotated env
+                Nothing -> typeCheckTop tintermediate env
 
               -- TODO: integrate type-checking results into allTypes
               let justvals = (case checked of Left (val, _) -> val; Right val -> val)
               core <- liftExcept (toTopCore justvals)
-              def <- liftExcept (getAsDef core)
-              vals <- evalDef def
-              (defs, vals') <- localF (flip (foldr (\(k, (v, ty)) -> Env.insert k v ty)) vals) (foldTerms defs)
-              pure (def : defs, vals <> vals')
+
+              res <- liftExcept (defOrAnn core)
+              case res of 
+                Left def -> do
+                  -- TODO: if vals is a type-annotation, we must here
+                  vals <- evalDef def
+                  (defs, vals') <- localF (flip (foldr (\(k, (v, ty)) -> Env.insert k v ty)) vals) (foldTerms Nothing defs)
+                  pure (def : defs, vals <> vals')
+                Right (str, core) -> do
+                  ty <- eval core
+                  foldTerms (Just ty) defs
+
 
         -- can carry forward for typechecking etc.
-        (defs, vals) <- foldTerms terms
+        (defs, vals) <- foldTerms Nothing terms
         let (vals', allTypes) = foldr (\(k, (v, ty)) (vals, types) -> (((k, v) : vals), ((k, ty) : types))) ([], []) vals
         -- restrict the types to be only our exports!
         let types = foldr (\(k, v) rest -> if contains k exp then ((k, v) : rest) else rest) [] allTypes
@@ -151,57 +163,6 @@ compileTree (Node dir mtext) state ctx = do
               , _sourceString=source
               })
   
-
--- compileTree :: RawTree -> ProgState -> Environment -> IO (Either String (ModuleTree, ProgState))
--- compileTree tree state ctx = evalToEitherT (recurse tree) ctx state
---   where
---     recurse (Node dir (Just text)) = do
---       dir' <- (let compileSub :: String -> RawTree -> EvalMT IO (Map.Map String ModuleTree) -> EvalMT IO (Map.Map String ModuleTree)
---                    compileSub key val dir' = do
---                                   dir'' <- dir'
---                                   val' <- recurse val
---                                   pure $ Map.insert key val' dir''
---                 in Map.foldrWithKey compileSub (pure Map.empty) dir)
-
-      
---       ((inp, fmdles, exp, _), terms) <- case parseModule "main" text of 
---         Right val -> pure val 
---         Left err -> throwError (show err)
---       imports <- liftExcept $ resolveImports inp dir'
---       localF (flip (foldr (\(k, (v, ty)) -> Env.insert k v ty)) imports) $ do
-
---         let foldTerms [] = pure ([], [])
---             foldTerms (def:defs) = do
---               expanded <- macroExpand def
---               env <- ask
---               let eintermediate = toIntermediate expanded env  
---               intermediate <- (case eintermediate of Right val -> pure val; Left err -> throwError err)
---               tintermediate <- toTIntermediateTop intermediate
---               env <- ask
---               checked <- typeCheckTop tintermediate env
-
---               -- TODO: integrate type-checking results into allTypes
---               let justvals = (case checked of Left (val, _) -> val; Right val -> val)
---               core <- liftExcept (toTopCore justvals)
---               def <- liftExcept (getAsDef core)
---               vals <- evalDef def
---               (defs, vals') <- localF (flip (foldr (\(k, (v, ty)) -> Env.insert k v ty)) vals) (foldTerms defs)
---               pure (def : defs, vals <> vals')
-
---         -- can carry forward for typechecking etc.
---         (defs, vals) <- foldTerms terms
---         let (vals', allTypes) = foldr (\(k, (v, ty)) (vals, types) -> (((k, v) : vals), ((k, ty) : types))) ([], []) vals
---         -- restrict the types to be only our exports!
---         let types = foldr (\(k, v) rest -> if contains k exp then ((k, v) : rest) else rest) [] allTypes
-       
---         pure (Node dir' (Just $ Module {
---                                _vals=vals',
---                                _types=types,
---                                _header=ModuleHeader [] [] [],
---                                _sourceCore=defs,
---                                _sourceString=text}))
-
---     my_mnd _ = throwError "no main module" 
 
 resolveImports :: [String] -> Map.Map String ModuleTree -> Except.Except String [(String, (Normal, Normal))]
 resolveImports [] _ = pure []
@@ -228,15 +189,17 @@ toRaw (Right v) = toRaw' v
       Node (Map.map toRaw' dir) Nothing 
 toRaw (Left raw) = raw
 
-
       
-getAsDef :: TopCore  -> Except.Except String Definition
-getAsDef (TopDef definition) = pure definition
-getAsDef _ = Except.throwError "not definition"
+defOrAnn :: TopCore  -> Except.Except String (Either Definition (String, Core))
+defOrAnn (TopDef definition) = pure $ Left definition
+defOrAnn (TopAnn str core) = pure $ Right (str, core) 
+defOrAnn (TopExpr _) = Except.throwError "toplevel expression encountered"
 
+  
 contains _ [] = False 
 contains x (y:ys) | x == y = True
 contains x (_:ys) = contains x ys
+
 
 insert :: Ord a => [a] -> b -> DTree a b -> DTree a b
 insert [] val (Node dir maybeVal) = Node dir (Just val) 
@@ -245,3 +208,4 @@ insert (s:ss) val (Node dir maybeVal) =
     Just subdir -> Node (Map.insert s (insert ss val subdir) dir) maybeVal
     Nothing ->
       Node (Map.insert s (insert ss val emptyTree) (Map.empty)) maybeVal
+

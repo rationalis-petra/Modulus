@@ -16,11 +16,12 @@ import Data (PrimType(..),
              var_counter)
 import Syntax.TIntermediate
 
+import qualified Control.Monad.Except as Except
 import qualified Interpret.Environment as Env
 import qualified Syntax.Conversions as Conv 
 import Interpret.EvalM
 import qualified Interpret.Eval as Eval
-import Syntax.Utils (typeVal, free, getField, mkVar)
+import Syntax.Utils (tyHead, tyTail, typeVal, free, getField, mkVar)
 
 import Typecheck.Constrain
 
@@ -44,14 +45,21 @@ typeCheckTop (TDefinition def) ctx =
       (_, app, csubst) <- constrain recTy ty ctx
       let (fnlSubstl, fnlSubstr) = rmSubst (show recTy) csubst
       ty' <- tyApp ty app
-      if (null fnlSubstl && null fnlSubstr)
-        then 
+      if (null fnlSubstl && null fnlSubstr) then 
           pure $ Right $ TDefinition $ TSingleDef name expr' (Just ty')
         else do
           throwError ("subst strings non empty at toplevel: " <> show (fnlSubstl, fnlSubstr))
 
-    TSingleDef name expr (Just mty) -> do
-      throwError "cannot check type-annotated single definitions"
+    TSingleDef name expr (Just (TIntermediate' ty)) -> do
+      ty' <- evalTIntermediate ty ctx
+      (expr', ty', _) <- case expr of
+        TLambda args body Nothing -> 
+          typeCheck (TLambda args body (Just (TIntermediate' ty)))
+            (Env.insert name (Neu (NeuVar name ty') ty') ty' ctx)
+        _ ->
+          typeCheck expr (Env.insert name (Neu (NeuVar name ty') ty') ty' ctx)
+      pure $ Right $ TDefinition $ TSingleDef name expr' (Just ty')
+
 
     TOpenDef expr Nothing -> do 
       (expr', ty, subst) <- typeCheck expr ctx
@@ -303,11 +311,22 @@ typeCheck expr env = case expr of
           
 
   (TLambda args body mty) -> do 
-     (env', args') <- updateFromArgs env args
+     mty' <- case mty of
+       Just (TIntermediate' val) -> Just <$> evalTIntermediate val env
+       Nothing -> pure Nothing
+     (args', mret) <- case mty' of
+       Just ty -> annArgs ty args >>= (\(x, y) -> pure (x, Just y))
+       Nothing -> pure (args, Nothing)
+     (env', args'') <- updateFromArgs env args'
      (body', ty, subst) <- typeCheck body env'
-     case mty of 
+     case mty' of 
        Nothing -> do
-         let (fnlArgs, fnlsubst) = fixArgs args' subst
+         let (fnlArgs, fnlsubst) = fixArgs args'' subst
+         fnlTy <- buildFnType fnlArgs subst ty
+         let fnl_lambda = TLambda fnlArgs body' (Just fnlTy)
+         pure (fnl_lambda, fnlTy, fnlsubst)
+       Just _ -> do
+         let (fnlArgs, fnlsubst) = fixArgs args'' subst
          fnlTy <- buildFnType fnlArgs subst ty
          let fnl_lambda = TLambda fnlArgs body' (Just fnlTy)
          pure (fnl_lambda, fnlTy, fnlsubst)
@@ -356,6 +375,21 @@ typeCheck expr env = case expr of
                Nothing -> ((BoundArg nme (mkVar ("#" <> show id)), isImpl) : args',
                            subst',
                            ("#" <> show id) : impl)
+
+       -- ann args takes a type annotation and argument list, and will annotate
+       -- the arguments based on the type
+       -- TODO consider the inference status of an argument!
+       annArgs :: Normal -> [(TArg TIntermediate', Bool)] -> EvalM ([(TArg TIntermediate', Bool)], Normal)
+       annArgs ret [] = pure ([], ret)
+       annArgs ty ((arg, bl) : args) = case arg of 
+         InfArg str id -> do
+           head <- tyHead ty
+           tail <- tyTail ty
+           (args', ret) <- annArgs tail args 
+           pure ((BoundArg str (TIntermediate' (TValue head)), bl) : args, ret)
+           -- TOOD
+           -- BoundArg str ty
+           -- TWildCard ty
 
   (TProd (arg, bl) body) -> do
     case arg of  
@@ -679,24 +713,21 @@ typeCheckDef (TInductDef sym id params (TIntermediate' ty) alts) ctx = do
     mkIndexTy' [] ((sym, ty) : ids) index args = do
       (ctor, ctorty) <- mkIndexTy' [] ids index ((sym, ty) : args)
       pure $ (NormAbs sym ctor ctorty, ctorty)
-  
 
 
 typeCheckDef def _ = do
   throwError ("typeCheckDef not implemented for")
 
 
+annotate :: TIntTop TIntermediate' -> Normal -> Except.Except String (TIntTop TIntermediate')
+annotate (TDefinition (TSingleDef str val _)) ty =
+  pure . TDefinition $ TSingleDef str val (Just $ TIntermediate' $ TValue ty)
+annotate _ _ = Except.throwError "annotation must be followed by definition"
 
 
 
 
-
-  
-
-
-
-
-
+-- PRIVATE FUNCTIONS  
       
 -- Apply a term to a list of normal values
 mkApp :: TIntermediate Normal -> [Normal] -> TIntermediate Normal

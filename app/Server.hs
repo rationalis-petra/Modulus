@@ -14,7 +14,7 @@ import Control.Concurrent
 import Control.Concurrent.STM
 
 
-
+import Bindings.Libtdl
 import Data (EvalM,
              Normal,
              Normal'(NormSct, NormSig),
@@ -27,7 +27,6 @@ import Server.Message hiding (parse)
 import Server.Data  
 import Server.Interpret
 
-import Bindings.Libtdl
 
 import Control.Monad (when, unless, forever, void)
 import Data.ByteString (empty, ByteString)
