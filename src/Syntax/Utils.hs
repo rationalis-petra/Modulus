@@ -91,7 +91,7 @@ typeVal (CollTy _) = pure $ NormUniv 0
 typeVal (CollVal val) = case val of
   IOAction _ ty -> pure ty
   ListVal _ ty -> pure (CollTy (ListTy ty))
-  ArrayVal _ ty dims -> pure (CollTy (ArrayTy ty dims))
+  ArrayVal _ ty -> pure (CollTy (ArrayTy ty))
 
 typeVal (Neu _ ty) = pure ty
 typeVal (Special _) = pure $ PrimType SpecialT
@@ -119,7 +119,7 @@ instance Expression (Normal' m) where
   free (PrimVal   _) = Set.empty
   free (CollTy ty) = case ty of 
     ListTy a -> free a
-    ArrayTy a _ -> free a
+    ArrayTy a -> free a
     IOMonadTy a -> free a
     CPtrTy a -> free a
   free (CollVal val) = case val of 
@@ -146,7 +146,7 @@ instance Expression (Normal' m) where
     (PrimVal   v)   -> PrimVal v
     (CollTy ty) -> CollTy $ case ty of 
       ListTy a -> ListTy $ rename s1 s2 a
-      ArrayTy a idx -> ArrayTy (rename s1 s2 a) idx
+      ArrayTy a -> ArrayTy (rename s1 s2 a)
       IOMonadTy a -> IOMonadTy $ rename s1 s2 a
     (CollVal val) -> CollVal $ case val of 
       ListVal lst ty -> ListVal (map (rename s1 s2) lst) (rename s1 s2 ty) 

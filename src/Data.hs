@@ -32,6 +32,7 @@ module Data (Definition(..),
 
 import Data.Text (Text, pack, unpack)
 import Data.Vector (Vector)
+import qualified Data.Vector as Vector
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 
@@ -172,7 +173,7 @@ data InbuiltCtor m
 data CollTy m
   = MaybeTy (Normal' m)
   | ListTy (Normal' m)
-  | ArrayTy (Normal' m) [Integer]
+  | ArrayTy (Normal' m)
   | IOMonadTy (Normal' m)
   -- TODO: plugin
   | CPtrTy (Normal' m)
@@ -180,7 +181,7 @@ data CollTy m
 data CollVal m
   = MaybeVal (Maybe (Normal' m)) (Normal' m)
   | ListVal [(Normal' m)] (Normal' m)
-  | ArrayVal (Vector (Normal' m)) (Normal' m) [Integer]
+  | ArrayVal (Vector (Normal' m)) (Normal' m)
   | IOAction (IEThread m) (Normal' m)
 
   | CPtr (Ptr ())
@@ -403,7 +404,13 @@ instance Show (CollVal m) where
     MaybeVal (Just l) _ -> "some " <> show l
     MaybeVal Nothing _ -> "none"
     ListVal l _ -> show l
-    ArrayVal v _ _ -> show v
+    ArrayVal v _ -> case length v of
+      n | n == 0 -> "⦗⦘"
+        | n == 1 -> "⦗" <> show (v Vector.! 1) <> "⦘"
+        | otherwise -> Vector.foldl (\str v -> str <> " " <> show v)
+                             ("⦗" <> show (Vector.head v))
+                             (Vector.tail v)
+                       <> "⦘"
     IOAction _ ty -> "<_ : IO " <> show ty <> ">" 
     CPtr _ -> "<cptr>" 
 
@@ -411,7 +418,7 @@ instance Show (CollTy m) where
   show e = case e of  
     MaybeTy ty -> "Maybe " <> show ty
     ListTy ty -> "List " <> show ty
-    ArrayTy n1 n2 -> "Array " <> show n1 <> show n2
+    ArrayTy n1 -> "Array " <> show n1
     IOMonadTy ty -> "IO " <> show ty
     CPtrTy ty -> "CPtr " <> show ty
 

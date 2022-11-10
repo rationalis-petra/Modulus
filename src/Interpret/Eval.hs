@@ -388,7 +388,7 @@ normSubst (val, var) ty = case ty of
   CollTy cty -> case cty of 
     MaybeTy a -> (CollTy . MaybeTy) <$> normSubst (val, var) a
     ListTy a -> (CollTy . ListTy) <$> normSubst (val, var) a
-    ArrayTy a dims -> CollTy <$> (ArrayTy <$> normSubst (val, var) a <*> pure dims)
+    ArrayTy a -> CollTy <$> (ArrayTy <$> normSubst (val, var) a)
     IOMonadTy a -> (CollTy . IOMonadTy) <$> normSubst (val, var) a
     CPtrTy a -> (CollTy . CPtrTy) <$> normSubst (val, var) a
   CollVal cvl -> case cvl of 
@@ -397,8 +397,8 @@ normSubst (val, var) ty = case ty of
                                 <*> normSubst (val, var) ty)
       Nothing -> CollVal <$> (MaybeVal Nothing <$> normSubst (val, var) ty)
     ListVal vals ty -> CollVal <$> (ListVal <$> mapM (normSubst (val, var)) vals <*> normSubst (val, var) ty)
-    ArrayVal vec ty shape -> CollVal <$> (ArrayVal <$> Vector.mapM (normSubst (val, var)) vec
-                                      <*> normSubst (val, var) ty <*> pure shape)
+    ArrayVal vec ty -> CollVal <$> (ArrayVal <$> Vector.mapM (normSubst (val, var)) vec
+                                    <*> normSubst (val, var) ty)
     IOAction thread ty -> do
       ty' <- normSubst (val, var) ty  
       case thread of

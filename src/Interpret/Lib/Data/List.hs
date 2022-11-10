@@ -242,7 +242,8 @@ listSignature = NormSig
   , ("cons", consType)
   , ("Ɩ", mlsIndicesOfTy)
    
-  , ("⋯", mlsEachTy)
+  , ("¨", mlsEachTy)
+  , ("map", mlsEachTy)
   , ("fold", mlsFoldTy)
   , ("reduce", mlsReduceTy)
   , ("/", mlsReduceTy)
@@ -267,7 +268,8 @@ listStructure = NormSct (toEmpty
   , ("Ɩ", mlsIndicesOf)
  
     -- utility functions
-  , ("⋯", mlsEach)
+  , ("¨", mlsEach)
+  , ("map", mlsEach)
   , ("fold", mlsFold)
   , ("reduce", mlsReduce)
   , ("/", mlsReduce)

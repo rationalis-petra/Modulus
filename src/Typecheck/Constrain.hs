@@ -208,6 +208,7 @@ constrain' (CollTy t1) (CollTy t2) =
   case (t1, t2) of 
     (IOMonadTy l, IOMonadTy r) -> constrain' l r
     (ListTy    l, ListTy    r) -> constrain' l r
+    (ArrayTy   l, ArrayTy   r) -> constrain' l r
     (MaybeTy   l, MaybeTy   r) -> constrain' l r
     (CPtrTy    l, CPtrTy    r) -> constrain' l r
     _ -> err ("cannot constrian non-matching types families: " <> show t1 <> show t2)
