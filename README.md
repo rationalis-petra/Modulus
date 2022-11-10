@@ -13,6 +13,8 @@ experience of the Lisp family combined with the confidence inspired by the type
 systems of the ML family.
 
 ### Features
+Modulus will (and in some cases does) have:
+
 + **Structures** Tired of class hierarchy headaches? Structs are a mechanism for
   packaging type(s) and associated behaviour. They double as both a basis for a
   module system, and offer a compelling alternative to object systems for
@@ -31,17 +33,33 @@ systems of the ML family.
   and data-processing facilities. It also includes a JIT compiler for itself,
   enabling you to write applications which are scriptable in Modulus.
 
-<!-- + The **Interative Enviroment** is not a feature of the language itself, but of -->
-<!--   this particular implementation. Break the compile-test-rewrite cycle by -->
-<!--   swapping function definitions, watch variable values, and more - all live as -->
-<!--   your code is running! -->
++ The **Interative Enviroment** is not a feature of the language itself, but of
+  this particular implementation. Break the compile-test-rewrite cycle by
+  swapping function definitions, watch variable values, and more - all live as
+  your code is running!
 
-## Currently Implemented 
+## Status 
+### Currently Implemented
+Currently, Modulus is implemented as an interpreter with the following features:
+
 + Structures
 + Dependent Types
 + Inductive and Coinductive datatypes
 + Implicit arguments
++ Client/Server model for the interactive environment
 
+## Coming Soon
++ Foreign Function Interface (FFI) 
+  + C/Native
+  + Java/JVm
+
++ Interactive Environment
+  + Hot reload
+
++ Compiler (a ways off)
+  + AOT Compilation to Native Code
+  + [SBCL](https://www.sbcl.org/) style AOT compilation for the live
+    environment, enabling hot reloads, repl, etc.
 
 
 
