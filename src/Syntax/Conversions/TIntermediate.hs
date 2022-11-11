@@ -1,15 +1,13 @@
 module Syntax.Conversions.TIntermediate where
 
 import Data(EvalM,
-            TopCore(..),
-            Core (..),
             Pattern(..),
             InbuiltCtor(..),
-            Definition(..),
             Normal,
             Normal'(..),
             Neutral,
             Neutral'(..))
+import Syntax.Core(Core (..), TopCore(..), Definition(..))
 import Syntax.Intermediate(Intermediate(..),
                            IDefinition(..),
                            IPattern(..),
@@ -20,7 +18,6 @@ import Interpret.EvalM (local, fresh_id, fresh_var, throwError)
 import Control.Monad.State (State, runState)
 import Control.Monad.Except (ExceptT, Except, runExceptT, runExcept)
 import qualified Control.Monad.Except as Except
-
 import qualified Interpret.Environment as Env
 import qualified Interpret.Eval as Eval
 import Syntax.TIntermediate

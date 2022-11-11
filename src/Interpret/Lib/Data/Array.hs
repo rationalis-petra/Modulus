@@ -5,6 +5,7 @@ import Data.Vector hiding (mapM)
 import qualified Data.Vector as Vec
 
 import Data
+import Syntax.Core
 import Interpret.EvalM 
 import Interpret.Eval (eval)
 import Syntax.Utils (mkVar)

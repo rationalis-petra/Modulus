@@ -7,6 +7,7 @@ import Bindings.Libtdl
 import Parse (parseScript, parseRepl, parsePreRepl, ReplMessage(..))
 import Data
 import Interpret.Eval (evalToEither, evalTop, Result(..), loopAction)
+import Syntax.Core
 import Syntax.Macroexpand 
 import Syntax.Conversions (toIntermediate,
                            toTIntermediateTop,

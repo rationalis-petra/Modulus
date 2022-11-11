@@ -14,13 +14,11 @@ import Data(Normal,
             Normal'(NormSct, NormSig, NormCModule, PrimType),
             PrimType(CModuleT),
             ProgState,
-            Core,
-            TopCore(..),
             Environment,
-            Definition,
             EvalM,
             AST,
             toEmpty)
+import Syntax.Core(Core, TopCore(..), Definition)
 import Parse (parseModule)
 import Interpret.Eval (evalToEither, eval, evalDef, loopAction)
 import Interpret.EvalM (throwError, liftExcept, ask, localF)

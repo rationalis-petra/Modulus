@@ -19,6 +19,7 @@ floatShow = liftFun newf (NormArr float_t (PrimType StringT))
     newf :: Normal -> EvalM Normal
     newf (PrimVal (Float f)) = pure (PrimVal (String (pack (show f))))
 
+
 mkFloatUni :: (Float -> Float) -> Normal
 mkFloatUni f = 
   liftFun newf unifloat
@@ -35,6 +36,7 @@ mkFloatOp f =
     newf (PrimVal (Float f1)) (PrimVal (Float f2)) =
       pure $ PrimVal $ Float $ f f1 f2
 
+
 mkFltCmp :: (Float -> Float -> Bool) -> Normal
 mkFltCmp f = 
   liftFun2 newf floatCompare
@@ -43,12 +45,14 @@ mkFltCmp f =
     newf (PrimVal (Float n1)) (PrimVal (Float n2)) =
       pure $ PrimVal $ Bool $ f n1 n2
 
+
 intShow :: Normal  
 intShow = liftFun newf (NormArr int_t (PrimType StringT))
   where
     newf :: Normal -> EvalM Normal
     newf (PrimVal (Int n1)) = pure (PrimVal (String (pack (show n1))))
   
+
 mkIntUni :: (Integer -> Integer) -> Normal
 mkIntUni f = 
   liftFun newf uniint
@@ -56,6 +60,7 @@ mkIntUni f =
     newf :: Normal -> EvalM Normal
     newf (PrimVal (Int n1)) = pure $ PrimVal $ Int $ f n1
 
+  
 mkIntOp :: (Integer -> Integer -> Integer) -> Normal
 mkIntOp f = 
   liftFun2 newf binint
@@ -63,6 +68,7 @@ mkIntOp f =
     newf :: Normal -> Normal -> EvalM Normal
     newf (PrimVal (Int n1)) (PrimVal (Int n2)) =
       pure $ PrimVal $ Int $ f n1 n2
+
 
 mkCmpOp :: (Integer -> Integer -> Bool) -> Normal
 mkCmpOp f = 
@@ -72,6 +78,7 @@ mkCmpOp f =
     newf (PrimVal (Int n1)) (PrimVal (Int n2)) =
       pure $ PrimVal $ Bool $ f n1 n2
 
+
 mkBoolOp :: (Bool -> Bool -> Bool) -> Normal
 mkBoolOp f = 
   liftFun2 newf binbool
@@ -79,6 +86,7 @@ mkBoolOp f =
     newf :: Normal -> Normal -> EvalM Normal
     newf (PrimVal (Bool b1)) (PrimVal (Bool b2)) =
       pure $ PrimVal $ Bool $ f b1 b2
+
 
 mkBoolSing :: (Bool -> Bool) -> Normal
 mkBoolSing f = 

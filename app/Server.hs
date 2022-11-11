@@ -98,7 +98,8 @@ getMessage socket = do
     putStrLn "header size < 4!"
     -- TODO flush/clear data?
     getMessage socket
-  else accumTill (getSize sizeStr) Bs.empty
+  else
+    accumTill (getSize sizeStr) Bs.empty
 
   where 
     accumTill :: Int -> Bs.ByteString -> IO ByteString

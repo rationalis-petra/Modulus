@@ -8,12 +8,12 @@ import Control.Monad.State
 import Data (PrimType(..),
              Normal,
              Normal'(..),
-             Core(..),
              Neutral,
              Neutral'(..),
              Environment,
              EvalM,
              var_counter)
+import Syntax.Core(Core(..))
 import Syntax.TIntermediate
 
 import qualified Control.Monad.Except as Except

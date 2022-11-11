@@ -16,7 +16,6 @@ module Typecheck.Constrain (
 import Data (PrimType(..),
              Normal,
              Normal'(..),
-             Core(..),
              Neutral,
              Neutral'(..),
              CollTy(..),
@@ -24,6 +23,7 @@ import Data (PrimType(..),
              var_counter,
              Environment,
              EvalM)
+import Syntax.Core(Core(..))
 
 import qualified Interpret.Environment as Env
 import qualified Interpret.Eval as Eval

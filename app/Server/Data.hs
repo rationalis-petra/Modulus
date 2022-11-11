@@ -3,7 +3,8 @@ module Server.Data where
 
 import Control.Lens (makeLenses)
 
-import Data (Normal, Definition, Environment, ProgState) 
+import Data (Normal, Environment, ProgState)
+import Syntax.Core(Core(..), Definition)
 import Data.Text (Text)
 import qualified Data.Map as Map
 

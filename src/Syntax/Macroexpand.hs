@@ -5,8 +5,9 @@ import Data(-- Intermediate(..),
             Normal'(..),
             AST (..),
             EvalM,
-            Core(CNorm, CApp),
             ProgState) 
+
+import Syntax.Core(Core(..))
 
 import qualified Interpret.Eval as Eval
 import qualified Interpret.Environment as Env

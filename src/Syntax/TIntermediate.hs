@@ -3,12 +3,11 @@ module Syntax.TIntermediate where
 -- we have... the 
 
 import Data(EvalM,
-            Core (CNorm),
-            Definition(..),
             Normal,
             Normal'(..),
-            Pattern,
-            Core(..))
+            Pattern)
+import Syntax.Core (Definition(..), Core (..))
+
 import Syntax.Intermediate(Intermediate(..),
                            IDefinition(..),
                            IPattern(..),

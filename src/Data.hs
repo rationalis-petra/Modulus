@@ -2,10 +2,8 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 
-module Data (Definition(..),
-             Pattern(..),
+module Data (Pattern(..),
              CoPattern(..),
-             Core(..),
              Modifier(..),
              Normal'(..),
              Normal,
@@ -27,8 +25,7 @@ module Data (Definition(..),
              CollVal(..),
              CollTy(..),
              InbuiltCtor(..),
-             Special(..),
-             TopCore(..)) where
+             Special(..)) where
 
 import Data.Text (Text, pack, unpack)
 import Data.Vector (Vector)
@@ -47,13 +44,6 @@ import Control.Monad.Reader (ReaderT)
 
 import Bindings.Libtdl
 
--- TODO: untangle core & Normalized values
-data Definition
-  = SingleDef String Core Normal
-  | InductDef   String Int [(String, Normal)] Normal Normal [(String, Int, Normal)] 
-  | CoinductDef String Int [(String, Normal)] Normal Normal [(String, Int, Normal)] 
-  | OpenDef Core [(String, Normal)]
-  deriving Show
 
 data Pattern
   = WildCard
@@ -62,6 +52,7 @@ data Pattern
   | MatchModule [(String, Pattern)]
   | InbuiltMatch (Normal -> (Normal -> Pattern -> EvalM (Maybe [(String, (Normal, Normal))]))
                          -> EvalM (Maybe [(String, (Normal, Normal))]))
+
 
 data CoPattern
   = CoWildCard
@@ -72,43 +63,18 @@ data CoPattern
   --                        -> EvalM (Maybe [(String, Normal)]))
 
 
-data Core
-  = CNorm Normal                           -- Normalised value
-  | CVar String                            -- Variable
-  | CDot Core String                       -- Access a field from a struct/signature
-  | CArr Core Core                         -- Arrow Type (degenerate product)
-  | CProd String Core Core                 -- Dependent Product 
-  | CImplProd String Core Core             -- Dependent Product 
-  | CAbs String Core Normal                -- Function abstraction
-  | CApp Core Core                         -- Function application 
-  | CMAbs String Normal Core               -- Macro abstraction
-  | CLet [(String, Core)] Core Normal      -- Local binding
-  | CMatch Core [(Pattern, Core)] Normal   -- Pattern-Match
-  | CCoMatch [(CoPattern, Core)] Normal    -- Pattern-Comatch (for coinductive types)
-
-  -- TODO: remove this via lazy functions (induction?!)
-  | CIf Core Core Core Normal              -- Conditional 
-  | CSct [Definition] Normal               -- Structure Definition
-  | CSig [Definition]                      -- Signature Definition (similar to dependent sum)
-
-  -- TODO: plugin
-  -- TODO: we want compile-time + run-time variants!
-  | CAdaptForeign String String [(String, String, Normal)]
-  deriving Show
-
-data TopCore = TopDef Definition | TopExpr Core | TopAnn String Core
-  deriving Show
-
 instance Show Pattern where  
   show WildCard = "_"
   show (VarBind sym _) = sym
   show (MatchInduct _ _ _) = "inductive match"
   show (InbuiltMatch _) = "inbuilt match"
 
+
 instance Show CoPattern where  
   show CoWildCard = "_"
   show (CoVarBind sym _) = sym
   show (CoMatchInduct _ _ _ _) = "coinductive match"
+
 
 -- The Value type class is used as an existential type to enable
 -- extensions of the language (e.g. the FFI libraries 
@@ -123,7 +89,6 @@ data Environment = Environment {
   currentModule :: Normal,
   globalModule  :: Normal
 }
-
 
   
 
@@ -140,7 +105,8 @@ data Special
   | MkQuote | Do  | Access | Mac |  Annotate
   -- Foreign function stuf 
   | ForeignAdapter
-  deriving Show
+  deriving (Eq, Show)
+
 
 data PrimVal
   = Unit
@@ -170,6 +136,7 @@ data InbuiltCtor m
            -- strip, ctor & type
            Int (Normal' m) (Normal' m)
 
+
 data CollTy m
   = MaybeTy (Normal' m)
   | ListTy (Normal' m)
@@ -178,13 +145,15 @@ data CollTy m
   -- TODO: plugin
   | CPtrTy (Normal' m)
 
+
 data CollVal m
   = MaybeVal (Maybe (Normal' m)) (Normal' m)
   | ListVal [(Normal' m)] (Normal' m)
   | ArrayVal (Vector (Normal' m)) (Normal' m)
   | IOAction (IEThread m) (Normal' m)
-
+  -- TOOD: plugin
   | CPtr (Ptr ())
+
 
 data IEThread m
   = IOThread (IO (IEThread m))
@@ -196,6 +165,7 @@ data IEThread m
 
 data Modifier = Implicit
   deriving (Show, Eq, Ord)
+
 
 -- m is the type of monad inside the object
 type Normal = Normal' EvalM
@@ -239,7 +209,6 @@ data Normal' m
   | NormCoVal [(CoPattern, m (Normal' m))] (Normal' m)
   | NormCoDtor String Int Int Int Int [Normal' m]  (Normal' m)
 
-
   -- Multi-Stage Programming
   | BuiltinMac ([AST] -> m AST)
   | Special Special
@@ -270,7 +239,6 @@ data AST
 
 instance Show (Normal' m) where
   show (Neu neu _)      = show neu
-
   show (PrimVal prim)   = show prim
   show (PrimType prim)  = show prim
   show (CollTy ty)      = show ty
@@ -278,9 +246,7 @@ instance Show (Normal' m) where
   show (Refl ty)        = "refl " <> show ty
   show (PropEq v1 v2)   = (show v1) <> "≡" <> (show v2)
   show (InbuiltCtor pat) = show pat
-  
   show (NormUniv n) = if n == 0 then "𝒰" else "𝒰" <> show n
-
   show (NormProd var a b) = "(" <> var <> ":" <> show a <> ")" <> " → " <> show b
   show (NormImplProd var a b) = "{" <> var <> ":" <> show a <> "}" <> " → " <> show b
   show (NormArr l r) =
@@ -288,7 +254,6 @@ instance Show (Normal' m) where
         in l' <> " → " <> show r
   show (NormAbs var body ty) = "(λ [" <> var <> "] " <> show body <> ")"
   show (Builtin _ ty) = "(fnc : " <> show ty <> ")"
-  
   show (NormSct fields ty) =
     if isTuple fields then
       showAsTuple fields
@@ -331,7 +296,6 @@ instance Show (Normal' m) where
   show (Keyword word) = "&" <> word
   show (Symbol sym) = "<" <> sym <> ">"
   show (AST ast) = "AST" <> show ast
-
   show (NormCModule _) = "<c-module>"
   show (NormCValue _ ty) = "<cvalue: " <> show ty <> ">"
 
@@ -350,7 +314,7 @@ instance Show (Neutral' m) where
     <> ")"
   show (NeuIf cond e1 e2 _) = "(if " <> show e1 <> " " <> show e2 <> ")"
 
-  show (NeuBuiltinApp fn neu ty)  = "(neu-app :" <> show ty  <> ") " <> show neu
+  show (NeuBuiltinApp fn neu ty)  = "((fn " <> show neu <> ") : " <>  show ty <> ")"
 
   
 data PrimType

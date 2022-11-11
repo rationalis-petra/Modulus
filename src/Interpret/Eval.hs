@@ -16,6 +16,8 @@ module Interpret.Eval (Normal,
                        liftFun5,
                        liftFun6) where
 
+import Debug.Trace (trace)
+
 import Prelude hiding (lookup)
 
 import Data.Text (pack, unpack)
@@ -38,6 +40,7 @@ import Bindings.Libtdl (CModule, lookupForeignFun, mkFun)
 import Foreign.C.Types (CDouble)
   
 import Data
+import Syntax.Core
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Vector as Vector
@@ -75,6 +78,7 @@ loopThread thread env state =
         Left err -> pure $ Left err
     Pure val -> pure (Right (val, state))
 
+
 loopAction :: Normal -> Environment -> ProgState -> IO (Normal, ProgState)
 loopAction val env state =
   case val of
@@ -90,6 +94,7 @@ loopAction val env state =
       putStrLn ("final value of main: " <> show val)
       pure (val, state)
 
+
 evalTop ::  TopCore -> EvalM Result
 evalTop (TopExpr e) = eval e >>= (\val -> pure (RValue val))
 evalTop (TopDef def) = case def of
@@ -99,9 +104,11 @@ evalTop (TopDef def) = case def of
         liftedEnv = Env.insert name liftedFun norm env
     val <- local liftedEnv (eval $ CAbs sym core norm)
     pure (RDef (Env.insert name val norm))
+
   SingleDef name body ty -> do
     val <- eval body
     pure (RDef (Env.insert name val ty))
+
   OpenDef body sig -> do
     mdle <- eval body
     case mdle of 
@@ -109,6 +116,7 @@ evalTop (TopDef def) = case def of
         let m' = (restrict . dropMod) (restrict (dropMod m) ty) sig
         pure $ RDef $ (flip $ foldr (\(k, (val, ty)) -> Env.insert k val ty)) m'
       _ -> throwError "cannot open non-module"
+
   InductDef sym indid params ctor ctorty alts -> do 
     let insertCtor = Env.insert sym ctor ctorty 
         insertAlts = flip (foldr (\(k, (val, ty)) env -> Env.insert k val ty env))
@@ -118,10 +126,9 @@ evalTop (TopDef def) = case def of
           let alt = NormIVal sym indid id (length params) [] ty
           alts' <- mkAlts alts
           pure ((sym, (alt, ty)) : alts')
-          
-    
     alts' <- mkAlts alts
     pure $ RDef (insertCtor . insertAlts alts')
+
   CoinductDef sym coid params ctor ctorty alts -> do 
     let insertCtor = Env.insert sym ctor ctorty
         insertAlts = flip $ foldr (\(k, (val, ty)) -> Env.insert k val ty)
@@ -136,12 +143,14 @@ evalTop (TopDef def) = case def of
         tySize (NormProd _ _ r) = 1 + tySize r
         tySize (NormImplProd _ _ r) = 1 + tySize r
         tySize _ = 0
-    
     alts' <- mkAlts alts
     pure $ RDef (insertCtor . insertAlts alts')
+
+  
 evalTop (TopAnn sym term) = do
   term' <- eval term
   pure (RAnn sym term')
+
 
 evalDef ::  Definition -> EvalM [(String, (Normal, Normal))]
 evalDef def = case def of
@@ -189,10 +198,12 @@ evalDef def = case def of
     alts' <- mkAlts alts
     pure $ (ctorPr : alts')
   
+
 -- evaluate an expression, to a normal form (not a value!). This means that the
 -- environment now contains only normal forms!
 eval ::  Core -> EvalM Normal
 eval (CNorm n) = pure n
+
 eval (CVar var) = do
   env <- ask
   liftExcept $ fst <$> Env.lookup var env 
@@ -240,7 +251,6 @@ eval (CApp l r) = do
         _ -> pure $ NormCoDtor name id1 id2 (len - 1) strip (r' : args) ty
     InbuiltCtor ctor -> case ctor of   
       IndPat _ _ _ n _ -> eval (CApp (CNorm n) (CNorm r'))
-
     other -> throwError ("tried to apply to non-function: " <> show other)
 
 eval (CSct defs ty) = do
@@ -378,6 +388,7 @@ eval (CAdaptForeign lang libsym imports) = do
 
 eval other = throwError ("eval not implemented for" <> show other)
 
+
 normSubst ::  (Normal, String) -> Normal -> EvalM Normal
 normSubst (val, var) ty = case ty of 
   Neu neu ty -> neuSubst (val, var) neu
@@ -385,12 +396,14 @@ normSubst (val, var) ty = case ty of
   PrimVal p -> pure $ PrimVal p
   Refl ty -> Refl <$> normSubst (val, var) ty
   PropEq lty rty -> PropEq <$> normSubst (val, var) lty <*> normSubst (val, var) rty
+
   CollTy cty -> case cty of 
     MaybeTy a -> (CollTy . MaybeTy) <$> normSubst (val, var) a
     ListTy a -> (CollTy . ListTy) <$> normSubst (val, var) a
     ArrayTy a -> CollTy <$> (ArrayTy <$> normSubst (val, var) a)
     IOMonadTy a -> (CollTy . IOMonadTy) <$> normSubst (val, var) a
     CPtrTy a -> (CollTy . CPtrTy) <$> normSubst (val, var) a
+
   CollVal cvl -> case cvl of 
     MaybeVal m ty -> case m of 
       Just some -> CollVal <$> (MaybeVal <$> (Just <$> (normSubst (val, var) some))
@@ -405,9 +418,9 @@ normSubst (val, var) ty = case ty of
         IOThread _ -> pure . CollVal $ IOAction thread ty'
         MThread _ -> pure . CollVal $ IOAction thread ty'
         Seq l r -> pure . CollVal $ IOAction thread ty'
-
         Bind v f -> CollVal . (flip IOAction ty') . Bind v <$> normSubst (val, var) f
         Pure v -> CollVal . (flip IOAction ty') . Pure <$> normSubst (val, var) v
+
   NormCoVal pats ty -> do
     let pats' = map substCoPat pats
     ty' <- normSubst (val, var) ty
@@ -426,10 +439,8 @@ normSubst (val, var) ty = case ty of
       getCoPatVars (CoVarBind var _) = Set.singleton var
       getCoPatVars (CoMatchInduct _ _ _ subPatterns) =
         foldr (Set.union . getCoPatVars) Set.empty subPatterns
-
  
   NormUniv n -> pure $ NormUniv n
-
   
   NormProd var' a b ->
     if var == var' then  do
@@ -439,6 +450,7 @@ normSubst (val, var) ty = case ty of
       a' <- normSubst (val, var) a
       b' <- normSubst (val, var) b
       pure $ NormProd var' a' b'
+
   NormImplProd var' a b -> 
     if var == var' then  do
       a' <- normSubst (val, var) a
@@ -447,10 +459,12 @@ normSubst (val, var) ty = case ty of
       a' <- normSubst (val, var) a
       b' <- normSubst (val, var) b
       pure $ NormImplProd var' a' b'
+
   NormArr a b -> do
       a' <- normSubst (val, var) a
       b' <- normSubst (val, var) b
       pure $ NormArr a' b'
+
   NormAbs var' body ty -> do 
     if var == var' then  do
       ty' <- normSubst (val, var) ty
@@ -459,6 +473,7 @@ normSubst (val, var) ty = case ty of
       body' <- normSubst (val, var) body
       ty' <- normSubst (val, var) ty
       pure $ NormAbs var' body' ty'
+
   -- TODO: The function /may/ have captured variables in it as a closure?
   -- pretty sure this shouldn't happen as we have InbuiltNeuApp
   Builtin fnc ty -> do
@@ -469,12 +484,13 @@ normSubst (val, var) ty = case ty of
     let (fields', mods) = peelMod fields
     fields'' <- substFields (val, var) fields'
     NormSct (addMod fields'' mods) <$> normSubst (val, var) ty
+
   NormSig fields -> do
     NormSig <$> substFields (val, var) fields
 
-
   NormIType name id params -> do
     NormIType name id <$> mapM (normSubst (val, var)) params 
+
   NormIVal name tid id strip vals ty -> do
     vals' <- mapM (normSubst (val, var)) vals
     ty' <- normSubst (val, var) ty
@@ -576,6 +592,7 @@ neuSubst (val, var) neutral = case neutral of
           else pure Nothing
         getBinds _ _= pure Nothing
 
+
   NeuIf cond e1 e2 ty -> do
    cond' <- neuSubst (val, var) cond
    case cond' of 
@@ -587,7 +604,6 @@ neuSubst (val, var) neutral = case neutral of
      PrimVal (Bool False) -> normSubst (val, var) e2
      _ -> throwError ("bad condition in if: expected bool, got: " <> show cond')
      
-
 
   NeuBuiltinApp fn neu ty -> do
     arg <- neuSubst (val, var) neu
@@ -622,8 +638,11 @@ instance Eq (Normal' m) where
 norm_equiv :: (Normal' m) -> (Normal' m) -> Generator -> (Map.Map String String, Map.Map String String) -> Bool 
 norm_equiv (NormUniv n1) (NormUniv n2) gen rename = n1 == n2
 norm_equiv (Neu n1 _) (Neu n2 _) gen rename = neu_equiv n1 n2 gen rename
-norm_equiv (PrimVal p1) (PrimVal p2) _ _ = p1 == p2
+norm_equiv (PrimVal p1)  (PrimVal p2) _ _  = p1 == p2
 norm_equiv (PrimType p1) (PrimType p2) _ _ = p1 == p2
+norm_equiv (Special s1)  (Special s2) _ _  = s1 == s2
+norm_equiv (Keyword s1)  (Keyword s2) _ _  = s1 == s2
+norm_equiv (Symbol s1)   (Symbol s2) _ _   = s1 == s2
 
 -- Note: arrows and dependent types /can/ be equivalent if the bound variable
 -- doesn't come on the LHS
@@ -644,10 +663,30 @@ norm_equiv (NormArr  a b) (NormProd var' a' b') gen rename =
     False
   else
     norm_equiv a a' gen rename && norm_equiv b b' gen rename
--- norm_equiv (NormImplProd var a b) (NormImplProd var' a' b') gen rename = 
---   (var a b) || ()
+norm_equiv (NormImplProd var a b) (NormImplProd var' a' b') gen (lrename, rrename) = 
+  let (nvar, gen') = genFresh gen
+  in (a == a') && (norm_equiv b b'
+                   (useVars [var, var', nvar] gen')
+                   (Map.insert var nvar lrename, Map.insert var' nvar rrename))
 
+norm_equiv (CollTy x) (CollTy y) gen rename =
+  case (x, y) of 
+    (MaybeTy a, MaybeTy b) -> norm_equiv a b gen rename
 
+norm_equiv (CollVal x) (CollVal y) gen rename =
+  case (x, y) of 
+    (MaybeVal (Just a) t1, MaybeVal (Just b) t2) ->
+      (norm_equiv a b gen rename) && (norm_equiv t1 t2 gen rename)
+    (MaybeVal Nothing t1, MaybeVal Nothing t2) ->
+      (norm_equiv t1 t2 gen rename)
+    (MaybeVal _ _, MaybeVal _ _) -> False
+
+-- norm_equiv (NormSig fields1) (NormSig fields1) = 
+--   case (x, y)
+
+-- norm_equiv (NormSct fields1 ty1) (NormSct fields1 ty2)
+  
+norm_equiv _ _ _ _ = False
 
   
 neu_equiv :: (Neutral' m) -> (Neutral' m) -> Generator -> (Map.Map String String, Map.Map String String)

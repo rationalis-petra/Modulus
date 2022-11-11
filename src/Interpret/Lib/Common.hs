@@ -4,6 +4,7 @@ module Interpret.Lib.Common (commonTerms, commonStructure) where
 import qualified Data.Map as Map
 
 import Data
+import Syntax.Core
 import Syntax.Utils
 import Interpret.Eval (eval, liftFun, liftFun2, liftFun3, liftFun4, liftFun5, liftFun6)
 import Interpret.EvalM (throwError)

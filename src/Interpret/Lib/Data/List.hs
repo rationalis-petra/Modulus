@@ -4,6 +4,7 @@ import qualified Data.Map as Map
 
 import qualified Data.Map as Map
 import Data
+import Syntax.Core
 import Interpret.Eval (eval, liftFun, liftFun2, liftFun3, liftFun4, liftFun5, liftFun6)
 import Interpret.EvalM
 import Syntax.Utils (mkVar)

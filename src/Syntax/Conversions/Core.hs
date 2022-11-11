@@ -1,15 +1,13 @@
 module Syntax.Conversions.Core where
 
 import Data(EvalM,
-            TopCore(..),
-            Core (..),
             Pattern(..),
             CoPattern(..),
-            Definition(..),
             Normal,
             Normal'(..),
             Neutral,
             Neutral'(..))
+import Syntax.Core
 import Syntax.Intermediate(Intermediate(..),
                            IDefinition(..),
                            IPattern(..),

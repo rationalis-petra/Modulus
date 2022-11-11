@@ -4,7 +4,8 @@ import qualified Data.Map as Map
 import Data.Text as Text
 
 import Data
-import Interpret.Eval (liftFun, liftFun2)
+import Syntax.Core
+import Interpret.Eval (eval, liftFun, liftFun2, liftFun4)
 import Interpret.EvalM (throwError)
 import Syntax.Utils (mkVar)
 
@@ -52,17 +53,38 @@ mlsNone = InbuiltCtor $ IndPat "none" noneMatch 1 (liftFun noneCtor mlsNoneTy) m
     noneCtor :: Normal -> EvalM Normal
     noneCtor ty = pure (CollVal (ListVal [] ty))
 
+
+mlsMapTy :: Normal  
+mlsMapTy = NormImplProd "A" (NormUniv 0)
+            (NormImplProd "B" (NormUniv 0)
+              (NormArr (NormArr (mkVar "A") (mkVar "B"))
+                (NormArr (CollTy . MaybeTy . mkVar $ "A")
+                  (CollTy . MaybeTy . mkVar $ "B"))))
+
+mlsMap :: Normal  
+mlsMap = liftFun4 f mlsMapTy
+  where
+    f :: Normal -> Normal -> Normal -> Normal -> EvalM Normal
+    f a b f (CollVal (MaybeVal m ty)) =
+      case m of 
+        Just v ->  CollVal . (flip MaybeVal b) . Just <$> eval (CApp (CNorm f) (CNorm v)) 
+        Nothing -> pure (CollVal (MaybeVal m b))
+
 maybeSignature :: Normal
 maybeSignature = NormSig
-                 [ ("M", mlsMaybeCtorTy)
+                 [ ("Maybe", mlsMaybeCtorTy)
+                 , ("M", mlsMaybeCtorTy)
                  , ("some", mlsSomeTy)
                  , ("none", mlsNoneTy)
+                 , ("map", mlsMapTy)
                  ]
                  
   
 maybeStructure :: Normal
 maybeStructure = NormSct (toEmpty
-  [ ("M", mlsMaybeCtor)
+  [ ("Maybe", mlsMaybeCtor)
+  , ("M", mlsMaybeCtor)
   , ("some", mlsSome)
   , ("none", mlsNone)
+  , ("map", mlsMap)
   ]) maybeSignature
