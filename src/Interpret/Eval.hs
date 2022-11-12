@@ -4,7 +4,7 @@ module Interpret.Eval (Normal,
                        eval,
                        evalTop,
                        evalDef,
-                       loopAction,
+                       runIO,
                        normSubst,
                        tyApp,
                        Result(..),
@@ -79,8 +79,8 @@ loopThread thread env state =
     Pure val -> pure (Right (val, state))
 
 
-loopAction :: Normal -> Environment -> ProgState -> IO (Normal, ProgState)
-loopAction val env state =
+runIO :: Normal -> Environment -> ProgState -> IO (Normal, ProgState)
+runIO val env state =
   case val of
     (CollVal (IOAction action ty)) -> do
       res <- loopThread action env state
@@ -89,9 +89,8 @@ loopAction val env state =
         Left err -> do
           putStrLn ("loopThread err: " <> err)
           pure (val, state)
-    (PrimVal Unit) -> pure (val, state)
     _ -> do
-      putStrLn ("final value of main: " <> show val)
+      print val
       pure (val, state)
 
 

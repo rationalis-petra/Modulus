@@ -20,7 +20,7 @@ import Data(Normal,
             toEmpty)
 import Syntax.Core(Core, TopCore(..), Definition)
 import Parse (parseModule)
-import Interpret.Eval (evalToEither, eval, evalDef, loopAction)
+import Interpret.Eval (evalToEither, eval, evalDef, runIO)
 import Interpret.EvalM (throwError, liftExcept, ask, localF)
 import Syntax.Utils (typeVal, getField)
 import Syntax.Macroexpand (macroExpand)
@@ -62,7 +62,7 @@ runMain istate =
     Right (Node _ (Just m)) ->
       case getField "main" (m^.vals) of
         Just val -> do
-          (out, state') <- loopAction val (istate^.environment) (istate^.progState)
+          (out, state') <- runIO val (istate^.environment) (istate^.progState)
           pure istate
         Nothing -> do
           putStrLn "error: main monad not found"

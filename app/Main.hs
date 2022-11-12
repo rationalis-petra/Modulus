@@ -6,7 +6,7 @@ import Bindings.Libtdl
 
 import Parse (parseScript, parseRepl, parsePreRepl, ReplMessage(..))
 import Data
-import Interpret.Eval (evalToEither, evalTop, Result(..), loopAction)
+import Interpret.Eval (evalToEither, evalTop, Result(..), runIO)
 import Syntax.Core
 import Syntax.Macroexpand 
 import Syntax.Conversions (toIntermediate,
@@ -124,7 +124,7 @@ runInteractively str env state =
 -- run any IO actions encountered)
 runExprs :: [AST] -> Environment -> ProgState -> Bool -> IO (Environment, ProgState)
 runExprs [] env state _ = pure (env, state)
-runExprs (e : es) env state runIO = do
+runExprs (e : es) env state iop = do
   -- result <- evalToIO compile env state 
   -- where my_mnd = do
   --         expanded <- macroExpand e 
@@ -144,19 +144,19 @@ runExprs (e : es) env state runIO = do
               result <- evalToIO (typeCheckTop tint env) env state''
               case result of 
                 Just (cint, state''') -> do
+                  -- TODO: add optional printing of type
                   cint' <- case cint of 
-                        Left (t, ty) -> (printFlush ty) >> pure t
+                        Left (t, ty) -> pure t
                         Right t -> pure t
                   case runExcept (toTopCore cint') of 
                     Right v -> do
                       (fenv, fstate, mval) <- evalTopCore v env state''
                       fstate' <- case mval of 
                         Just mval -> do
-                          (val, state) <- loopAction mval fenv fstate
-                          printFlush val
+                          (val, state) <- runIO mval fenv fstate
                           pure state
                         Nothing -> pure fstate
-                      runExprs es fenv fstate' runIO
+                      runExprs es fenv fstate' iop
                     Left err -> failWith ("toCore err: " <> err)
                 Nothing -> pure (env, state)
             Nothing -> pure (env, state)
