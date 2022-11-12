@@ -414,12 +414,15 @@ normSubst (val, var) ty = case ty of
                                     <*> normSubst (val, var) ty)
     IOAction thread ty -> do
       ty' <- normSubst (val, var) ty  
-      case thread of
-        IOThread _ -> pure . CollVal $ IOAction thread ty'
-        MThread _ -> pure . CollVal $ IOAction thread ty'
-        Seq l r -> pure . CollVal $ IOAction thread ty'
-        Bind v f -> CollVal . (flip IOAction ty') . Bind v <$> normSubst (val, var) f
-        Pure v -> CollVal . (flip IOAction ty') . Pure <$> normSubst (val, var) v
+      thread' <- threadSubst thread
+      pure . CollVal $ IOAction thread' ty'
+
+      where
+        threadSubst (IOThread t) = pure (IOThread t)
+        threadSubst (MThread t)  = pure (MThread t)
+        threadSubst (Seq l r)    = Seq  <$> threadSubst l <*> threadSubst r
+        threadSubst (Bind v f)   = Bind <$> threadSubst v <*> normSubst (val, var) f
+        threadSubst (Pure v)     = Pure <$> normSubst (val, var) v
 
   NormCoVal pats ty -> do
     let pats' = map substCoPat pats
