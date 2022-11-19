@@ -1,0 +1,41 @@
+#+html_head: <link rel="stylesheet" href="../modulus-style.css" type="text/css"/>
+#+title: The Modulus Server
+
+#+options: toc:nil num:nil
+
+* Who this is For
+This section details the Modulus Server, with the intent it is used to implement
+clients in various text-editors.  
+
+* Why the Modulus Server isn't a LSP/DAP server
+The idea of a language sever is nothing new: The idea is to decouple common
+language tasks like syntax highlighting, autocomplete etc. into two parts: 
++ The text-editor, which handles UI
++ The server, which handles the business logic
+This is seen in language server protocols like lsp and dap. However the modulus
+server implements neither of these protocols. 
+
+The Modulus server is designed with the following two goals in mind:
++ Shrink time between you /making changes/ to your code and actually /seeing/
+  those changes as much as possible.
++ Make it as easy as possible to gain insight into your programs' runtime
+  behaviour.
+
+The server sufficiently different to most compiled languages that simply 
+instead of compiling and running your program, testing some functionality, then
+re-compiling, you interact with an /image/, which is sort of like a live version
+of your program. You can selectively re-define functions (even while the program
+is running), add variable watch/breakpoints and much more. 
+
+* The Protocol
+** Header
++ length
++ text encoding
+
+** Body
+#+begin_src modulus
+⦗⁖id <num>
+ ⁖type <tag>
+ ⁖content <content>⦘
+#+end_src
+

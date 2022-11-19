@@ -1,0 +1,18 @@
+#+html_head: <link rel="stylesheet" href="../modulus-style.css" type="text/css"/>
+#+title: Emacs: Modulus-Mode 
+
+#+options: toc:nil num:nil
+
+#+html: <div style="text-align:right">
+[[file:f:/Home/wiki/mlsio/index.org][Modulus]] / [[file:index.org][Tooling]] / Emacs
+#+html: </div>
+
+* Modulus & Modulus-input
+Modulus provides
+
+
+#+begin_src elisp
+(use-package modulus-input-mode)
+
+(use-package modulus)
+#+end_src

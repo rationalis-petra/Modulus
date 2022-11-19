@@ -1,0 +1,3 @@
+#+html_head: <link rel="stylesheet" href="../modulus-style.css" type="text/css"/>
+#+title: Modulus Implementation Notes
+#+options: toc:nil num:nil html-postamble:nil

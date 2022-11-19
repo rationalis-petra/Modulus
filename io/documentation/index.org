@@ -1,0 +1,33 @@
+#+html_head: <link rel="stylesheet" href="../modulus-style.css" type="text/css"/>
+#+title: Modulus Documentation
+#+options: toc:nil num:nil html-postamble:nil
+
+#+html: <div style="text-align:right">
+[[file:f:/Home/wiki/mls/io/index.org][Modulus]] / Documentation
+#+html: </div>
+
+
+Modulus' documentation describes the features it has, how to use them (with
+examples) and the reasoning behind them. 
+
+
+Tooling
++ Unicode
++ The Server & Live Coding
+
+Concepts 
++ [[file:exprs.org][Expressions and Parsing]]
++ Functions & Currying
++ Types
++ Type Inference
++ Structures & Modules
++ Advanced Type Inference
++ Macros
++ Reader Macros
++ Normal Forms & Dependent Types
++ Monads, IO
+
+Libraries  
++ Modules, Structures & Signatures
++ [[file:module-layout.org][Standard Module Layout]]
++ [[file:library.org][The Standard Library]]

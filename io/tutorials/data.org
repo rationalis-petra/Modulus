@@ -1,0 +1,108 @@
+#+html_head: <link rel="stylesheet" href="../modulus-style.css" type="text/css"/>
+#+title: Tutorial: Custom Data
+#+options: toc:nil num:nil html-postamble:nil
+
+#+html: <div style="text-align:right">
+[[file:f:/Home/wiki/mls/io/index.org][Modulus]] / [[file:index.org][Tutorials]] / Custom Data
+#+html: </div>
+
+* Build Data
+#+begin_src modulus
+(induct (MyBool : 𝒰)
+  (my-true : MyBool)
+  (my-false : MyBool))
+#+end_src
+
+#+begin_src modulus
+(induct (Vehicle : 𝒰)
+  (bike  : Vehicle)
+  (car   : Vehicle)
+  (truck : Int → Vehicle))
+#+end_src
+
+
+#+begin_src modulus
+(induct (Nat : 𝒰)
+  (zero : Nat)
+  (succ : Nat → Nat))
+#+end_src
+
+* Coinduction
+
+** Basic Codata
+#+begin_src modulus
+(coinduct (CoBool : 𝒰)
+  (my-if : CoBool → {A : 𝒰} → A → A → A))
+
+(def my-true (comatch (my-if iftrue iffalse → iftrue)))
+
+(def my-false (comatch (my-if iftrue iffalse → iftrue)))
+
+(def my-false' (comatch (my-if {A} iftrue iffalse → iftrue)))
+#+end_src
+
+
+** Recursive & Infinite Codata 
+Natural Numbers 
+
+#+begin_src modulus
+(coinduct (CoNat [A] : 𝒰)
+  (pred : CoNat → CoNat))
+#+end_src
+
+#+begin_src modulus
+(coinduct (CoNat [A] : 𝒰)
+  (pred : CoNat → CoNat))
+#+end_src
+
+*** Infinite Codata
+
+
+** Parametrized Codata: Streams
+#+begin_src modulus
+(coinduct (CoList [A] : 𝒰)
+  (head : CoList A → Maybe A)
+  (tail : CoList A → Maybe (MyList A)))
+#+end_src
+
+#+begin_src modulus
+(defn colen-bad
+  ...)
+#+end_src
+
+#+begin_src modulus
+(colen : {A} → CoList A → CoNat)
+(defn colen [colist]
+  (match (tail colist) 
+    (Just tl → comatch
+      (pred → (len tl)))
+    (Nothing → comatch
+      (pred → cozero))))
+#+end_src
+
+#+begin_src modulus
+(coinduct (Stream [A] : 𝒰)
+  (value : Stream A → A)
+  (next : Stream A → MyList A))
+#+end_src
+
+* When to Use Data & Codata
+For the most part, regular inductive data types are easier to work with than
+their co-inductive counterparts. However, there are scenarios in which codata is
+useful - primarily when you are writing algorithms which explore an /infinite/
+search space. 
+
+As an example, consider a Chess AI. We might have datatypes for pieces and moves
+
+#+begin_src modulus
+(enum Colour [White Black])
+(enum Rank [Pawn Rook Knight ...])
+
+(def Piece (Colour * Rank))
+
+(def Board (Tensor ⦗8 8⦘ Piece)
+#+end_src
+
+
+
+

@@ -1,0 +1,206 @@
+#+html_head: <link rel="stylesheet" href="../modulus-style.css" type="text/css"/>
+#+title: Tutorial: Modulus Expressions
+#+options: toc:nil num:nil html-postamble:nil
+
+#+html: <div style="text-align:right">
+[[file:f:/Home/wiki/mlsio/index.org][Modulus]] / [[file:index.org][Tutorials]] / Expressions
+#+html: </div>
+
+* Arithmetic
+<TODO: brief tooling>
+
+You can 
+
+#+begin_src modulus
+> open num.int num.float
+> 2 + 3
+ℤ
+5
+> 6 - 5
+ℤ
+1
+> 1.5 × 2.0
+F64
+3.0
+#+end_src
+
+Shown above are a few arithmetic operations. Modulus for the most part looks
+like other programming languages, except for the `×' symbol, used for
+multiplication. Modulus offers two options for entering characters like
+this. The first is to preceed the name of the operation with a colon, in this
+case typing =:times= will output `×'. The other is abbreviated input, where
+you use a semicolon. The abbreviated input for `×' is =;xx=.
+
+* Booleans, Conditionals
+Booleans are values are values which can be either true or false. The easiest
+way to get a boolean is with a comparison function, e.g:
+
+#+begin_src modulus
+> (2 < 3) ;; less than
+true
+> (2 ≤ 3) ;; less than or equal to ;<= 
+true
+> (2 = 3) ;; equal to
+false
+> (5 > 3) ;; greater than
+true
+> (3 ≥ 3) ;; greater than or equal to ;>= 
+true
+#+end_src
+
+
+
+
+#+begin_src modulus
+> (true ∨ false) ;; or (;v, :or) is true if either argument is true  
+true
+> (true ∧ false) ;; and (;^, :and) is true only when both arguments ar etrue
+false
+> (true = false) ;; equal (=) is true when both arguments are the same
+false
+> (true ≠ false) ;; not equal (;/= :not=) ≠ is true when both arguments are different
+true
+#+end_src
+
+
+To use a boolean, we primarily use a conditional expression. The simplest
+conditional is =if=, which takes three arguments: a boolean, an expression which
+is evaluated when the boolean is true, and an expression is evaluated when the
+boolean is false.
+
+#+begin_src modulus
+> (if (2 < 3) "two" "three")
+"two"
+#+end_src
+
+Sometimes, it might be necessary to have multiple 'if' statements inside of each
+other. Suppose for example that we have a calendar system where days are
+represented as numbers: 1 is Monday, 2 is Tuesday, etc. Using an =if=, this can
+get messy...
+
+#+begin_src modulus
+> def day 2
+> (if (day = 0)
+      "monday"
+      (if (day = 1)
+          "tuesday"
+           ...))
+#+end_src
+
+Fortunately, we have =cond=. =cond= will go through each condition (left of the
+→) until it finds a 'true' condition. The final condition (the =else=) acts as a
+'fall-through', which is executed when all other conditions fail.
+
+#+begin_src modulus
+> def day 4
+> (cond
+    ((day = 1) → "Monday") 
+    ((day = 2) → "Tuesday") 
+    ((day = 3) → "Wednesday") 
+    ((day = 4) → "Thursday") 
+    ((day = 5) → "Friday") 
+    ((day = 6) → "Saturday") 
+    ((day = 7) → "Sunday") 
+    (else      → "Invalid Day"))
+"Thursday"
+#+end_src
+
+* Data, Partial Application, ⟨⟩
+Modulus also allows you to group data together into structures called /arrays/,
+which are like a list of values. You write arrays as a list of values between
+'tortoise' brackets =⦗⦘=, which you type as =;[​[= and =;]​]=.
+
+For example, you can write an array of numbers =⦗1 2 3⦘= or an array of strings
+=⦗"apple" "bannana" "orange"⦘=. Arrays must all hold values of the same type, so
+your array cannot contain both numbers /and/ strings. Hence, Modulus will not
+let you write =⦗2 "apple" 10⦘=.
+
+It's cool to be able to make an array, but what can we /do/ with them? For a
+start, we can join them together with /append/
+
+#+begin_src modulus
+> append ⦗1 2 3⦘ ⦗4 5 6⦘
+⦗1 2 3 4 5 6⦘
+#+end_src
+
+
+#+begin_src modulus
+> ⦗1 2 3⦘ ⋅ ⦗4 5 6⦘
+⦗1 2 3 4 5 6⦘
+#+end_src
+
+
+#+begin_src modulus
+> defn add1 [x] (x + 1)
+> map add1 ⦗1 2 3⦘
+⦗2 3 4⦘
+#+end_src
+
+#+begin_src 
+> map (+ 1) ⦗1 2 3⦘
+⦗2 3 4⦘
+#+end_src
+
+#+begin_src 
+> (+ 1) ¨ ⦗1 2 3⦘
+⦗2 3 4⦘
+#+end_src
+
+
+#+begin_src modulus
+> defn add [x y] (x + y)
+> fold add 0 ⦗1 2 3⦘
+6
+#+end_src
+
+#+begin_src modulus
+> fold (+) 0 ⦗1 2 3⦘
+#+end_src
+
+#+begin_src modulus
+> ((+) / 0) ⦗1 2 3⦘
+#+end_src
+
+
+#+begin_src modulus
+> (+ / 0) ⦗1 2 3⦘
+#+end_src
+
+#+begin_src modulus
+> + ⟨/ 0⟩ ⦗1 2 3⦘
+#+end_src
+
+** Useful Array functions
+
+filter
+
+#+begin_src modulus
+> defn even? [n] (n | 2 = 0)
+#+end_src
+
+filter
+
+#+begin_src modulus
+⦗1 2 3⦘ ⟨◉ ,⟩ ⦗⁖a ⁖b ⁖c⦘
+> ⦗⦗1 ⁖a⦘ ⦗1 ⁖b⦘ ⦗1 ⁖c⦘
+   ⦗2 ⁖a⦘ ⦗2 ⁖b⦘ ⦗2 ⁖c⦘
+   ⦗3 ⁖a⦘ ⦗3 ⁖b⦘ ⦗3 ⁖c⦘⦘
+#+end_src
+
+inner-product
+
+#+begin_src modulus
+> ⦗1 2 3⦘ ⟨⊙ ,⟩ ⦗⁖a ⁖b ⁖c⦘
+⦗(1, ⁖a) (2, ⁖b) (3, ⁖c)⦘
+#+end_src
+
+outer-product
+
+#+begin_src modulus
+⦗1 2 3⦘ ⟨◉ ,⟩ ⦗⁖a ⁖b ⁖c⦘
+> ⦗⦗1 ⁖a⦘ ⦗1 ⁖b⦘ ⦗1 ⁖c⦘
+   ⦗2 ⁖a⦘ ⦗2 ⁖b⦘ ⦗2 ⁖c⦘
+   ⦗3 ⁖a⦘ ⦗3 ⁖b⦘ ⦗3 ⁖c⦘⦘
+#+end_src
+
+

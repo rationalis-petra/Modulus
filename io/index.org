@@ -1,0 +1,79 @@
+#+html_head: <link rel="stylesheet" href="modulus-style.css" type="text/css"/>
+#+title: Modulus: Elegant, Expressive, Interactive
+#+options: toc:nil num:nil html-postamble:nil
+
+#+html: <div style="text-align:center">
+try • [[file:documentation/index.org][documentation]] • [[file:tutorials/index.org][tutorials]] • [[file:tooling/index.org][tooling]] • [[file:implementation/index.org][implementation]]
+#+html: </div>
+
+#  /Try it below (shift + enter to run)/
+# #+html: <pre id="modulus-interpret">
+# (module main
+#   (import
+#     prelude
+#     sys.console(get-line put-line)))\\
+# (greet : String → String)
+# (defn greet [name] "Hello, ${name}")\\
+# (def main
+#   (do (put-line "What is your name?")
+#       (name ← get-line)
+#       (put-line (greet name))))
+# #+html: <div style="display: flex; flex-direction: row; justify-content: end;">
+# #+html: <button>Run</button>
+# #+html: <select name="Mode" default="static">
+# #+html: <option value="script">Mode: Scripting</option>
+# #+html: <option value="static">Mode: Static</option>
+# #+html: </select>
+# #+html:</pre>
+# #+html: <div id="modulus-term">
+# $>
+# #+html: </div>
+ 
+
+#+begin_src modulus
+(module main
+  (import
+    prelude
+    sys.console.(get-line put-line)))
+
+(greet : String → String)
+(defn greet [name] "Hello, ${name}")
+
+(def main
+  (do (put-line "What is your name?")
+      (name ← get-line)
+      (put-line (greet name))))
+#+end_src
+
+Modulus is a modern, powerful language drawing inspiration from languages across
+the functional world including [[https://common-lisp.net/][Lisp]], [[https://www.haskell.org/][Haskell]], [[https://ocaml.org/][OCaml]] and [[https://wiki.portal.chalmers.se/agda/pmwiki.php][Agda]]. The main aim of
+Modulus is to unite the power of a Lisp REPL with a static type system.
+
+* Why Modulus?
+
++ Live :: When you write Modulus code, you don't interact with dead text:
+  Rather, a Modulus program is alive: you can re-define functions, variables
+  and even datatypes, all while your program is running! (Demo)
+
++ Expressive :: Modulus syntax is very flexible, which can lead to code which is
+  both concise and readable. However, if you find it not to your liking, you can
+  [extend] the language to suit your needs. 
+
++ Scalable Concurrency & Parallelism :: Modulus is a pure functional programming
+  language, meaning that all data-structures are immutable. While this alone
+  would make it suited to parallel and concurrent programming, it features a
+  suite of performant high-level abstractions for concurrency/parallelism,
+  including an Agent system, work-trees, parallel algorithms and software
+  transactional memory.
+
+* Working with Unicode
+Modulus code makes heavy use of Unicode characters, which has the benefit of
+more concise code and meaningful operators, but requires specific support from
+your editor. 
+ 
+* Getting Started
+There are several ways to get started with Modulus: the easiest is to use the
+[online editor], but you can also [download] a standalone executable to use on
+your machine. Finally, you can [build it from source] if you like. 
+
+If you're opting to use Modulus locally, 

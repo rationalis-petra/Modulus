@@ -1,0 +1,87 @@
+#+html_head: <link rel="stylesheet" href="../../../modulus-style.css" type="text/css"/>
+#+title: Modulus Libraries: list
+#+options: toc:nil num:nil html-postamble:nil
+
+#+html: <div style="text-align:right">
+[[file:f:/Home/wiki/mls/io/index.org][Modulus]] / [[file:index.org][Documentation]] / [[../index.org][Library]] / Data/ Collections/ List
+#+html: </div>
+
+* Overview
+* Outline
+# todo: tree display
++ =list=
+  + =List [A]=
+    + =cons=
+    + =nil=
+  + =list-monad=
+  + =list-seq=
+  + =list-monoid=
+  + =list-operators=
+
+
+
+* List Seq
+Implementation of the [Seq] signature for lists. [Seq] is a generalization
+[Container] for data-structures where the elements have some kind of ordering.
+
+** Monad
+
+*** Functor
+map
+
+*** Applicative
+map
+
+*** Monad
+join
+
+bind
+
+** Monoid
+*** Magma
+*append/⋅*
+
+*** Semigroup
+*append/⋅*
+
+*** Monoid
+*empty/⦗⦘*
+
+** Seq
+*insert*
+
+*find*
+
+*fold*
+
+*scan*
+
+*index*
+
+*outer product*
+
+*inner product*
+
+*filter*
+
+*stencil/mask*
+
+*join*
+
+*take*
+
+*drop*
+
+
+* List Monoid
+Implementation of the [monoid] signature for lists. Note that [monoid] is a
+supertype of [groupoid] and [magma]. 
+
+*Append, ⋅*. =append x y=  
+
+*empty, ⦗⦘* 
+
+* List Operators
+
+#+begin_src 
+#+end_src

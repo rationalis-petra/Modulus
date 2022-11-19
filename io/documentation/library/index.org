@@ -1,0 +1,66 @@
+#+html_head: <link rel="stylesheet" href="../../modulus-style.css" type="text/css"/>
+#+title: Modulus Standard Library
+#+options: toc:nil num:nil html-postamble:nil
+
+#+html: <div style="text-align:right">
+[[file:f:/Home/wiki/mls/io/index.org][Modulus]] / [[file:index.org][Documentation]] / Library
+#+html: </div>
+
+* Standard Library
++ Prelude
+
++ Abstractions / =abs=
+  + Numerics / =num=
+  + Functor / =func=
+    + Functor
+    + Applicative
+    + Monad
+    + Collection
+    + Sequence
+    + fold/traverse/...
+  + Category / =cat=
+    + Isomorphism / =iso=
+    + Product / =iso= (lens)
+    + Sum / =iso= (prism)
+  + Groups / =group=
+    + Magma / =magma=
+    + Semigroup / =semigroup=
+    + Monoid / =monoid=
+    + Group / =group=
+
++ Data / =data=
+  + Numerics / =num=
+    + Unit / =unit=
+    + Bool / =bool=
+    + Integer / =int=
+    + Rational / =rational=
+    + Real / =real=
+    + Complex / =complex=
+  + Machine / =machine=
+    + Unsigned =uint=
+    + Signed   =sint=
+    + Word     =word=
+  + Collections / =coll=
+    + [[file:data/array.org][Array]] / =array=
+    + [[file:data/list.org][List]] / =list=
+    + Vector / =vector=
+    + Tensor / =tensor=
+
++ Monad / =monad=
+  + IO / =io=
+  + State / =state=
+  + STM / =state=
+
+# TODO: linear types?
+# getting resources via sockets
++ System (=data=)
+  + Socket (=socket=)
+  + Console (=console=)
+  + 
+
+# Optics???
+# + Optics
+#   + Isomorphism / =iso= 
+#   + Lens / =lens=
+#   + Prism / =prism=
+#   + Traversal / =trav=

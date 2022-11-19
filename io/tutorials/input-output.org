@@ -1,0 +1,148 @@
+#+html_head: <link rel="stylesheet" href="../modulus-style.css" type="text/css"/>
+#+title: Tutorial: Input Output
+#+options: toc:nil num:nil html-postamble:nil
+
+#+html: <div style="text-align:right">
+[[file:f:/Home/wiki/mls/io/index.org][Modulus]] / [[file:index.org][Tutorials]] / Input Output
+#+html: </div>
+
+* Prelude 
++ Description of =unit=
+
+* Actions and The IO Type
+Fore example, =get-line= has type =IO String=. This type means "=get-line= is an
+action which does some form of Input/Ouput, and returns a string." 
+
+Sometimes, a function will /return/ a value of type =IO=. =put-line= is a great
+example, as its' type is =String → IO Unit=. This means "when given a string,
+=put-line= will return an action which does some form of Input/Output and
+returns a Unit value.". Hence, =put-line= is *not* an action, but
+=put-line "hello, world"= /is/ an action. 
+
+#+begin_src modulus
+(module main)
+(open sys.console)
+
+(def main (put-line "hello, world"))
+#+end_src
+
+* Core IO Vocabulary
+So far, we've established that Modulus has a concept of *actions*, which
+represent something the computer /does/, rather than something it
+/computes/. However, we need a set of functions to talk about how we /combine/
+different actions, e.g. "first print 'hello, world' then make a beeping sound",
+or "repeatedly read in lines console until the user types 'exit'".
+
+** Seq
+The first function in our vocabulary is =seq=. Seq represents the idea of "do x
+and then do y". For example,  
+
+#+begin_src modulus
+(module main)
+(open sys.console)
+
+(def main
+  (seq (put-line "hello, world") (put-line "goodbye, world!")))
+#+end_src
+
+#+begin_src modulus
+(module main)
+(open sys.console)
+
+(def main
+  (seq (put-line "hello, world") (seq "dum dee doo" (put-line "goodbye, world!"))))
+#+end_src
+
+
+#+begin_src modulus
+(module main)
+(open sys.console)
+
+(def main
+  (put-line "hello, world" >> "dum dee doo" >> put-line "goodbye, world!"))
+#+end_src
+
+** Bind
+What if we want to /feed data/ through a sequence of actions? For example, we
+might want to represent action "read in a name, then output 'hello, <name>'". 
+
+#+begin_src python
+bob         # user input
+hello, bob! # program output
+#+end_src
+
+You might be tempted to write something like:
+
+#+begin_src modulus
+(module main)
+(open sys.console)
+
+(greet : String → IO String)
+(defn greet [name]
+  (put-line ("hello, " ⋅ name ⋅ "!")))
+
+(def main
+  (greet get-line))
+#+end_src
+
+However, this code will not compile: it would return a type error. This is
+because the "greet" function expects a =String= argument, but we're giving it an
+=IO String=. Oops! 
+
+In order to 
+
+#+begin_src modulus
+(module main)
+(open sys.console)
+
+(greet : String → IO String)
+(defn greet [name]
+  (put-line ("hello, " ⋅ name ⋅ "!")))
+
+(def main (bind put-line greet))
+#+end_src
+
+#+begin_src modulus
+(module main)
+(open sys.console)
+
+(greet : String → IO String)
+(defn greet [name]
+  (put-line ("hello, " ⋅ name ⋅ "!")))
+
+(def main (put-line >>= greet))
+#+end_src
+
+** Pure
+
+
+* Do Notation
+Let's built a functino 
+
+#+begin_src modulus
+(def main 
+  (get-line >>=
+    (λ [line1] (get-line >>=
+      (λ [line2] (put-line ("line1: " ⋅ line1 ⋅ "\nline2" ⋅ line2)))))))
+#+end_src
+
+#+begin_src modulus
+(def main 
+  (get-line >>=
+    (λ [line1] (get-line >>=
+      (λ [line2] (put-line ("line1: " ⋅ line1 ⋅ "\nline2" ⋅ line2)))))))
+#+end_src
+
+#+begin_src modulus
+(def main 
+  (do (line1 ← get-line)
+      (line2 ← get-line)
+      (put-line ("line1: " ⋅ line1 ⋅ "\nline2" ⋅ line2))))
+#+end_src
+ 
+
+* Useful Functions
++ unless
++ until
++ join
+

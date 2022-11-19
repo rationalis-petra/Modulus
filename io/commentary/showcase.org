@@ -1,0 +1,93 @@
+#+html_head: <link rel="stylesheet" href="../modulus-style.css" type="text/css"/>
+#+title: Modulus Showcase 
+
+#+options: toc:nil num:nil
+
+#+html: <div style="text-align:right">
+[[file:f:/Home/wiki/mlsio/index.org][Modulus]] / [[file:index.org][Commentary]]
+#+html: </div>
+
+Sometimes, it's better to show than tell. This page contains several
+code-snippets of varying complexity designed to showcase the language.
+
+* Mathematical Problems
+
+** Game of Life
+#+begin_src modulus
+(Grid : 𝒰)
+(def Grid (Array (Array Nat)))
+
+(neighbourhood : (Nat * Nat) → Grid → List (Nat * Nat))
+(defn neighbourhood ((i, j) grid)
+ (map
+   (λ [(x, y)] (i + x, j + y))
+   ;; modifiers
+   (list (-1, -1) (0, -1) (1, -1)
+         (-1,  0)         (1,  0)
+         (-1,  1) (0,  1) (1,  1))))
+
+(indices : Grid → List (Nat * Nat))
+(def inidces ((cartesian (,)) ○ (⍳ ∘ len)))
+
+(step : Grid → Grid)
+(def step
+  (where (ᛣ map stepcell (zip ⟜ indices))
+    (stepcell [(val, index)]
+      (guard (map sum (neighbourhood index grid))
+        ((< 3) → 0)
+        ((> 4) → 1)
+        (_     → val)))))
+#+end_src
+
+
+* Lists & Arrays Functions
+
+Average of values in a list.
+#+begin_src modulus
+(defn average [x] (sum x ÷ len x))
+
+;; point-free version
+(def average (ᛣ (÷) sum len))
+#+end_src
+
+
+
+* String
+** Caesar_cipher
+Available on Rosettacode: [[https://rosettacode.org/wiki/Caesar_cipher][Caesar Cipher]]
+
+#+begin_src modulus
+(defn caesar (shift str))
+
+(def uncaesar (caesar ∘ negate))
+#+end_src
+
+* Web-Programming
+** HTML Generation
+‣r  :  invoke reader-macro r (the reader macro decides when to give-up control)
+n◇m : explicitly invoking macro m at compile-time (phase n, default 1)
+⁖s  : keyword/symbol literal =s=
+
+#+begin_src modulus
+(make-shopping-list : List String → HTML)
+(defn make-shopping-list (shopping-list)
+  (msx
+    (div
+      (h1 "This is a header")
+      ;; keyword elements (begin with ⁖) are assumed to denote arguments, everything
+      ;; else generates child elements
+      (p ⁖style ((font-size 20px) (color red))
+        "This is a paragraph"))
+    (h2 "Shopping List")
+    (ol
+      ;; use a dollar-sign to splice in modulus code
+      $(map (λ [item] (msx (li $item))) shoppint-list))))
+
+  
+
+(shoppint-list : Component)
+(def-component shopping-list (⁖optional (list empty))
+  (make-shoppint-list list)
+#+end_src
+
+

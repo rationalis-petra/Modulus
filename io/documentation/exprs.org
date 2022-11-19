@@ -1,0 +1,54 @@
+#+html_head: <link rel="stylesheet" href="../modulus-style.css" type="text/css"/>
+#+title: Modulus Docs: Expressions and Parsing
+#+options: toc:nil num:nil html-postamble:nil
+
+#+html: <div style="text-align:right">
+[[file:f:/Home/wiki/mlsio/index.org][Modulus]] / [[file:index.org][Documentation]] / Expressions & Parsing 
+#+html: </div>
+
+* Symbols, Prefix & Infix Operations
+** Arithmetic
+Like many other programming languages, Modulus has arithmetic-style expressions:
+
+#+begin_src modulus
+2 + 3
+3 - 4
+5 × 6
+3 ÷ 4
+#+end_src
+
+However, 
+
+Precedence is right-to-left, meaning functions are evaluated left-to-right, so
+=2 + 3 - 4= is ~(2 + 3) - 4 = 1~, /not/ ~2 + (3 - 4) = 3~. 
+
+** Function Call
+So far, I've only mentioned binary functions, but what about 'normal'
+functions?. In many languages, function-calls are written =f(x, y, z)= - in
+Modulus, we use juxtaposition to apply a function, i.e. =f x y z=. This syntax
+extends beyond just functions and also includes 'special' forms like =if= and
+=defn= (define-function). We could therefore define a minimum function =min x
+y=, which returns whichever of =x= and =y= is smaller:
+
+#+begin_src modulus
+(defn min (x y) (if (x < y) x y))
+#+end_src
+
+To use min, we write =min 2 3=, which in this case evaluates to 2. 
+
+** Infix, or Prefix?
+=(+) 1 2=.
+
+
+* Parenthesis Types
+Modulus makes use of several different /types/ of parentheses: notably =()=,
+=[]=, ={}= and =⦗⦘=. The latter two (={}= and =⦗⦘= have specific meanings which
+we will discuss later, while the former two (=[]= and =()=) are /almost/
+identical, but with subtle differences.
+
+In most cases, =[]= and =()= can be treated /identically/, except in the case
+where you place 1 or 0 values inside the parentheses. This means that =(f 2 3
+4)= and =[g 2 3 4]= are identical, but =(f)= and =[f]= are not (also =()= and
+=[]=). 
+
+How =[x]= and =x= are different. 

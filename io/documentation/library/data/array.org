@@ -1,0 +1,121 @@
+#+html_head: <link rel="stylesheet" href="../../../modulus-style.css" type="text/css"/>
+#+title: Modulus Libraries: Array
+#+options: toc:nil num:nil html-postamble:nil
+
+#+html: <div style="text-align:right">
+[[file:f:/Home/wiki/mls/io/index.org][Modulus]] / [[file:index.org][Documentation]] / [[../index.org][Library]] / Data/ Collections/ Array
+#+html: </div>
+
+* Overview
+* Outline
+# todo: tree display
++ =array=
+  + =Array [A]=
+    + =cons= 
+    + =nil= 
+  + =array-monad=
+  + =array-seq=
+  + =array-monoid=
+  + =array-operators=
+
+
+
+* List Seq
+Implementation of the [Seq] signature for lists. [Seq] is a generalization
+[Container] for data-structures where the elements have some kind of ordering.
+
+** Monad
+
+*** Functor
+Array is a =functor=, and so implements =map=.
+
+Map (binary =¨=) 
+
+#+begin_src modulus
+> map (+ 1) ⦗1 2 3⦘
+⦗2 3 4⦘
+#+end_src
+
+*** Applicative
+Array is an applicative, and so implements =pure= and =apply=.
+
+#+begin_src modulus
+> pure 3 
+⦗3⦘
+#+end_src
+
+#+begin_src modulus
+> apply ⦗(+1) (-1)⦘ ⦗1 2 3⦘
+⦗2 3 4 0 1 2⦘
+#+end_src
+
+*** Monad
+Monad 
+
+Join
+
+#+begin_src modulus
+> join ⦗⦗1 2 3⦘ ⦗4 5 6⦘ ⦗7 8 9⦘⦘
+⦗1 2 3 4 5 6 7 8 9⦘
+#+end_src
+
+Bind
+
+#+begin_src modulus
+> ⦗1 3 6⦘ >>= (λ [x] ⦗(x + 1) (x + 2) (x + 3)⦘)
+⦗1 2 3 4 5 6 7 8 9⦘
+#+end_src
+
+** Monoid
+*** Magma
+*append/⋅*
+
+*** Semigroup
++ assoc
+
+*** Monoid
++ id
+*empty/⦗⦘*
+
+*** Group
++ invertibility
+*append/⋅*
+
+** Seq
+*insert*
+
+*find*
+
+*fold*
+
+*scan*
+
+*index*
+
+*outer product*
+
+*inner product*
+
+*filter*
+
+*stencil/mask*
+
+*join*
+
+*take*
+
+*drop*
+
+
+* List Monoid
+Implementation of the [monoid] signature for lists. Note that [monoid] is a
+supertype of [groupoid] and [magma]. 
+
+*Append, ⋅*. =append x y=  
+
+*empty, ⦗⦘* 
+
+* List Operators
+
+#+begin_src 
+#+end_src

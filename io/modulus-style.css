@@ -1,0 +1,39 @@
+
+body { 
+    background-color: #101414;
+    color: #c7cccb;
+    font-family: Iosevka Web,Consolas,Courier,monospace;
+    margin: 1em auto;
+    max-width: 46em;
+}
+
+h1, h2 {
+  border-bottom: 0.01em solid #9995;
+}
+
+pre {
+    background-color: #141b2c;
+    font-family: JuliaMono;
+    font-size: 12px;
+}
+
+a {
+    color: #00ace9;
+}
+
+#modulus-interpret {
+}
+
+#modulus-term {
+    background-color: #212525;
+    font-family: JuliaMono;
+    font-size: 12px;
+    border: 1px solid #e6e6e6 ;
+    border-radius: 3px;
+    padding: 8pt;
+    margin: 0.5em 1.2em;
+}
+
+button {
+    margin: 0 0.5em; 
+}

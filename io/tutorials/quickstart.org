@@ -1,0 +1,130 @@
+#+html_head: <link rel="stylesheet" href="../modulus-style.css" type="text/css"/>
+#+title: Modulus Quickstart Guide
+#+options: toc:nil num:nil html-postamble:nil
+
+#+html: <div style="text-align:right">
+[[file:f:/Home/wiki/mlsio/index.org][Modulus]] / [[file:index.org][Tutorials]] / Quickstart
+#+html: </div>
+
+This is a guide for those who want to try out the language without committing to
+a full installation. It assumes that you'll be using the web editor, running in
+'static' mode, and contains a bunch of small programs for you to try. 
+
+* Actions: Hello, World!
+The Modulus hello world should be unsurprising to most programmers:
+
+#+begin_src modulus
+(module main
+  (import
+    sys.console.⁖all)) ;; ⁖all is like the wildcard import '*'
+
+(main : IO Unit)
+(def main (put-line "Hello, world!"))
+#+end_src
+
+However, Modulus is a pure functional language. This means it distinguishes
+between /actions/, which are things that have an effect (print to the console,
+send some data to a socket etc.), and /functions/ or /expressions/, which simply
+compute some value but have no observable effects.
+
+The program above defines =main= to be the /action/ "print hello world". To
+sequence multiple actions, we use a =do= statement, followed by a list of
+actions we want to perform:
+
+#+begin_src modulus
+(module main
+  (import sys.console.⁖all))
+
+(main : IO Unit)
+(def main
+  (do (put-line "Hello, World!")
+      (put-line "Goodbye, World!")))
+#+end_src
+
+
+* Palindromes
+I mentioned above that modulus distinguishes between /actions/, which have an
+effect, and /functions/, which do not. As =main= is an action, we'll define our
+first function. It will take a word and return true if that word is a
+palindrome, i.e. equal to itself in reverse
+
+#+begin_src modulus
+(module main
+  (import 
+    prelude.⁖all))
+
+(is-palindrome : String → Bool)
+(defn is-palindrome [word]
+  (word = (reverse word)))
+#+end_src
+
+You can try this function out by right-clicking on it's definition and selecting
+"call with value", then entering some word to test out. Try it with "hello" and
+"ollo". 
+
+
+#+begin_src modulus
+(module main
+  (import
+    prelude.⁖all
+    sys.console.⁖all))
+
+(is-palindrome : String → Bool)
+(defn is-palindrome [word]
+  (word = (reverse word)))
+
+(main : IO Unit)
+(def main
+  (do (word ← get-line)
+      (put-line "${word} is ${(if (is-palindrome word) "" "not")} a palindrome!")))
+#+end_src
+
+
+* Caesar Cipher
+
+
+#+begin_src modulus
+(defn caesar [word k]
+  (let [(+|) (mod-ring 27).(+)]
+       [encode [c] (ord c - ord 'a' +| k + ord 'a')]
+   (map encode (to-lower word))))
+#+end_src
+
+
+* Balanced Parentheses
+Imagine we have some text like "((2 * (3 + 4) < (((2 - 1) ^ 1))", and want to
+check if the parentheses are balanced. 
+
+The basic idea is this: first, we want to convert all elements of the array to
+numbers. Specifically, we want to map '(' to 1, ')' to -1 and everything else
+to 0. So, our string from earlier becomes the array:
+
+#+begin_src 
+(!arr 1 1 0 0 ... 1 ... -1 ... 1 1 1 ... -1 ... -1 -1)
+#+end_src
+
+Then, we can break down 'parentheses are balanced' into two sub-properties
++ The sum of all elements in this array is 0 (same number of '(' and ')')
++ The /running/ sum of all elements in the array never goes /below/ zero
+We can perform this calculation with the below code
+
+#+begin_src modulus
+(balanced : String → Bool)
+(defn balanced [str]
+  (let [toNum char ≜ match char
+         ("(" →  1)
+         (")" → -1)
+         (_   →  0)]
+       [arr ≜ map toNum str]
+    ((sum arr = 0) ∧ (⟨min 0⟩/ (⟨- 0⟩ \ arr) >= 0))))
+#+end_src
+
+But how exactly does this work?
++ The first step is to convert the string into the array of 0, 1 and -1's
+  + we define a function toNum, which performs a =match= on its' argument - you
+    can think of =match= as being similar to =switch= from other languages. 
++ We then use =map= to apply =toNum= to each element of the string, which gives
+  us our array of 1's and 0's
+  
+Now we have the array
+
