@@ -380,7 +380,7 @@ instance Show (CollVal m) where
     ListVal l _ -> show l
     ArrayVal v _ -> case length v of
       n | n == 0 -> "⦗⦘"
-        | n == 1 -> "⦗" <> show (v Vector.! 1) <> "⦘"
+        | n == 1 -> "⦗" <> show (v Vector.! 0) <> "⦘"
         | otherwise -> Vector.foldl (\str v -> str <> " " <> show v)
                              ("⦗" <> show (Vector.head v))
                              (Vector.tail v)

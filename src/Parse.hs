@@ -127,11 +127,18 @@ parens   = between (symbol "(") (symbol ")")
 squarens = between (symbol "[") (symbol "]")
 larens   = between (symbol "⟨") (symbol "⟩")
 curens   = between (symbol "{") (symbol "}")
+torens   = between (symbol "⦗") (symbol "⦘")
 
+toSeq :: [AST] -> AST 
+--toSeq (Atom val) = Cons [(Atom . Symbol $ "cons"), Atom val, Atom . Symbol $ "nil"]
+toSeq [] = Atom . Symbol $ "nil"
+toSeq (x:xs) = Cons [(Atom . Symbol $ "cons"), x, toSeq xs]
+  
 
 pTerm :: Parser AST 
 pTerm = choice [pLiteral,
                 (parens pNormal),
+                (toSeq <$> torens (many pNormalNoFun)),
                 ((\x -> Cons [(Atom $ Keyword "implicit"), x]) <$> curens pNormal),
                 squarens (mkCall <$> pNormalNoFun <*> (many pNormalNoFun))]
   where mkCall op args =

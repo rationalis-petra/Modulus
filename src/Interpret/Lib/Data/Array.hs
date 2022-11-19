@@ -38,7 +38,18 @@ mlsIndicesOf = liftFun f mlsIndicesOfTy
         f (PrimVal (Int n)) = do
           pure $ CollVal $ ArrayVal (fmap (PrimVal . Int) (fromList [1..n])) (PrimType IntT)
 
+
+mlsNilTy :: Normal  
+mlsNilTy = NormImplProd "A" (NormUniv 0)
+            (CollTy . ArrayTy $ mkVar "A")
+
+
+mlsNil :: Normal  
+mlsNil = liftFun f mlsNilTy
+  where f :: Normal -> EvalM Normal
+        f a = pure $ CollVal $ ArrayVal (Vec.empty) a
   
+
 mlsConsTy :: Normal  
 mlsConsTy = NormImplProd "A" (NormUniv 0)
              (NormArr (mkVar "A")
@@ -170,6 +181,8 @@ arraySignature = NormSig
                  , ("Ɩ", mlsIndicesOfTy)
                  , ("cons", mlsConsTy)
                  , ("snoc", mlsSnocTy)
+                 , ("nil", mlsNilTy)
+                 , ("∅", mlsNilTy)
 
                  , ("¨", mlsEachTy)
                  , ("map", mlsEachTy)
@@ -189,6 +202,8 @@ arrayStructure = NormSct (toEmpty
                  , ("Ɩ", mlsIndicesOf)
                  , ("cons", mlsCons)
                  , ("snoc", mlsSnoc)
+                 , ("nil", mlsNil)
+                 , ("∅", mlsNil)
 
                  , ("¨", mlsEach)
                  , ("map", mlsEach)
