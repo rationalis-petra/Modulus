@@ -191,7 +191,6 @@ typeCheckTop (TDefinition def) ctx =
           pure $ (NormAbs sym ctor ctorty, ctorty)
           
 
-
 typeCheck :: TIntermediate TIntermediate' -> Environment -> EvalM (TIntermediate Normal, Normal, Subst)
 typeCheck expr env = case expr of
   (TValue v) -> do
@@ -199,10 +198,8 @@ typeCheck expr env = case expr of
     pure (TValue v, t, nosubst)
 
   (TSymbol s) -> do
-    case runExcept (Env.lookup s env) of 
-      Right (_, ty) -> pure (TSymbol s, ty, nosubst)
-      Left err -> throwError ("couldn't find type of symbol " <> s <> " err-msg: " <> err)
-
+    (_, ty) <- (Env.lookup s env)
+    pure (TSymbol s, ty, nosubst)
   
   (TImplApply l r) -> do 
     (l', tl, substl) <- typeCheck l env

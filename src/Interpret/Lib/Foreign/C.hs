@@ -42,7 +42,7 @@ toCString = liftFun f (NormArr (PrimType StringT) (CollTy . IOMonadTy $ (PrimTyp
   where
     f (PrimVal (String str)) =
       pure . CollVal $ IOAction
-        (IOThread ((newCString . unpack $ str) >>= (pure . Pure . PrimVal . CString)))
+        (IOThread ((newCString . unpack $ str) >>= (pure . Pure . pure . PrimVal . CString)))
         (CollTy . IOMonadTy $ PrimType CStringT)
 
 fromCString :: Normal
@@ -52,7 +52,7 @@ fromCString = liftFun f (NormArr (PrimType CStringT) (CollTy . IOMonadTy $ (Prim
       pure . CollVal $ IOAction
         (IOThread
           (do hsStr <-  peekCString str
-              pure . Pure $ (PrimVal . String . pack $ hsStr)))
+              pure . Pure . pure $ (PrimVal . String . pack $ hsStr)))
         (CollTy . IOMonadTy $ PrimType StringT)
 
 strRefTy :: Normal
@@ -75,7 +75,7 @@ strRef = liftFun f strRefTy
         (IOThread
            (do ptr <- malloc :: IO (Ptr CString)
                poke ptr s
-               pure . Pure . CollVal . CPtr $ castPtr ptr))
+               pure . Pure . pure . CollVal . CPtr $ castPtr ptr))
         (CollTy . IOMonadTy $ PrimType StringT)
 
 csignature :: Normal

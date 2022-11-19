@@ -26,7 +26,7 @@ lookup s (GlobCtx (ctx, shadowed)) =
   if Set.member s shadowed then
     Nothing
   else
-    fst <$> Env.lookupMaybe s ctx
+    fst <$> Env.lookupGlbl s ctx
 shadow s (GlobCtx (ctx, shadowed)) = 
   GlobCtx (ctx, Set.insert s shadowed)
 

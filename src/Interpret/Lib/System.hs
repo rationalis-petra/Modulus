@@ -13,7 +13,7 @@ mlsGetLine = CollVal (IOAction (IOThread m) getType)
   where m :: IO (IEThread EvalM)
         m = do
           line <- getLine
-          pure . Pure . PrimVal $ String (pack line)
+          pure . Pure . pure . PrimVal $ String (pack line)
 
 mlsPutLine :: Normal
 mlsPutLine = liftFun f putType  
@@ -22,7 +22,7 @@ mlsPutLine = liftFun f putType
                                     (IOThread $ do
                                         putStrLn (unpack str)
                                         hFlush stdout
-                                        pure . Pure $ PrimVal Unit)
+                                        pure . Pure . pure $ PrimVal Unit)
                                     (CollTy (IOMonadTy (PrimType UnitT)))
 
 putType :: Normal

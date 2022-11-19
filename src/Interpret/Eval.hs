@@ -14,7 +14,13 @@ module Interpret.Eval (Normal,
                        liftFun3,
                        liftFun4,
                        liftFun5,
-                       liftFun6) where
+                       liftFun6,
+                       liftFunL,
+                       liftFunL2,
+                       liftFunL3,
+                       liftFunL4,
+                       liftFunL5,
+                       liftFunL6) where
 
 import Debug.Trace (trace)
 
@@ -59,24 +65,35 @@ loopThread thread env state =
     MThread e -> case evalToEither e env state of
       Right (val, state') -> loopThread val env state'
       Left err -> pure $ Left err
-    Seq l r -> do
-      res <- loopThread l env state
-      case res of
-        Right (val, state') -> loopThread r env state' 
-        Left err -> pure $ Left err
-    Bind thread' fnc -> do
-      res  <- loopThread thread' env state
-      case res of 
-        Right (val, state') ->
-          let mnd = do res <- eval (CApp (CNorm fnc) (CNorm val))
-                       case res of 
-                         (CollVal (IOAction action' ty')) -> pure action'
-                         _ -> throwError ("io->>= expects result of called function to be IO monad, not: " <> show res)
-          in case evalToEither mnd env state' of
-            Right (val, state'') -> loopThread val env state'
+    Seq l r -> case evalToEither l env state of
+      Right (val, state') -> do
+        res <- loopThread val env state'
+        case res of
+          Right (_, state') -> case evalToEither r env state of
+            Right (val, state') -> loopThread val env state'
             Left err -> pure $ Left err
-        Left err -> pure $ Left err
-    Pure val -> pure (Right (val, state))
+          Left err -> pure $ Left err
+      Left err -> pure $ Left err
+    Bind thread' fnc -> case evalToEither thread' env state of
+      Right (thread'', state') -> do
+          res <- loopThread thread'' env state'
+          case res of 
+            Right (val, state'') ->
+              let mnd = do
+                    fnc' <- fnc
+                    res <- eval (CApp (CNorm fnc') (CNorm val))
+                    case res of
+                      (CollVal (IOAction action' ty')) -> pure action'
+                      _ -> throwError ("io->>= expects result of called function to be IO monad, not: " <> show res)
+              in case evalToEither mnd env state' of
+                Right (val, state'') -> loopThread val env state'
+                Left err -> pure $ Left err
+            Left err -> pure $ Left err
+      Left err -> pure $ Left err
+
+    Pure val -> case evalToEither val env state of 
+      Right (val', state') -> pure $ Right (val', state')
+      Left err -> pure $ Left err
 
 
 runIO :: Normal -> Environment -> ProgState -> IO (Normal, ProgState)
@@ -205,7 +222,7 @@ eval (CNorm n) = pure n
 
 eval (CVar var) = do
   env <- ask
-  liftExcept $ fst <$> Env.lookup var env 
+  fst <$> Env.lookup var env 
 
 eval (CArr l r) = do
   l' <- eval l
@@ -231,26 +248,8 @@ eval (CAbs var body ty) = do
 
 eval (CApp l r) = do
   l' <- eval l
-  r' <- eval r
-  case l' of 
-    Neu neu ty -> do
-      tr <- liftExcept (typeVal r')
-      ty' <- tyApp ty tr
-      pure $ Neu (NeuApp neu r') ty'
-    NormAbs var body ty -> normSubst (r', var) body
-    Builtin fn ty -> fn r'
-    NormIVal name tyid altid strip params ty -> do
-      ty' <- tyApp ty r'
-      pure $ NormIVal name tyid altid strip (r' : params) ty'
-    NormCoDtor name id1 id2 len strip args ty -> do
-      ty' <- tyApp ty r'
-      case len of 
-        0 -> throwError "too many arugments to destructor"
-        1 -> applyDtor id1 id2 strip (reverse (r' : args))
-        _ -> pure $ NormCoDtor name id1 id2 (len - 1) strip (r' : args) ty
-    InbuiltCtor ctor -> case ctor of   
-      IndPat _ _ _ n _ -> eval (CApp (CNorm n) (CNorm r'))
-    other -> throwError ("tried to apply to non-function: " <> show other)
+  apply l' r 
+
 
 eval (CSct defs ty) = do
   defs' <- foldDefs defs -- TODO: add implicits to foldDefs
@@ -413,15 +412,16 @@ normSubst (val, var) ty = case ty of
                                     <*> normSubst (val, var) ty)
     IOAction thread ty -> do
       ty' <- normSubst (val, var) ty  
-      thread' <- threadSubst thread
+      let thread' = threadSubst thread 
       pure . CollVal $ IOAction thread' ty'
 
       where
-        threadSubst (IOThread t) = pure (IOThread t)
-        threadSubst (MThread t)  = pure (MThread t)
-        threadSubst (Seq l r)    = Seq  <$> threadSubst l <*> threadSubst r
-        threadSubst (Bind v f)   = Bind <$> threadSubst v <*> normSubst (val, var) f
-        threadSubst (Pure v)     = Pure <$> normSubst (val, var) v
+        -- TODO: seems dodgy (shoudl we substitue into result of IO??)
+        threadSubst (IOThread t) = (IOThread t)
+        threadSubst (MThread t)  = (MThread t)
+        threadSubst (Seq l r)    = Seq (threadSubst <$> l) (threadSubst <$> r)
+        threadSubst (Bind v f)   = Bind (threadSubst <$> v) (f >>= normSubst (val, var))
+        threadSubst (Pure v)     = Pure (v >>= normSubst (val, var))
 
   NormCoVal pats ty -> do
     let pats' = map substCoPat pats
@@ -480,6 +480,8 @@ normSubst (val, var) ty = case ty of
   -- pretty sure this shouldn't happen as we have InbuiltNeuApp
   Builtin fnc ty -> do
     Builtin fnc <$> normSubst (val, var) ty
+  BuiltinLzy fnc ty -> do
+    BuiltinLzy fnc <$> normSubst (val, var) ty
 
 
   NormSct fields ty -> do
@@ -739,79 +741,6 @@ evalToEither inner_mnd ctx state =
 --     unwrap (Left err, state')  = Left $ "err: " <> err
 
 
-interceptNeutral :: (Normal -> EvalM Normal) -> Normal -> Normal -> EvalM Normal
-interceptNeutral f ty (Neu neutral nty) = do
-  ty' <- tyApp ty nty
-  pure $ Neu (NeuBuiltinApp (interceptNeutral f ty) neutral ty') ty'
-interceptNeutral f ty val = f val
-
-
--- liftFun needs to intercept /neutral/ terms!
-liftFun :: (Normal -> EvalM Normal) -> Normal -> Normal
-liftFun f ty = Builtin (interceptNeutral f ty) ty
-
-liftFun2 :: (Normal -> Normal -> EvalM Normal) -> Normal -> Normal
-liftFun2 f ty =
-  let f' val = case val of
-                (Neu neu nty) -> do
-                  ty' <- tyApp ty nty
-                  pure $ Neu (NeuBuiltinApp f' neu ty') ty'
-                _ ->
-                  case ty of
-                    (NormArr _ r) -> pure $ liftFun (f val) r
-                    (NormProd var _ body) -> pure $ liftFun (f val) body
-                    (NormImplProd var _ body) -> pure $ liftFun (f val) body
-  in Builtin f' ty
-
-liftFun3 :: (Normal -> Normal -> Normal -> EvalM Normal) -> Normal -> Normal 
-liftFun3 f ty =
-  let f' val = case val of
-                (Neu neu nty) -> do
-                  ty' <- tyApp ty nty
-                  pure $ Neu (NeuBuiltinApp f' neu ty') ty'
-                _ -> case ty of
-                  (NormArr _ r) -> pure $ liftFun2 (f val) r
-                  (NormProd var _ body) -> pure $ liftFun2 (f val) body
-                  (NormImplProd var _ body) -> do pure $ liftFun2 (f val) body
-  in Builtin f' ty
-
-liftFun4 :: (Normal -> Normal -> Normal -> Normal -> EvalM Normal) -> Normal -> Normal 
-liftFun4 f ty =
-  let f' val = case val of
-                (Neu neu nty) -> do
-                  ty' <- tyApp ty nty
-                  pure $ Neu (NeuBuiltinApp f' neu ty') ty'
-                _ -> case ty of
-                  (NormArr _ r) -> pure $ liftFun3 (f val) r
-                  (NormProd var _ body) -> pure $ liftFun3 (f val) body
-                  (NormImplProd var _ body) -> pure $ liftFun3 (f val) body
-  in Builtin f' ty
-
-liftFun5 :: (Normal -> Normal -> Normal -> Normal -> Normal -> EvalM Normal) -> Normal -> Normal 
-liftFun5 f ty =
-  let f' val = case val of
-                (Neu neu nty) -> do
-                  ty' <- tyApp ty nty
-                  pure $ Neu (NeuBuiltinApp f' neu ty') ty'
-                _ -> case ty of
-                  (NormArr _ r) -> pure $ liftFun4 (f val) r
-                  (NormProd var _ body) -> pure $ liftFun4 (f val) body
-                  (NormImplProd var _ body) -> pure $ liftFun4 (f val) body
-    in Builtin f' ty
-
-liftFun6 :: (Normal -> Normal -> Normal -> Normal -> Normal -> Normal -> EvalM Normal) -> Normal -> Normal 
-liftFun6 f ty =
-  let f' val = case val of
-                (Neu neu nty) -> do
-                  ty' <- tyApp ty nty
-                  pure $ Neu (NeuBuiltinApp f' neu ty') ty'
-                _ -> case ty of
-                  (NormArr _ r) -> pure $ liftFun5 (f val) r
-                  (NormProd var _ body) -> pure $ liftFun5 (f val) body
-                  (NormImplProd var _ body) -> pure $ liftFun5 (f val) body
-    in Builtin f' ty
-
-  
 applyDtor :: Int -> Int -> Int -> [Normal] -> EvalM Normal
 applyDtor id1 id2 strip (arg:args) 
   | strip == 0 = case arg of 
@@ -881,7 +810,7 @@ getAsBuiltin m sym ty =
         (CollTy (IOMonadTy ty)) -> case ty of 
           (PrimType UnitT) -> 
             pure . CollVal $ IOAction
-              (IOThread (callFFI fnc retVoid cargs >> (pure . Pure $ PrimVal Unit)))
+              (IOThread (callFFI fnc retVoid cargs >> (pure . Pure . pure $ PrimVal Unit)))
               (CollTy (IOMonadTy (PrimType UnitT)))
         _ -> throwError ("bad cffi ret ty: " <> show retTy)
 
@@ -902,3 +831,229 @@ getAsBuiltin m sym ty =
     getRet (NormImplProd _ _ r) = getRet r
     getRet v = v
 
+
+
+apply :: Normal -> Core -> EvalM Normal 
+apply (Neu neu ty) r = do
+  -- TODO: thunk about thunks and neutral terms...
+  -- thunk <- genThunk r
+  r' <- eval r
+  ty' <- tyApp ty r'
+  pure $ Neu (NeuApp neu r') ty'
+apply (NormAbs var body ty) r = do
+  r' <- eval r
+  normSubst (r', var) body
+apply (Builtin fn ty) r = eval r >>= fn
+apply (BuiltinLzy fn ty) r = fn (eval r)
+apply (NormIVal name tyid altid strip params ty) r = do
+  r' <- eval r
+  ty' <- tyApp ty r'
+  pure $ NormIVal name tyid altid strip (r' : params) ty'
+apply (NormCoDtor name id1 id2 len strip args ty) r = do
+  r' <- eval r
+  ty' <- tyApp ty r'
+  case len of
+    0 -> throwError "too many arugments to destructor"
+    1 -> applyDtor id1 id2 strip (reverse (r' : args))
+    _ -> pure $ NormCoDtor name id1 id2 (len - 1) strip (r' : args) ty
+apply (InbuiltCtor ctor) r = case ctor of
+  IndPat _ _ _ n _ -> do
+    r' <- eval r
+    eval (CApp (CNorm n) (CNorm r'))
+apply other _ = throwError ("tried to apply to non-function: " <> show other)
+
+-- eventual evaluation of non-strict application
+-- eval (CApp l r rty) = do
+--   l' <- eval l
+--   case l' of 
+--     Neu neu ty -> do
+--       ty' <- tyAppThunk ty thunk ??
+--       pure $ Neu (NeuApp neu thunk) ty'
+--     NormAbs var lzy body ty ->
+--       if lzy then do
+--         thunk <- genThunk r
+--         normSubstT (thunk, var) body
+--       else do
+--         val <- eval r'
+--         normSubst (val, var) body
+--     Builtin fn ty -> fn (eval r) -- builtin functions will handle strictness
+--                                  -- internally if they need to 
+--     NormIVal name tyid altid strip params lzys ty -> do
+--       case safeHead lzys of 
+--         Just True
+--         Just False
+--         Nothing -> throwError ("too many args to Normal: " <> name)
+--       r' <- eval r 
+--       ty' <- tyApp ty r'
+--       pure $ NormIVal name tyid altid strip (r' : params) ty'
+--     NormCoDtor name id1 id2 len strip args ty -> do
+--       r' <- eval r 
+--       ty' <- tyApp ty r'
+--       case len of 
+--         0 -> throwError "too many arugments to destructor"
+--         1 -> applyDtor id1 id2 strip (reverse (r' : args))
+--         _ -> pure $ NormCoDtor name id1 id2 (len - 1) strip (r' : args) ty
+--     InbuiltCtor ctor -> case ctor of   
+--       r' <- eval r 
+--       IndPat _ _ _ n _ -> eval (CApp (CNorm n) (CNorm r'))
+--     other -> throwError ("tried to apply to non-function: " <> show other)
+
+
+applyNorm :: Normal -> Normal -> EvalM Normal 
+applyNorm (Neu neu ty) r' = do
+  ty' <- tyApp ty r'
+  pure $ Neu (NeuApp neu r') ty'
+applyNorm (NormAbs var body ty) r' = normSubst (r', var) body
+applyNorm (Builtin fn ty) r' = fn r'
+applyNorm (NormIVal name tyid altid strip params ty) r' = do
+  ty' <- tyApp ty r'
+  pure $ NormIVal name tyid altid strip (r' : params) ty'
+applyNorm (NormCoDtor name id1 id2 len strip args ty) r' = do
+  ty' <- tyApp ty r'
+  case len of
+    0 -> throwError "too many arugments to destructor"
+    1 -> applyDtor id1 id2 strip (reverse (r' : args))
+    _ -> pure $ NormCoDtor name id1 id2 (len - 1) strip (r' : args) ty
+applyNorm (InbuiltCtor ctor) r' = case ctor of
+  IndPat _ _ _ n _ -> eval (CApp (CNorm n) (CNorm r'))
+applyNorm other _ = throwError ("tried to apply to non-function: " <> show other)
+
+
+
+
+---- FUNCTION LIFTING  
+-- Utilities for lifting Haskell functions on Modulus objects into a Modulus Function.
+  
+interceptNeutral :: (Normal -> EvalM Normal) -> Normal -> Normal -> EvalM Normal
+interceptNeutral f ty (Neu neutral nty) = do
+  ty' <- tyApp ty nty
+  pure $ Neu (NeuBuiltinApp (interceptNeutral f ty) neutral ty') ty'
+interceptNeutral f ty val = f val
+
+
+-- liftFun needs to intercept /neutral/ terms!
+liftFun :: (Normal -> EvalM Normal) -> Normal -> Normal
+liftFun f ty = Builtin (interceptNeutral f ty) ty
+
+
+liftFun2 :: (Normal -> Normal -> EvalM Normal) -> Normal -> Normal
+liftFun2 f ty =
+  let f' val = case val of
+                (Neu neu nty) -> do
+                  ty' <- tyApp ty nty
+                  pure $ Neu (NeuBuiltinApp f' neu ty') ty'
+                _ ->
+                  case ty of
+                    (NormArr _ r) -> pure $ liftFun (f val) r
+                    (NormProd var _ body) -> pure $ liftFun (f val) body
+                    (NormImplProd var _ body) -> pure $ liftFun (f val) body
+  in Builtin f' ty
+
+
+liftFun3 :: (Normal -> Normal -> Normal -> EvalM Normal) -> Normal -> Normal 
+liftFun3 f ty =
+  let f' val = case val of
+                (Neu neu nty) -> do
+                  ty' <- tyApp ty nty
+                  pure $ Neu (NeuBuiltinApp f' neu ty') ty'
+                _ -> case ty of
+                  (NormArr _ r) -> pure $ liftFun2 (f val) r
+                  (NormProd var _ body) -> pure $ liftFun2 (f val) body
+                  (NormImplProd var _ body) -> do pure $ liftFun2 (f val) body
+  in Builtin f' ty
+
+
+liftFun4 :: (Normal -> Normal -> Normal -> Normal -> EvalM Normal) -> Normal -> Normal 
+liftFun4 f ty =
+  let f' val = case val of
+                (Neu neu nty) -> do
+                  ty' <- tyApp ty nty
+                  pure $ Neu (NeuBuiltinApp f' neu ty') ty'
+                _ -> case ty of
+                  (NormArr _ r) -> pure $ liftFun3 (f val) r
+                  (NormProd var _ body) -> pure $ liftFun3 (f val) body
+                  (NormImplProd var _ body) -> pure $ liftFun3 (f val) body
+  in Builtin f' ty
+
+
+liftFun5 :: (Normal -> Normal -> Normal -> Normal -> Normal -> EvalM Normal) -> Normal -> Normal 
+liftFun5 f ty =
+  let f' val = case val of
+                (Neu neu nty) -> do
+                  ty' <- tyApp ty nty
+                  pure $ Neu (NeuBuiltinApp f' neu ty') ty'
+                _ -> case ty of
+                  (NormArr _ r) -> pure $ liftFun4 (f val) r
+                  (NormProd var _ body) -> pure $ liftFun4 (f val) body
+                  (NormImplProd var _ body) -> pure $ liftFun4 (f val) body
+    in Builtin f' ty
+
+
+liftFun6 :: (Normal -> Normal -> Normal -> Normal -> Normal -> Normal -> EvalM Normal) -> Normal -> Normal 
+liftFun6 f ty =
+  let f' val = case val of
+                (Neu neu nty) -> do
+                  ty' <- tyApp ty nty
+                  pure $ Neu (NeuBuiltinApp f' neu ty') ty'
+                _ -> case ty of
+                  (NormArr _ r) -> pure $ liftFun5 (f val) r
+                  (NormProd var _ body) -> pure $ liftFun5 (f val) body
+                  (NormImplProd var _ body) -> pure $ liftFun5 (f val) body
+    in Builtin f' ty
+
+
+-- Lazy Function Lifting
+  
+-- interceptNeutral :: (EvalM Normal -> EvalM Normal) -> Normal -> Normal -> EvalM Normal
+-- interceptNeutral f ty (Neu neutral nty) = do
+--   ty' <- tyApp ty nty
+--   pure $ Neu (NeuBuiltinApp (interceptNeutral f ty) neutral ty') ty'
+-- interceptNeutral f ty val = f val
+
+liftFunL :: (EvalM Normal -> EvalM Normal) -> Normal -> Normal
+liftFunL f ty = BuiltinLzy f ty
+
+
+liftFunL2 :: (EvalM Normal -> EvalM Normal -> EvalM Normal) -> Normal -> Normal
+liftFunL2 f ty =
+  let f' val = case ty of
+        (NormArr _ r) -> pure $ liftFunL (f val) r
+        (NormProd var _ body) -> pure $ liftFunL (f val) body
+        (NormImplProd var _ body) -> pure $ liftFunL (f val) body
+  in BuiltinLzy f' ty
+
+
+liftFunL3 :: (EvalM Normal -> EvalM Normal -> EvalM Normal -> EvalM Normal) -> Normal -> Normal 
+liftFunL3 f ty =
+  let f' val = case ty of
+        (NormArr _ r) -> pure $ liftFunL2 (f val) r
+        (NormProd var _ body) -> pure $ liftFunL2 (f val) body
+        (NormImplProd var _ body) -> pure $ liftFunL2 (f val) body
+  in BuiltinLzy f' ty
+
+
+liftFunL4 :: (EvalM Normal -> EvalM Normal -> EvalM Normal -> EvalM Normal -> EvalM Normal) -> Normal -> Normal 
+liftFunL4 f ty =
+  let f' val = case ty of
+        (NormArr _ r) -> pure $ liftFunL3 (f val) r
+        (NormProd var _ body) -> pure $ liftFunL3 (f val) body
+        (NormImplProd var _ body) -> pure $ liftFunL3 (f val) body
+  in BuiltinLzy f' ty
+
+
+liftFunL5 :: (EvalM Normal -> EvalM Normal -> EvalM Normal -> EvalM Normal -> EvalM Normal -> EvalM Normal) -> Normal -> Normal 
+liftFunL5 f ty =
+  let f' val = case ty of
+        (NormArr _ r) -> pure $ liftFunL4 (f val) r
+        (NormProd var _ body) -> pure $ liftFunL4 (f val) body
+        (NormImplProd var _ body) -> pure $ liftFunL4 (f val) body
+  in BuiltinLzy f' ty
+
+
+liftFunL6 :: (EvalM Normal -> EvalM Normal -> EvalM Normal -> EvalM Normal -> EvalM Normal -> EvalM Normal -> EvalM Normal) -> Normal -> Normal 
+liftFunL6 f ty =
+  let f' val = case ty of
+        (NormArr _ r) -> pure $ liftFunL5 (f val) r
+        (NormProd var _ body) -> pure $ liftFunL5 (f val) body
+        (NormImplProd var _ body) -> pure $ liftFunL5 (f val) body
+  in BuiltinLzy f' ty

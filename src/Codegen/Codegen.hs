@@ -1,4 +1,14 @@
 module Codegen.Codegen where
 
+import Codegen.Backends.LLVM
 
--- TODO: codegen: Expr -> ProgMonad Module
+-- Codegen Modules: 
+-- Backend B:
+-- + Core -> B
+-- + Norm -> B
+-- + Inbuilt -> B 
+
+-- Modules: 
+-- Int
+-- Float
+

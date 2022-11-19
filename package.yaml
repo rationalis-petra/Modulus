@@ -33,7 +33,7 @@ dependencies:
 - network              # networking 
 - bytestring
 - libffi
-# - llvm-hs
+- llvm-tf
 
 library:
   source-dirs: src

@@ -14,6 +14,7 @@ module Data (Pattern(..),
              ProgState(..),
              uid_counter,
              var_counter,
+             thunk_map,
              dropMod,
              peelMod,
              addMod,
@@ -25,7 +26,8 @@ module Data (Pattern(..),
              CollVal(..),
              CollTy(..),
              InbuiltCtor(..),
-             Special(..)) where
+             Special(..),
+             Thunk(..)) where
 
 import Data.Text (Text, pack, unpack)
 import Data.Vector (Vector)
@@ -83,9 +85,10 @@ class Value a where
   typeVal :: a -> Normal
   -- compile :: a -> Backend -> Maybe a (??)
   
+newtype Thunk = Thunk { tid :: Int }
 
 data Environment = Environment {
-  localCtx      :: Map.Map String (Normal, Normal),
+  localCtx      :: Map.Map String (Either (Normal, Normal) Thunk),
   currentModule :: Normal,
   globalModule  :: Normal
 }
@@ -158,9 +161,9 @@ data CollVal m
 data IEThread m
   = IOThread (IO (IEThread m))
   | MThread (m (IEThread m))
-  | Pure (Normal' m)
-  | Bind (IEThread m) (Normal' m)
-  | Seq (IEThread m) (IEThread m)
+  | Pure (m (Normal' m))
+  | Bind (m (IEThread m)) (m (Normal' m))
+  | Seq (m (IEThread m)) (m (IEThread m))
 
 
 data Modifier = Implicit
@@ -193,6 +196,8 @@ data Normal' m
   | NormAbs String (Normal' m) (Normal' m)
 
   | Builtin (Normal' m -> m (Normal' m)) (Normal' m)
+  -- TOOD: BuiltinLzy should take a thunk! (?)
+  | BuiltinLzy (m (Normal' m) -> m (Normal' m)) (Normal' m)
   
   -- Structures & Signatures
   | NormSct [(String, (Normal' m, [Modifier]))] Normal
@@ -254,6 +259,7 @@ instance Show (Normal' m) where
         in l' <> " → " <> show r
   show (NormAbs var body ty) = "(λ [" <> var <> "] " <> show body <> ")"
   show (Builtin _ ty) = "(fnc : " <> show ty <> ")"
+  show (BuiltinLzy _ ty) = "(lfnc : " <> show ty <> ")"
   show (NormSct fields ty) =
     if isTuple fields then
       showAsTuple fields
@@ -329,7 +335,11 @@ type EvalMT m = ReaderT Environment (ExceptT String (StateT ProgState m))
 type EvalM = EvalMT Identity
 
 
-data ProgState = ProgState { _uid_counter :: Int, _var_counter :: Int }  
+data ProgState = ProgState { _uid_counter   :: Int
+                           , _var_counter   :: Int
+                           , _thunk_counter :: Int
+                           , _thunk_map :: Map.Map Int (Either (EvalM (Normal, Normal)) (Normal, Normal)) }
+
 
   
 instance Show PrimType where 

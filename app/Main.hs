@@ -27,7 +27,10 @@ import qualified Data.Map as Map
 import Options.Applicative
 import Data.Semigroup ((<>))
 
-defaultState = ProgState { _uid_counter = 0, _var_counter = 0 }
+defaultState = ProgState { _uid_counter = 0
+                         , _var_counter = 0
+                         , _thunk_counter = 0
+                         , _thunk_map = Map.empty }
 
 data Mode = Script | Interactive | Compile
 
@@ -58,7 +61,6 @@ main = do
 
       process :: Args -> IO ()
       process (Args {file=f, mode=m}) =
-         -- If we are in interpret mode: 
         case m of 
           m | m == "c" || m == "compiled" ->
               putStrLn "compilation not implemented yet!"
@@ -76,8 +78,6 @@ main = do
                 putStrLn "module loader failed to initialize"
             | m == "s" || m == "server" ->
               startServer defaultState defaultEnv
-
-                
             | otherwise -> putStrLn "bad mode argument"
   
 -- The REPL 

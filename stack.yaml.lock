@@ -3,11 +3,24 @@
 # For more information, please see the documentation at:
 #   https://docs.haskellstack.org/en/stable/lock_files
 
-packages: []
+packages:
+- completed:
+    hackage: llvm-tf-12.0.0.1@sha256:7907c46c5100d444b3b229dc5c673c84fbe9189bb3d599a60182bf620daeeda5,6417
+    pantry-tree:
+      sha256: ece237f8eb6713c919fa713c9b4ac970a1318aabe7420b803a9f076b78d790d2
+      size: 3108
+  original:
+    hackage: llvm-tf-12.0.0.1
+- completed:
+    hackage: llvm-ffi-13.0@sha256:b2256a958e57e95b0a95db72c69e0eb6a82837043eae00c9778ba09bbd460d31,12386
+    pantry-tree:
+      sha256: 504db6722cd98a6d29dc2c0bc6b4ec194c727e5d7e5eeb9b431a59c7044fb4be
+      size: 3073
+  original:
+    hackage: llvm-ffi-13.0
 snapshots:
 - completed:
+    sha256: e7e57649a12f6178d1158e4b6f1f1885ed56d210ae6174385271cecc9b1ea974
     size: 617368
     url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/19/2.yaml
-    sha256: e7e57649a12f6178d1158e4b6f1f1885ed56d210ae6174385271cecc9b1ea974
-  original:
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/19/2.yaml
+  original: lts-19.2
