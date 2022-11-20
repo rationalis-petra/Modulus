@@ -86,6 +86,7 @@ class Value a where
   -- compile :: a -> Backend -> Maybe a (??)
   
 newtype Thunk = Thunk { tid :: Int }
+  deriving Show
 
 data Environment = Environment {
   localCtx      :: Map.Map String (Either (Normal, Normal) Thunk),

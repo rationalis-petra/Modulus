@@ -16,18 +16,19 @@ import Interpret.Lib.Foreign
 
 import qualified Interpret.Lib.Algebra.Semigroup as Semigroup
 import qualified Interpret.Lib.Algebra.Ring as Ring
+import qualified Interpret.Lib.Algebra.Field as Field
 import qualified Interpret.Lib.Data.String as String
 
 import Data (Normal, Normal'(NormSct, NormSig), EvalM, toEmpty)
 import qualified Data.Map as Map
 
 
-  
-
 implTerms =
   [ ("⋅", Semigroup.implStar)
   , ("+", Ring.implAdd)
   , ("✕", Ring.implMul)
+  , ("-", Ring.implSub)
+  , ("÷", Field.implDiv)
   , ("show", String.implShow)
   ]
   where pathLookup :: [String] -> Normal -> Normal
@@ -35,7 +36,6 @@ implTerms =
         pathLookup (s : ss) (NormSct lst _) = case getField s lst of 
           Just (v, _) -> pathLookup ss v
   
-
 
 defaultStructure :: [(String, Normal)]
 defaultStructure =

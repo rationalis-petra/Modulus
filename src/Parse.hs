@@ -271,6 +271,7 @@ pTop = sc *> try (many (parens pNormal)) <* sc
 
 data ReplMessage
   = Quit
+  | ToggleType
   | Continue
   | LoadForeign String
   
@@ -278,6 +279,7 @@ data ReplMessage
 pPreRepl :: Parser ReplMessage 
 pPreRepl = choice
   [ ((string ":q") >> pure Quit)
+  , ((string ":t") >> pure ToggleType)
   , (LoadForeign <$> (symbol ":foreign" >> pLibStr))
   , (many (satisfy (const True)) >> pure Continue)
   ]

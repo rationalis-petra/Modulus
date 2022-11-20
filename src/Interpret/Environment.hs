@@ -31,36 +31,54 @@ lookup key (Environment {localCtx = lcl,
                          currentModule = curr,
                          globalModule = glbl}) = 
   case Map.lookup key lcl of 
-    Just thunk -> getThunk thunk
+    Just result -> getThunk result
     Nothing ->
       let (NormSct m ty) = curr in
       case getField key m of 
         Just (v, _) -> liftExcept $ ((,) v) <$> typeVal v
         Nothing -> throwError ("couldn't lookup " <> key)
 
+
 lookupGlbl :: String -> Environment -> Maybe (Normal, Normal)
 lookupGlbl key (Environment {localCtx = lcl,
-                         currentModule = curr,
-                         globalModule = glbl}) =
+                             currentModule = curr,
+                             globalModule = glbl}) =
   let (NormSct m ty) = curr in
   case getField key m of 
     Just (v, _) -> (,) v <$> (case Except.runExcept (typeVal v) of Right val -> Just val; _ -> Nothing)
     Nothing -> Nothing
+
+  
+lookupGlblS :: String -> Environment -> Maybe (Normal, Normal)
+lookupGlblS key (Environment { localCtx = lcl
+                             , currentModule = curr
+                             , globalModule = glbl }) =
+  case Map.lookup key lcl of 
+    Just result -> Nothing
+    Nothing ->
+      let (NormSct m ty) = curr in
+        case getField key m of
+          Just (v, _) -> (,) v <$> (case Except.runExcept (typeVal v) of Right val -> Just val; _ -> Nothing)
+          Nothing -> Nothing
+
 
 insert :: String -> Normal -> Normal -> Environment -> Environment
 insert key val ty environment = environment {localCtx = newCtx}
   where
     newCtx = Map.insert key (Left (val, ty)) (localCtx environment)
 
+
 insertThunk :: String -> Thunk -> Environment -> Environment
 insertThunk key thunk environment = environment {localCtx = newCtx}
   where
     newCtx = Map.insert key (Right thunk) (localCtx environment)
 
+
 insertAll :: [(String, (Normal, Normal))] -> Environment -> Environment
 insertAll lst context = context{localCtx = newCtx}
   where
     newCtx = foldr (uncurry (\k v -> Map.insert k (Left v))) (localCtx context) lst
+
 
 -- TODO: what sould folding over an environment do if a value is thunk'd/
 --       current implementation (ignore) is suboptimal
@@ -77,6 +95,7 @@ fold f z (Environment { localCtx = lcl
       z''  = foldr f z' (map (fst . snd) currentFields)
   in foldr f z'' (map (fst . snd) globalFields)
 
+
 foldImpl :: (Normal -> a -> a) -> (Normal -> Normal -> a -> a) -> a -> Environment ->  a
 foldImpl f1 f2 z (Environment {localCtx = lcl,
                                currentModule = curr,
@@ -90,11 +109,12 @@ foldImpl f1 f2 z (Environment {localCtx = lcl,
       z''  = foldr f1' z' (map snd currentFields)
   in foldr f1' z'' (map snd globalFields)
 
+
 empty :: Environment
 empty = Environment { localCtx = Map.empty
                     , currentModule = NormSct [] (NormSig [])
-                    , globalModule = NormSct [] (NormSig [])
-                    }
+                    , globalModule = NormSct [] (NormSig [])}
+
 
 member _ [] = False
 member x' (x:xs) = if x == x' then True else member x' xs

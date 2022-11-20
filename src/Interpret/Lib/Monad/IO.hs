@@ -1,7 +1,5 @@
 module Interpret.Lib.Monad.IO (ioMonadStructure, ioMonadSignature) where
 
-import Debug.Trace
-
 import Data
 import Interpret.EvalM (ask, get, put, local, throwError)
 import Interpret.Eval (eval, evalToEither, liftFun, liftFun2, liftFun4, liftFunL4)

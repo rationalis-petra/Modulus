@@ -26,7 +26,10 @@ lookup s (GlobCtx (ctx, shadowed)) =
   if Set.member s shadowed then
     Nothing
   else
-    fst <$> Env.lookupGlbl s ctx
+    -- TODO: this was lookupGlbl previously... why??
+    -- probably: we could only get values if it was 
+    fst <$> Env.lookupGlblS s ctx
+
 shadow s (GlobCtx (ctx, shadowed)) = 
   GlobCtx (ctx, Set.insert s shadowed)
 

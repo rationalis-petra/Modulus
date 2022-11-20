@@ -89,28 +89,37 @@ defaultEnv = Environment
   }
 
 
+data ReplSettings = ReplSettings { displayTypes :: Bool }
+
+defaultSettings = ReplSettings { displayTypes = False }
+  
+
 repl :: Environment -> ProgState -> IO ()
-repl env state = do
-  putStr "> "
-  hFlush stdout
-  line <- getLine
-  case parsePreRepl "repl" (pack line) of 
-    Left err -> printFlush err >> repl env state
-    Right Quit -> pure ()
-    Right (LoadForeign str) -> do
-      mdle <- loadModuleWithErr str
-      case mdle of  
-        Right v -> printFlush "success!"
-        Left err -> printFlush ("failed to load " <> str <> ": " <> err)
-      repl env state 
-    Right Continue ->
-      case parseRepl "stdin" (pack line) of
-        Left err -> do
-          printFlush err
-          repl env state 
-        Right val -> do
-          (env', state') <- runExprs [val] env state True
-          repl env' state'
+repl env state = repl' env state defaultSettings
+  where 
+    repl' env state settings = do
+      putStr "> "
+      hFlush stdout
+      line <- getLine
+      case parsePreRepl "repl" (pack line) of 
+        Left err -> printFlush err >> repl' env state settings
+        Right Quit -> pure ()
+        Right ToggleType -> repl' env state
+          (settings {displayTypes = (not $ displayTypes settings)})
+        Right (LoadForeign str) -> do
+          mdle <- loadModuleWithErr str
+          case mdle of  
+            Right v -> printFlush "success!"
+            Left err -> printFlush ("failed to load " <> str <> ": " <> err)
+          repl' env state  settings
+        Right Continue ->
+          case parseRepl "stdin" (pack line) of
+            Left err -> do
+              printFlush err
+              repl' env state settings
+            Right val -> do
+              (env', state') <- runExprs [val] env state settings
+              repl' env' state' settings
           
 
 
@@ -118,13 +127,13 @@ runInteractively :: String -> Environment -> ProgState -> IO (Environment, ProgS
 runInteractively str env state =
   case parseScript "file" (pack str) of
       Left err -> printFlush err >> pure (env, state)
-      Right vals -> runExprs vals env state False
+      Right vals -> runExprs vals env state defaultSettings
 
 -- runExprs takes in an AST list, an environment, a state and a flag (whether to
 -- run any IO actions encountered)
-runExprs :: [AST] -> Environment -> ProgState -> Bool -> IO (Environment, ProgState)
+runExprs :: [AST] -> Environment -> ProgState -> ReplSettings -> IO (Environment, ProgState)
 runExprs [] env state _ = pure (env, state)
-runExprs (e : es) env state iop = do
+runExprs (e : es) env state sets = do
   -- result <- evalToIO compile env state 
   -- where my_mnd = do
   --         expanded <- macroExpand e 
@@ -135,7 +144,7 @@ runExprs (e : es) env state iop = do
   --         core <- liftExcept $ toCore checked
   result <- evalToIO (macroExpand e) env state
   case result of 
-    Just (expanded, state') -> 
+    Just (expanded, state') ->
       case toIntermediate expanded env of 
         Right val -> do
           result <- evalToIO (toTIntermediateTop val) env state'
@@ -144,9 +153,10 @@ runExprs (e : es) env state iop = do
               result <- evalToIO (typeCheckTop tint env) env state''
               case result of 
                 Just (cint, state''') -> do
-                  -- TODO: add optional printing of type
                   cint' <- case cint of 
-                        Left (t, ty) -> pure t
+                        Left (t, ty) -> do
+                          if (displayTypes sets) then (printFlush ty) else pure ()
+                          pure t
                         Right t -> pure t
                   case runExcept (toTopCore cint') of 
                     Right v -> do
@@ -156,7 +166,7 @@ runExprs (e : es) env state iop = do
                           (val, state) <- runIO mval fenv fstate
                           pure state
                         Nothing -> pure fstate
-                      runExprs es fenv fstate' iop
+                      runExprs es fenv fstate' sets
                     Left err -> failWith ("toCore err: " <> err)
                 Nothing -> pure (env, state)
             Nothing -> pure (env, state)

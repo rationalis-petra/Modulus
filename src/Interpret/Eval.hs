@@ -22,8 +22,6 @@ module Interpret.Eval (Normal,
                        liftFunL5,
                        liftFunL6) where
 
-import Debug.Trace (trace)
-
 import Prelude hiding (lookup)
 
 import Data.Text (pack, unpack)
@@ -222,7 +220,7 @@ eval (CNorm n) = pure n
 
 eval (CVar var) = do
   env <- ask
-  fst <$> Env.lookup var env 
+  fst <$> Env.lookup var env
 
 eval (CArr l r) = do
   l' <- eval l

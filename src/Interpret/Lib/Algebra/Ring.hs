@@ -13,7 +13,10 @@ ringTy = NormUniv 0
 ring :: Normal
 ring = NormSig 
   [ ("T", NormUniv 0)
+  , ("e0", mkVar "T")
+  , ("e1", mkVar "T")
   , ("+", NormArr (mkVar "T") (NormArr (mkVar "T") (mkVar "T")))
+  , ("-", NormArr (mkVar "T") (NormArr (mkVar "T") (mkVar "T")))
   , ("✕", NormArr (mkVar "T") (NormArr (mkVar "T") (mkVar "T")))
   ]
 
@@ -24,10 +27,10 @@ implAddTy = NormImplProd "r" ring
 
 implAdd :: Normal
 implAdd =
-  NormAbs "g"
+  NormAbs "r"
   (NormAbs "x"
    (NormAbs "y"
-    (Neu (NeuApp (NeuApp (NeuDot (NeuVar "g" ring) "+") (Neu (NeuVar "x" t3) t3)) (Neu (NeuVar "y" t3) t3)) t3)
+    (Neu (NeuApp (NeuApp (NeuDot (NeuVar "r" ring) "+") (Neu (NeuVar "x" t3) t3)) (Neu (NeuVar "y" t3) t3)) t3)
     t2) t1) t0
   where
     t0 = implAddTy
@@ -35,6 +38,23 @@ implAdd =
     t2 = tyTail t1
     t3 = tyTail t2
 
+
+implSubTy :: Normal
+implSubTy = implAddTy
+
+implSub :: Normal
+implSub =
+  NormAbs "r"
+  (NormAbs "x"
+   (NormAbs "y"
+    (Neu (NeuApp (NeuApp (NeuDot (NeuVar "r" ring) "-") (Neu (NeuVar "x" t3) t3)) (Neu (NeuVar "y" t3) t3)) t3)
+    t2) t1) t0
+  where
+    t0 = implSubTy
+    t1 = tyTail t0
+    t2 = tyTail t1
+    t3 = tyTail t2
+  
   
 implMulTy :: Normal
 implMulTy = implAddTy

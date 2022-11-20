@@ -13,7 +13,7 @@ import qualified Interpret.Eval as Eval
 import qualified Interpret.Environment as Env
 import Interpret.EvalM(ask, throwError) 
 
-  -- TODO: change macro-expansion to incorporate splicing
+-- TODO: change macro-expansion to incorporate splicing
 
 macroExpand :: AST -> EvalM AST
 macroExpand ast = do

@@ -4,12 +4,14 @@ import Data
 
 import Interpret.Lib.Algebra.Semigroup
 import Interpret.Lib.Algebra.Ring
+import Interpret.Lib.Algebra.Field
 
 
 algebraSignature :: Normal
 algebraSignature = NormSig
   [ ("semigroup", semigroupSignature)
   , ("ring", ringSignature)
+  , ("field", fieldSignature)
   ]
 
   
@@ -17,4 +19,5 @@ algebraStructure :: Normal
 algebraStructure = NormSct (toEmpty
   [ ("semigroup", semigroupStructure)
   , ("ring", ringStructure)
+  , ("field", ringStructure)
   ]) algebraSignature
