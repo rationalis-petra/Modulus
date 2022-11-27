@@ -1,27 +1,19 @@
+{-# LANGUAGE FlexibleContexts #-}
 module Interpret.Lib.BuildStructure where
 
-import Data(Environment(..),
-            Normal'(NormSct, NormSig),
-            Normal,
-            EvalM,
-            toEmpty)
-
-import Control.Monad.Except (runExcept)
-import Data.Text (pack, unpack)
-
-import Parse (parseScript)
-import Syntax.Macroexpand
-import Syntax.Intermediate(Intermediate(..),
-                           IDefinition(..))
-import Syntax.Conversions
-import Typecheck.Typecheck (typeCheck)
-import Interpret.EvalM (local, throwError)
-import Interpret.Lib.Core
-import qualified Interpret.Eval as Eval
-
 import qualified Data.Map as Map
+import Control.Monad.State (MonadState)
+import Control.Monad.Except (MonadError)
+import Control.Monad.Reader (MonadReader)
+
+import Data(Environment(..),
+            ProgState,
+            Normal(NormSct, NormSig),
+            toEmpty)
+import Interpret.Lib.Core (coreTerms) 
 
 
+moduleContext :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Environment m
 moduleContext = Environment {
   localCtx = Map.empty,
   currentModule = NormSct (toEmpty coreTerms) (NormSig []),

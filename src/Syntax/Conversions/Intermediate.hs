@@ -9,15 +9,13 @@ import qualified Interpret.Environment as Env
 import Data (AST(..),
              Environment,
              Special(..),
-             Normal,
-             Normal'(Symbol, Special, Keyword, NormIVal, NormCoDtor, PrimVal),
+             Normal(Symbol, Special, Keyword, NormIVal, NormCoDtor, PrimVal),
              PrimVal(String),
-             Neutral,
-             Neutral')
+             Neutral)
 
 import Syntax.Intermediate
 
-newtype GlobCtx = GlobCtx (Environment, (Set.Set String))
+newtype GlobCtx m = GlobCtx (Environment m, (Set.Set String))
 
   
 
@@ -33,7 +31,7 @@ lookup s (GlobCtx (ctx, shadowed)) =
 shadow s (GlobCtx (ctx, shadowed)) = 
   GlobCtx (ctx, Set.insert s shadowed)
 
-toIntermediate :: AST -> Environment -> Either String Intermediate
+toIntermediate :: AST m -> Environment m -> Either String (Intermediate m)
 toIntermediate val ctx =
   runExcept (toIntermediateM val (GlobCtx (ctx, Set.empty)))
 
@@ -42,7 +40,7 @@ toIntermediateTop (Cons (e : es)) ctx = do
   case val of  
     (IValue (Special Lambda)) -> mkLambda es ctx
 
-toIntermediateM :: AST -> GlobCtx -> Except String Intermediate
+toIntermediateM :: AST m -> GlobCtx m -> Except String (Intermediate m)
 toIntermediateM (Atom (Symbol s)) ctx =
   case lookup s ctx of 
     Just x -> pure (IValue x)
@@ -80,7 +78,7 @@ toIntermediateM (Cons (e : es)) ctx = do
           mkApply v (x : xs) = (mkApply (IApply v x) xs)
       return (mkApply val args)
 
-mkIf :: [AST] -> GlobCtx -> Except String Intermediate   
+mkIf :: [AST m] -> GlobCtx m -> Except String (Intermediate m)   
 mkIf [cond, e1, e2] ctx = do
   cond' <- toIntermediateM cond ctx
   e1' <- toIntermediateM e1 ctx
@@ -88,7 +86,7 @@ mkIf [cond, e1, e2] ctx = do
   pure $ IIF cond' e1' e2'
 mkIf ast _ = throwError ("bad syntax in if: " ++ show ast)
 
-mkLambda :: [AST] -> GlobCtx -> Except String Intermediate
+mkLambda :: [AST m] -> GlobCtx m -> Except String (Intermediate m)
 mkLambda [syms, body] ctx = do
   symList <- getAnnSymList syms ctx
   let new_ctx = fold (shadowbnd) symList ctx
@@ -111,7 +109,7 @@ mkLambda [Cons (Atom (Keyword "implicit") : isyms), syms, body] ctx = do
   pure $ ILambda (map (\x -> (x, True)) implList <> map (\x -> (x, False)) symList) body
 mkLambda ast _ = throwError ("bad syntax in lambda: " ++ show ast)
 
-mkProd :: [AST] -> GlobCtx -> Except String Intermediate
+mkProd :: [AST m] -> GlobCtx m -> Except String (Intermediate m)
 mkProd [arg, body] ctx = 
   let (impl, arg') = case arg of
         Cons [Atom (Keyword "implicit"), arg'] -> (True, arg')
@@ -137,7 +135,7 @@ mkProd [arg, body] ctx =
 mkProd ast _ = throwError ("bad syntax in product (→): " ++ show ast)
 
 
-mkMacro :: [AST] -> GlobCtx -> Except String Intermediate
+mkMacro :: [AST m] -> GlobCtx m -> Except String (Intermediate m)
 mkMacro [syms, body] ctx = do
   symList <- getAnnSymList syms ctx
   let new_ctx = fold (shadowbnd) symList ctx
@@ -150,7 +148,7 @@ mkMacro [syms, body] ctx = do
 mkMacro ast _ = throwError ("bad syntax in syntax: " ++ show ast)
   
 
-mkLet :: [AST] -> GlobCtx -> Except String Intermediate
+mkLet :: [AST m] -> GlobCtx m -> Except String (Intermediate m)
 mkLet lst ctx = do
   (binds, body) <- splitLast lst  
   bindList <- getBindList (Cons binds) ctx
@@ -166,7 +164,7 @@ mkLet lst ctx = do
     splitLast (x : xs) =
       splitLast xs >>= (\(l, last) -> pure (x : l, last))
 
-mkDef :: [AST] -> Maybe (String, Intermediate) -> GlobCtx -> Except String IDefinition
+mkDef :: [AST m] -> Maybe (String, Intermediate m) -> GlobCtx m -> Except String (IDefinition m)
 mkDef [(Atom (Symbol s)), body] ann ctx = 
   let new_ctx = shadow s ctx in do
     body' <- toIntermediateM body new_ctx
@@ -180,12 +178,12 @@ mkDef [(Atom (Symbol s)), body] ann ctx =
         pure $ (ISingleDef s body' Nothing)
 mkDef ast _ _ = throwError ("bad syntax in def: " ++ show ast)
 
-mkModule :: [AST] -> GlobCtx -> Except String Intermediate
+mkModule :: [AST m] -> GlobCtx m -> Except String (Intermediate m)
 mkModule lst ctx = do
   defs <- foldDefs lst Nothing ctx 
   return $ IStructure defs
   where
-    foldDefs :: [AST] -> Maybe (String, Intermediate) -> GlobCtx ->  Except String [IDefinition]
+    foldDefs :: [AST m] -> Maybe (String, Intermediate m) -> GlobCtx m ->  Except String [IDefinition m]
     foldDefs [] _ _ = pure []
     foldDefs ((Cons (op : body)) : tl) ann ctx = do
       mdef <- toIntermediateM op ctx
@@ -221,12 +219,12 @@ mkModule lst ctx = do
         _ -> throwError "Modules should contain only definition terms"
     foldDefs v _ _ = throwError ("bad term in module definition: " ++ show v)
 
-mkSig :: [AST] -> GlobCtx -> Except String Intermediate
+mkSig :: [AST m] -> GlobCtx m -> Except String (Intermediate m)
 mkSig lst ctx = do
   defs <- foldDefs lst ctx
   return $ ISignature defs
   where
-    foldDefs :: [AST] -> GlobCtx -> Except String [IDefinition]
+    foldDefs :: [AST m] -> GlobCtx m -> Except String [IDefinition m]
     foldDefs [] _ = pure []
     foldDefs ((Cons (op : body)) : tl) ctx = do
       mdef <- toIntermediateM op ctx
@@ -261,14 +259,14 @@ mkSig lst ctx = do
     foldDefs v _ = throwError ("bad term in signature definition: " ++ show v)
 
 
-mkInduct :: (String -> [IArg] -> Intermediate -> [(String, Intermediate)] -> IDefinition)
-         -> [AST] -> GlobCtx ->  Except String IDefinition
+mkInduct :: (String -> [IArg m] -> Intermediate m -> [(String, Intermediate m)] -> IDefinition m)
+         -> [AST m] -> GlobCtx m ->  Except String (IDefinition m)
 mkInduct constructor (def : tl) ctx = do
   (sym, params, ty) <- extractDef def ctx
   alternatives <- mkAlternatives tl (shadow sym ctx)
   pure $ constructor sym params ty alternatives
   where
-    extractDef :: AST -> GlobCtx -> Except String (String, [IArg], Intermediate)
+    extractDef :: AST m -> GlobCtx m -> Except String (String, [IArg m], Intermediate m)
     extractDef (Cons [a, Cons [Atom (Symbol s), params], ty]) ctx = do
       a' <- toIntermediateM a ctx
       case a' of 
@@ -288,14 +286,14 @@ mkInduct constructor (def : tl) ctx = do
     extractDef def _ = throwError ("Poorly formed inductive type head: " <> show def)
 
     
-    mkAlternatives :: [AST] -> GlobCtx -> Except String [(String, Intermediate)] 
+    mkAlternatives :: [AST m] -> GlobCtx m -> Except String [(String, Intermediate m)] 
     mkAlternatives (hd : tl) ctx = do
       bot <- mkAlternatives tl ctx
       top <- mkAlternative hd ctx
       pure (top : bot)
     mkAlternatives [] ctx = pure []
 
-    mkAlternative :: AST -> GlobCtx -> Except String (String, Intermediate) 
+    mkAlternative :: AST m -> GlobCtx m -> Except String (String, Intermediate m) 
     mkAlternative (Cons [a, Atom (Symbol s), altTy]) ctx = do
       a' <- toIntermediateM a ctx
       case a' of 
@@ -306,17 +304,16 @@ mkInduct constructor (def : tl) ctx = do
     mkAlternative a _ = throwError ("Poorly formed co/inductive type alternative: " <> show a)
 
 
-  
 mkInduct _ _ _ = throwError "ill-formed inductive or coinductive definition"
 
 
-mkMatch :: [AST] -> GlobCtx -> Except String Intermediate  
+mkMatch :: [AST m] -> GlobCtx m -> Except String (Intermediate m)  
 mkMatch (expr : patterns) ctx = do
   body <- toIntermediateM expr ctx
   patterns <- mkPatterns patterns ctx
   pure $ IMatch body patterns
   where 
-    mkPatterns :: [AST] -> GlobCtx -> Except String [(IPattern, Intermediate)]
+    mkPatterns :: [AST m] -> GlobCtx m -> Except String [(IPattern m, Intermediate m)]
     mkPatterns [] _ = pure []
     mkPatterns (Cons [Atom ((Symbol "→")), pat, expr] : xs) ctx = do
       bdy <- toIntermediateM expr ctx
@@ -325,7 +322,7 @@ mkMatch (expr : patterns) ctx = do
       return $ (pat, bdy) : tl
     mkPatterns x _ = throwError ("ill-formed pattern match " <> show x)
 
-    mkPattern :: AST -> GlobCtx -> Except String IPattern 
+    mkPattern :: AST m -> GlobCtx m -> Except String (IPattern m) 
     mkPattern (Cons (hd : tl)) ctx = do
       val <- toIntermediateM hd ctx 
       patterns <- mapM (\v -> mkPattern v ctx) tl
@@ -341,12 +338,12 @@ mkMatch (expr : patterns) ctx = do
 mkMatch _ _ = throwError "ill-formed pattern-match"
 
   
-mkCoMatch :: [AST] -> GlobCtx -> Except String Intermediate  
+mkCoMatch :: [AST m] -> GlobCtx m -> Except String (Intermediate m)  
 mkCoMatch (patterns) ctx = do
   patterns <- mkPatterns patterns ctx
   pure $ ICoMatch patterns
   where 
-    mkPatterns :: [AST] -> GlobCtx -> Except String [(ICoPattern, Intermediate)]
+    mkPatterns :: [AST m] -> GlobCtx m -> Except String [(ICoPattern m, Intermediate m)]
     mkPatterns [] _ = pure []
     mkPatterns (Cons [Atom ((Symbol "→")), pat, expr] : xs) ctx = do
       bdy <- toIntermediateM expr ctx
@@ -355,7 +352,7 @@ mkCoMatch (patterns) ctx = do
       return $ (pat, bdy) : tl
     mkPatterns x _ = throwError ("ill-formed copattern match " <> show x)
 
-    mkPattern :: AST -> GlobCtx -> Except String ICoPattern 
+    mkPattern :: AST m -> GlobCtx m -> Except String (ICoPattern m) 
     mkPattern (Cons (hd : tl)) ctx = do
       val <- toIntermediateM hd ctx 
       patterns <- mapM (\v -> mkPattern v ctx) tl
@@ -369,13 +366,14 @@ mkCoMatch (patterns) ctx = do
              pure $ ICoCheckPattern (IValue (NormCoDtor name id1 id2 len strip [] ty)) []
            _ -> pure $ ICoSingPattern s
   
-mkOpen :: [AST] -> GlobCtx -> Except String IDefinition
+
+mkOpen :: [AST m] -> GlobCtx m -> Except String (IDefinition m)
 mkOpen [v] ctx = do
   (toIntermediateM v ctx) >>= (\x-> pure $ IOpenDef x)
 mkOpen x _ =
       throwError ("ill-formed open clause : " <> show x)
 
-mkLetOpen :: [AST] -> GlobCtx -> Except String Intermediate
+mkLetOpen :: [AST m] -> GlobCtx m -> Except String (Intermediate m)
 mkLetOpen [a1, a2] ctx = do
   mods <- getModules a1
   body <- toIntermediateM a2 ctx
@@ -391,20 +389,21 @@ mkLetOpen [a1, a2] ctx = do
 mkLetOpen x _ =
       throwError ("ill-formed let-open clause : " <> show x)
 
-mkAccess :: [AST] -> GlobCtx -> Except String Intermediate
+
+mkAccess :: [AST m] -> GlobCtx m -> Except String (Intermediate m)
 mkAccess [hd, (Atom (Symbol s))] globctx = do
   hd' <- toIntermediateM hd globctx
   pure $ IAccess hd' s
 mkAccess args _ = throwError ("malformed access: " <> show args)
 
 -- TODO: make do a macro!
-mkDo :: [AST] -> GlobCtx -> Except String Intermediate
+mkDo :: [AST m] -> GlobCtx m -> Except String (Intermediate m)
 mkDo es globctx = do
   -- TODO: applicative do (see haskell) 
   term <- foldDo es globctx 
   pure $ term
   where
-    foldDo :: [AST] -> GlobCtx -> Except String Intermediate
+    foldDo :: [AST m] -> GlobCtx m -> Except String (Intermediate m)
     foldDo [] _ = throwError ("empty do")
     foldDo [x] ctx = toIntermediateM x ctx
     foldDo (x:xs) ctx = case x of 
@@ -418,19 +417,20 @@ mkDo es globctx = do
         rest <- foldDo xs ctx
         pure $ IApply (IApply (ISymbol ">>") expr') rest
 
-mkAnnotate :: [AST] -> GlobCtx -> Except String Intermediate
+
+mkAnnotate :: [AST m] -> GlobCtx m -> Except String (Intermediate m)
 mkAnnotate [(Atom (Symbol str)), term] ctx  = do
   term' <- toIntermediateM term ctx
   pure (IAnnotation str term')
 mkAnnotate args _ = throwError ("malformed annotate: " <> show args)
 
-mkAdapter :: [AST] -> GlobCtx -> Except String Intermediate
+mkAdapter :: [AST m] -> GlobCtx m -> Except String (Intermediate m)
 mkAdapter ((Atom (Symbol lang)) : (Atom (Symbol lib)) : annotations) ctx = do
   annotations' <- mapM (flip mkForeignAnnotate ctx) annotations
   pure $ IAdaptForeign lang lib annotations'
   where
-    mkForeignAnnotate :: AST -> GlobCtx -> Except String (String, String, Intermediate)
-    mkForeignAnnotate (Cons [ (Atom (Symbol ":"))
+    mkForeignAnnotate :: AST m -> GlobCtx m -> Except String (String, String, Intermediate m)
+    mkForeignAnnotate (Cons [ Atom (Symbol ":")
                             , Cons [Atom (Symbol sym), Atom (PrimVal (String fsym))]
                             , term]) ctx = do
       term' <- toIntermediateM term ctx
@@ -439,37 +439,35 @@ mkAdapter ((Atom (Symbol lang)) : (Atom (Symbol lib)) : annotations) ctx = do
 mkAdapter args _ = throwError ("malformed foreign-adapter: " <> show args)
 
 
-
-
-getAnnSymList :: AST -> GlobCtx -> Except String [IArg]
+getAnnSymList :: AST m -> GlobCtx m -> Except String [IArg m]
 getAnnSymList (Cons l) ctx = getSymListR l
   where
-  getSymListR :: [AST] -> Except String [IArg]
-  getSymListR [] = pure [] 
-  getSymListR (Atom (Symbol s) : syms) = fmap ((:) (Sym s)) (getSymListR syms)
-  getSymListR (Cons [Atom (Special Annotate), Atom (Symbol s), x] : syms) = do
-    tl <- toIntermediateM x ctx 
-    fmap ((:) (Annotation s tl)) (getSymListR syms)
-  getSymListR (Cons [Atom (Symbol a), Atom (Symbol s), x] : syms) = do
-    case lookup a ctx of 
-      Just (Special Annotate) -> do
-        tl <- toIntermediateM x ctx
-        fmap ((:) (Annotation s tl)) (getSymListR syms)
-      _ -> throwError ("malformed argument binding: " <> show x)
-  getSymListR (x:xs) = throwError ("malformed argument binding: " <> show x)
+    --getSymListR :: [AST m] -> Except String [IArg m]
+    getSymListR [] = pure [] 
+    getSymListR (Atom (Symbol s) : syms) = fmap (Sym s :) (getSymListR syms)
+    getSymListR (Cons [Atom (Special Annotate), Atom (Symbol s), x] : syms) = do
+      tl <- toIntermediateM x ctx
+      fmap (Annotation s tl :) (getSymListR syms)
+    getSymListR (Cons [Atom (Symbol a), Atom (Symbol s), x] : syms) = do
+      case lookup a ctx of 
+        Just (Special Annotate) -> do
+          tl <- toIntermediateM x ctx
+          fmap (Annotation s tl :) (getSymListR syms)
+        _ -> throwError ("malformed argument binding: " <> show x)
+    getSymListR (x:xs) = throwError ("malformed argument binding: " <> show x)
 getAnnSymList _ _ = throwError "expected symbol-list: encountered atom"
   
 
-getSymList :: AST -> Except String [String]
+getSymList :: AST m -> Except String [String]
 getSymList (Cons l) = getSymListR l
   where
-  getSymListR :: [AST] -> Except String [String]
+  getSymListR :: [AST m] -> Except String [String]
   getSymListR [] = pure [] 
   getSymListR (Atom (Symbol s) : syms) = fmap ((:) s) (getSymListR syms)
   getSymListR _ = throwError "non-symbol encountered in sym-list!"
 getSymList _ = throwError "expected symbol-list: encountered atom"
 
-getBindList :: AST -> GlobCtx -> Except String [(String, Intermediate)]
+getBindList :: AST m -> GlobCtx m -> Except String [(String, Intermediate m)]
 getBindList (Cons (Cons binding : tl)) ctx = do
   case binding of 
     [s, val] -> do
@@ -488,14 +486,14 @@ getBindList (Cons (Cons binding : tl)) ctx = do
       rest <- getBindList (Cons tl) ctx
       pure $ (sym , lam) : rest
   where
-    getSym :: AST -> Except String String
+    getSym :: AST m -> Except String String
     getSym (Atom (Symbol s)) = pure s
     getSym v = throwError ("non-symbol encountered in sym-list: " <> show v)
 getBindList (Cons []) ctx = pure []
 getBindList _ _ = throwError "expected bind-list: encountered atom"
 
 
-spltLast :: [AST] -> Except String ([String], AST)
+spltLast :: [AST m] -> Except String ([String], AST m)
 spltLast [] = throwError "variant expects alternative-list"
 spltLast [x] = pure ([], x)
 spltLast ((Atom (Symbol s)) : xs) = do
@@ -503,7 +501,7 @@ spltLast ((Atom (Symbol s)) : xs) = do
   pure ((s : lst), end)
 
 
-getDefSyms :: IDefinition -> [String]  
+getDefSyms :: IDefinition m -> [String]  
 getDefSyms (ISingleDef s _ _) = [s]
 -- getDefSyms (IInductDef)
 -- getDefSyms (IEff)

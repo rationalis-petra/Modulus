@@ -1,12 +1,12 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module Syntax.Conversions.TIntermediate where
 
-import Data(EvalM,
-            Pattern(..),
+import Data(Pattern(..),
             InbuiltCtor(..),
-            Normal,
-            Normal'(..),
-            Neutral,
-            Neutral'(..))
+            Normal(..),
+            Neutral(..),
+            ProgState)
 import Syntax.Core(Core (..), TopCore(..), Definition(..))
 import Syntax.Intermediate(Intermediate(..),
                            IDefinition(..),
@@ -14,22 +14,19 @@ import Syntax.Intermediate(Intermediate(..),
                            ICoPattern(..),
                            IArg(..))
 
-import Interpret.EvalM (local, fresh_id, fresh_var, throwError)
-import Control.Monad.State (State, runState)
-import Control.Monad.Except (ExceptT, Except, runExceptT, runExcept)
-import qualified Control.Monad.Except as Except
-import qualified Interpret.Environment as Env
-import qualified Interpret.Eval as Eval
+import Control.Monad.Except (MonadError, throwError)
+import Control.Monad.State (MonadState)
+import Interpret.EvalM (freshIVar, freshID)
 import Syntax.TIntermediate
 
 
-toTIntermediateTop :: Intermediate -> EvalM (TIntTop TIntermediate')
+toTIntermediateTop :: (MonadState (ProgState m) m, MonadError String m) => Intermediate m -> m (TIntTop m TIntermediate')
 toTIntermediateTop (IDefinition def) = TDefinition <$> toTDef def
 toTIntermediateTop (IAnnotation str bdy) = TAnnotation str <$> toTIntermediate bdy
 toTIntermediateTop i = TExpr <$> toTIntermediate i
 
 -- TODO: make sure to update the context with typeLookup
-toTIntermediate :: Intermediate -> EvalM (TIntermediate TIntermediate')
+toTIntermediate :: (MonadState (ProgState m) m, MonadError String m) => Intermediate m -> m (TIntermediate m TIntermediate')
 toTIntermediate (IValue expr) = pure (TValue expr)
 toTIntermediate (ISymbol s) = pure (TSymbol s)
 toTIntermediate (IAccess i s) = do
@@ -53,7 +50,7 @@ toTIntermediate (ILambda args bdy) = do
   bdy' <- toTIntermediate bdy
   pure $ TLambda args' bdy' Nothing
   where
-    processArgs :: [(IArg, Bool)] -> EvalM [(TArg TIntermediate', Bool)]
+    processArgs :: (MonadState (ProgState m) m, MonadError String m) => [(IArg m, Bool)] -> m [(TArg m TIntermediate', Bool)]
     processArgs [] = pure []
     processArgs ((Sym s, b) : xs) =
       if b then  do
@@ -61,7 +58,7 @@ toTIntermediate (ILambda args bdy) = do
         pure $ ((BoundArg s (TIntermediate' $ TValue $ NormUniv 0), b) : tl)
       else do
         tl <- processArgs xs
-        var <- fresh_var
+        var <- freshIVar
         pure $ (InfArg s var, b) : tl
     processArgs ((Annotation s i, b) : xs) = do
       ty <- toTIntermediate i
@@ -99,13 +96,13 @@ toTIntermediate (IMatch e1 cases) = do
   pure (TMatch e1' cases' Nothing)
 
   where
-    toCase :: (IPattern, Intermediate) -> EvalM (TPattern TIntermediate', TIntermediate TIntermediate')
+    toCase :: (MonadState (ProgState m) m, MonadError String m) => (IPattern m, Intermediate m) -> m (TPattern m TIntermediate', TIntermediate m TIntermediate')
     toCase (ipat, e) = do 
       tpat <- toTPat ipat 
       e' <- toTIntermediate e 
       pure (tpat, e')
 
-    toTPat :: IPattern -> EvalM (TPattern TIntermediate')
+    toTPat :: (MonadState (ProgState m) m, MonadError String m) => IPattern m -> m (TPattern m TIntermediate')
     toTPat IWildCard = pure TWildPat
     toTPat (ISingPattern s) = pure (TBindPat s Nothing)
     toTPat (ICheckPattern pat subPatterns) = do
@@ -127,21 +124,20 @@ toTIntermediate (ICoMatch cases) = do
   pure (TCoMatch cases' Nothing)
 
   where
-    toCase :: (ICoPattern, Intermediate) -> EvalM (TCoPattern TIntermediate', TIntermediate TIntermediate')
+    toCase :: (MonadState (ProgState m) m, MonadError String m) => (ICoPattern m, Intermediate m) -> m (TCoPattern m TIntermediate', TIntermediate m TIntermediate')
     toCase (ipat, e) = do 
       tpat <- toTPat ipat 
       e' <- toTIntermediate e 
       pure (tpat, e')
 
-    toTPat :: ICoPattern -> EvalM (TCoPattern TIntermediate')
+    toTPat :: (MonadState (ProgState m) m, MonadError String m) => ICoPattern m -> m (TCoPattern m TIntermediate')
     toTPat ICoWildCard = pure TCoWildPat
     toTPat (ICoSingPattern s) = pure (TCoBindPat s Nothing)
     toTPat (ICoCheckPattern pat subPatterns) = do
       subPatterns' <- mapM toTPat subPatterns
       extractPattern pat subPatterns'
 
-    extractPattern :: Intermediate
-                   -> [TCoPattern TIntermediate'] -> EvalM (TCoPattern TIntermediate')
+    extractPattern :: (MonadState (ProgState m) m, MonadError String m) => Intermediate m -> [TCoPattern m TIntermediate'] -> m (TCoPattern m TIntermediate')
     extractPattern expr subPatterns = do
       val <- toTIntermediate expr
       case val of 
@@ -157,7 +153,7 @@ toTIntermediate (IDefinition _) = throwError ("defs must be toplevel! ")
 toTIntermediate x = throwError ("toTIntermediate not implemented for: "  <> show x)
 
 
-toTDef :: IDefinition -> EvalM (TDefinition TIntermediate')
+toTDef :: (MonadState (ProgState m) m, MonadError String m) => IDefinition m -> m (TDefinition m TIntermediate')
 toTDef (ISingleDef s i mann) = do
   t <- toTIntermediate i
   ann' <- case mann of
@@ -173,18 +169,18 @@ toTDef (IInductDef sym params ty alts) = do
   params' <- processParams params
   ty' <- toTIntermediate ty
   alts' <- processAlts alts
-  id <- fresh_id
+  id <- freshID
   pure $ TInductDef sym id params' (TIntermediate' ty') alts'
   where
-    processAlts :: [(String, Intermediate)] -> EvalM [(String, Int, TIntermediate')] 
+    processAlts :: (MonadState (ProgState m) m, MonadError String m) => [(String, Intermediate m)] -> m [(String, Int, TIntermediate' m)] 
     processAlts [] = pure []
     processAlts ((str, inter) : params) = do
       tint' <- toTIntermediate inter
-      id <- fresh_id
+      id <- freshID
       rest <- processAlts params
       pure $ ((str, id, (TIntermediate' tint')) : rest)
 
-    processParams :: [IArg] -> EvalM [(String, TIntermediate')]
+    processParams :: (MonadState (ProgState m) m, MonadError String m) => [IArg m] -> m [(String, TIntermediate' m)]
     processParams [] = pure []
     processParams (Sym sym : args) = do
       args' <- processParams args
@@ -202,18 +198,18 @@ toTDef (ICoinductDef sym params ty alts) = do
   params' <- processParams params
   ty' <- toTIntermediate ty
   alts' <- processAlts alts
-  id <- fresh_id
+  id <- freshID
   pure $ TCoinductDef sym id params' (TIntermediate' ty') alts'
   where
-    processAlts :: [(String, Intermediate)] -> EvalM [(String, Int, TIntermediate')] 
+    processAlts :: (MonadState (ProgState m) m, MonadError String m) => [(String, Intermediate m)] -> m [(String, Int, TIntermediate' m)] 
     processAlts [] = pure []
     processAlts ((str, inter) : params) = do
       tint' <- toTIntermediate inter
-      id <- fresh_id
+      id <- freshID
       rest <- processAlts params
       pure $ ((str, id, (TIntermediate' tint')) : rest)
 
-    processParams :: [IArg] -> EvalM [(String, TIntermediate')]
+    processParams :: (MonadState (ProgState m) m, MonadError String m) => [IArg m] -> m [(String, TIntermediate' m)]
     processParams [] = pure []
     processParams (Sym sym : args) = do
       args' <- processParams args

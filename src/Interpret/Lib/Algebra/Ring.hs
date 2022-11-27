@@ -7,10 +7,10 @@ import Interpret.Lib.LibUtils
 import Syntax.Utils hiding (tyTail)
 
 
-ringTy :: Normal  
+ringTy :: Normal m  
 ringTy = NormUniv 0
 
-ring :: Normal
+ring :: Normal m
 ring = NormSig 
   [ ("T", NormUniv 0)
   , ("e0", mkVar "T")
@@ -20,12 +20,12 @@ ring = NormSig
   , ("✕", NormArr (mkVar "T") (NormArr (mkVar "T") (mkVar "T")))
   ]
 
-implAddTy :: Normal
+implAddTy :: Normal m
 implAddTy = NormImplProd "r" ring 
              (NormArr gt (NormArr gt gt))
   where gt = Neu (NeuDot (NeuVar "r" ring) "T") ring
 
-implAdd :: Normal
+implAdd :: Normal m
 implAdd =
   NormAbs "r"
   (NormAbs "x"
@@ -39,10 +39,10 @@ implAdd =
     t3 = tyTail t2
 
 
-implSubTy :: Normal
+implSubTy :: Normal m
 implSubTy = implAddTy
 
-implSub :: Normal
+implSub :: Normal m
 implSub =
   NormAbs "r"
   (NormAbs "x"
@@ -56,10 +56,10 @@ implSub =
     t3 = tyTail t2
   
   
-implMulTy :: Normal
+implMulTy :: Normal m
 implMulTy = implAddTy
 
-implMul :: Normal
+implMul :: Normal m
 implMul =
   NormAbs "g"
   (NormAbs "x"
@@ -73,7 +73,7 @@ implMul =
     t3 = tyTail t2
 
 
-ringSignature :: Normal
+ringSignature :: Normal m
 ringSignature = NormSig
   [ ("Ring", ringTy)
   , ("+",    implAddTy)
@@ -81,7 +81,7 @@ ringSignature = NormSig
   ]
 
 
-ringStructure :: Normal
+ringStructure :: Normal m
 ringStructure = NormSct
   [ ("Ring", (ring, []))
   , ("+", (implAdd, [Implicit]))

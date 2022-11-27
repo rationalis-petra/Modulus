@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 module Typecheck.Constrain (
   Subst,
   LRSubst,
@@ -13,16 +14,22 @@ module Typecheck.Constrain (
   inferVar)
   where
 
+
+import qualified Data.Map as Map  
+import qualified Data.Set as Set  
+import Control.Monad.Reader (MonadReader)
+import Control.Monad.State  (MonadState)
+import Control.Monad.Except (MonadError, throwError)
+
+
 import Data (PrimType(..),
-             Normal,
-             Normal'(..),
-             Neutral,
-             Neutral'(..),
+             Normal(..),
+             Neutral(..),
              CollTy(..),
              CollVal(..),
              var_counter,
              Environment,
-             EvalM)
+             ProgState)
 import Syntax.Core(Core(..))
 
 import qualified Interpret.Environment as Env
@@ -32,13 +39,8 @@ import Interpret.Eval (normSubst)
 import Syntax.Utils (typeVal, free, rename, getField, freshen)
 import Control.Monad.Except (Except, runExcept)
 
-import qualified Data.Map as Map  
-import qualified Data.Set as Set  
-
-err = throwError  
-
-type LRSubst = ([(Normal, String)], [(Normal, String)], [((String, Normal), (String, Normal))])
-type Subst = ([(Normal, String)], [((String, Normal), (String, Normal))])
+type LRSubst m = ([(Normal m, String)], [(Normal m, String)], [((String, Normal m), (String, Normal m))])
+type Subst m = ([(Normal m, String)], [((String, Normal m), (String, Normal m))])
 
 -- NOTICE: this module will be deprecated in terms of unify
 
@@ -52,7 +54,7 @@ type Subst = ([(Normal, String)], [((String, Normal), (String, Normal))])
 -- but the substitution of dependently-bound (string) variables occurs only on
 -- the left(right) side
 
-constrain ::  Normal -> Normal -> Environment -> EvalM ([Normal], [Normal], Subst)
+constrain :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m -> Normal m -> Environment m -> m ([Normal m], [Normal m], Subst m)
 constrain n1 n2 env = do
   (lapp, rapp, subst) <- constrainLRApp n1 n2 env
   pure (lapp, rapp, toSing subst)
@@ -67,13 +69,15 @@ constrain n1 n2 env = do
 
 -- Note: constrainLRApp doesn't actually check the types!  
 -- TODO: perform α-renaming on implicit products!  
-constrainLRApp ::  Normal -> Normal -> Environment -> EvalM ([Normal], [Normal], LRSubst)
+constrainLRApp :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m -> Normal m -> Environment m -> m ([Normal m], [Normal m], LRSubst m)
+
 constrainLRApp (NormImplProd s1 a1 b1) (NormImplProd s2 a2 b2) ctx = do
   subst <- constrain' b1 b2
   pure ([], [], subst)
+
 constrainLRApp (NormImplProd s a b) (Neu (NeuVar v _) _) ctx = do
   if occurs v (NormImplProd s a b) then  
-    err "occurs check failed"
+    throwError "occurs check failed"
   else 
     pure ([], [], rightsubst (NormImplProd s a b) v)
 
@@ -83,7 +87,7 @@ constrainLRApp (NormImplProd s a b)    r ctx = do
   (a1, a2, subst) <- constrainLRApp b' r ctx
   appval <- case findLStrSubst s' subst of  
     Just v -> inferVar v a ctx
-    Nothing -> err ("cannot find implicit substitution for var " <> s' <> " constraining terms: " 
+    Nothing -> throwError ("cannot find implicit substitution for var " <> s' <> " constraining terms: " 
                     <> show (NormImplProd s' a b') <> " and "
                     <> show r
                     <> " in substitution: " <> show subst)
@@ -91,48 +95,52 @@ constrainLRApp (NormImplProd s a b)    r ctx = do
       fnlSubst = renameLSubst s' s subst'
   pure ((appval:a1), a2, fnlSubst)
 
-  
 constrainLRApp (Neu (NeuVar v _) _) (NormImplProd s' a' b') ctx = do
   if occurs v (NormImplProd s' a' b') then  
-    err "occurs check failed"
+    throwError "occurs check failed"
   else 
     pure ([], [], leftsubst (NormImplProd s' a' b') v)
+
 constrainLRApp l (NormImplProd s a b) ctx = do
   let s' = freshen (Set.union (free b) (free l)) s
   b' <- normSubst ((Neu (NeuVar s' a) a), s) b
   (a1, a2, subst) <- constrainLRApp l b' ctx
   appval <- case findRStrSubst s' subst of  
     Just v -> inferVar v a ctx
-    Nothing -> err ("cannot find implicit substitution for var " <> s' <> " constraining terms: " 
+    Nothing -> throwError ("cannot find implicit substitution for var " <> s' <> " constraining terms: " 
                     <> show l <> " and "
                     <> show (NormImplProd s' a b')
                     <> " in substitution: " <> show subst)
   let subst' = rmLSubst s' subst
       fnlSubst = renameLSubst s' s subst'
   pure (a1, (appval:a2), fnlSubst)
+
 constrainLRApp l r ctx = do
   subst <- constrain' l r
   pure ([], [], subst)
 
   
-constrain' ::  Normal -> Normal -> EvalM LRSubst
+constrain' :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m -> Normal m -> m (LRSubst m)
+
 constrain' (Neu (NeuVar v1 t1) _) (Neu (NeuVar v2 t2) _) =
     if v1 == v2 then pure lrnosubst
     else pure (varsame (v1, t1) (v2, t2))
+
 constrain' (Neu n _) ty = nnConstrain n ty
+
 constrain' ty (Neu n _) = do
   -- TODO: technically not respecting subtyping rules ()
   subst <- nnConstrain n ty
   pure (swap subst)
 
 constrain' (PrimVal p1) (PrimVal p2) =
-  if p1 == p2 then pure lrnosubst else err ("non-equal primitives in constrain: "
+  if p1 == p2 then pure lrnosubst else throwError ("non-equal primitives in constrain: "
                                             <> show p1 <> " and " <> show p2)
 constrain' (PrimType p1) (PrimType p2) =
-  if p1 == p2 then pure lrnosubst else err ("non-equal primitives in constrain: "
+  if p1 == p2 then pure lrnosubst else throwError ("non-equal primitives in constrain: "
                                             <> show p1 <> " and " <> show p2)
 constrain' (NormUniv n1) (NormUniv n2) =
-  if n1 == n2 then pure lrnosubst else err ("non-equal primitives in constrain"
+  if n1 == n2 then pure lrnosubst else throwError ("non-equal primitives in constrain"
                                             <> show (NormUniv n1) <> " and " <> show (NormUniv n2))
 
 constrain' (NormArr l1 r1) (NormArr l2 r2) = do
@@ -150,7 +158,7 @@ constrain' (NormProd str l1 r1) (NormProd str' l2 r2) =
     s2 <- constrain' r1 r2 
     composelr (swap s1) s2
   else
-    err "cannot constrain dependent types with unequal arg"
+    throwError "cannot constrain dependent types with unequal arg"
 
 constrain' (NormImplProd str l1 r1) (NormImplProd str' l2 r2) =
   if str == str' then do
@@ -159,7 +167,7 @@ constrain' (NormImplProd str l1 r1) (NormImplProd str' l2 r2) =
     s2 <- constrain' r1 r2 
     composelr (swap s1) s2
   else
-    err "cannot constrain dependent types with unequal arg"
+    throwError "cannot constrain dependent types with unequal arg"
 
 constrain' (NormSig m1) (NormSig m2) = 
   -- TODO: look out for binding of field-names to strings!!
@@ -169,10 +177,9 @@ constrain' (NormSig m1) (NormSig m2) =
                           s1 <- mnd
                           s2 <- constrain' ty1 ty2
                           composelr s1 s2 
-                        Nothing -> err ("cannot constrain types, as rhs does not have field " <> k))
+                        Nothing -> throwError ("cannot constrain types, as rhs does not have field " <> k))
     (pure lrnosubst) m1
 
-  
 constrain' (NormSct m1 t1) (NormSct m2 t2) = 
   -- TODO: look out for binding of field-names to strings!!
   foldr (\(k, (ty1, _)) mnd ->
@@ -181,9 +188,8 @@ constrain' (NormSct m1 t1) (NormSct m2 t2) =
                           s1 <- mnd
                           s2 <- constrain' ty1 (ty2)
                           composelr s1 s2 
-                        Nothing -> err ("cannot constrain structures, as rhs does not have field " <> k))
+                        Nothing -> throwError ("cannot constrain structures, as rhs does not have field " <> k))
     (pure lrnosubst) m1
-
 
 constrain' (NormIVal name1 tyid1 id1 _ vals1 norm1) (NormIVal name2 tyid2 id2 _ vals2 norm2) =
   if tyid1 == tyid2 && id1 == id2 then
@@ -193,7 +199,7 @@ constrain' (NormIVal name1 tyid1 id1 _ vals1 norm1) (NormIVal name2 tyid2 id2 _ 
               composelr s1 s2)
       (pure lrnosubst) (zip vals1 vals2)
   else
-    err "cannot constrain inductive values of non-equal constructors"
+    throwError "cannot constrain inductive values of non-equal constructors"
 
 constrain' (NormIType name1 id1 vals1) (NormIType name2 id2 vals2) =
   if id1 == id2 then
@@ -203,7 +209,8 @@ constrain' (NormIType name1 id1 vals1) (NormIType name2 id2 vals2) =
               composelr s1 s2)
       (pure lrnosubst) (zip vals1 vals2)
   else
-    err "cannot constrain inductive datatypes of non-equal constructors"
+    throwError "cannot constrain inductive datatypes of non-equal constructors"
+
 constrain' (CollTy t1) (CollTy t2) =   
   case (t1, t2) of 
     (IOMonadTy l, IOMonadTy r) -> constrain' l r
@@ -211,25 +218,25 @@ constrain' (CollTy t1) (CollTy t2) =
     (ArrayTy   l, ArrayTy   r) -> constrain' l r
     (MaybeTy   l, MaybeTy   r) -> constrain' l r
     (CPtrTy    l, CPtrTy    r) -> constrain' l r
-    _ -> err ("cannot constrian non-matching types families: " <> show t1 <> show t2)
+    _ -> throwError ("cannot constrian non-matching types families: " <> show t1 <> show t2)
 
 constrain' t1 t2 =   
-  err ("cannot constrain terms " <> show t1 <> " and " <> show t2 <> " as they have different forms")
+  throwError ("cannot constrain terms " <> show t1 <> " and " <> show t2 <> " as they have different forms")
 
 -- nn constrain: constrain a neutral and normal term  
-nnConstrain :: Neutral -> Normal -> EvalM LRSubst
+nnConstrain :: MonadError String m => Neutral m -> Normal m -> m (LRSubst m)
 nnConstrain (NeuVar v _) norm = pure $ leftsubst norm v
 nnConstrain n1 (Neu n2 _) = neuConstrain n1 n2
 nnConstrain (NeuDot neu field) norm = do
-  normTy <- liftExcept $ typeVal norm 
+  normTy <- typeVal norm 
   nnConstrain neu (NormSct [(field, (norm, []))] normTy)
-nnConstrain n1 n2 = err ("nnConstrain incomplete OR terms " <> show n1 <> " and " <> show n2
+nnConstrain n1 n2 = throwError ("nnConstrain incomplete OR terms " <> show n1 <> " and " <> show n2
                           <> "have different forms")
 
 
 -- neuconstrain: constrain two neutral terms  
-neuConstrain :: Neutral -> Neutral -> EvalM LRSubst
-neuConstrain n1 n2 = err ("neuConstrain incomplete OR terms " <> show n1 <> " and " <> show n2
+neuConstrain :: MonadError String m => Neutral m -> Neutral m -> m (LRSubst m)
+neuConstrain n1 n2 = throwError ("neuConstrain incomplete OR terms " <> show n1 <> " and " <> show n2
                           <> "have different forms")
 
 
@@ -241,27 +248,35 @@ neuConstrain n1 n2 = err ("neuConstrain incomplete OR terms " <> show n1 <> " an
 -- Subst = (Map.Map Int Normal, Map.Map String Normal)
 -- we need to be able to join and query these substitutions
 
-nosubst :: Subst
+nosubst :: Subst m
 nosubst = ([], [])
 
-swap :: LRSubst -> LRSubst
+swap :: LRSubst m -> LRSubst m
 swap (l, r, s) = (r, l, map (\(x, y) -> (y, x)) s)
 
 
-lrnosubst :: LRSubst
+lrnosubst :: LRSubst m
 lrnosubst = ([], [], [])
-varsame :: (String, Normal) -> (String, Normal) -> LRSubst
+
+
+varsame :: (String, Normal m) -> (String, Normal m) -> LRSubst m
 varsame s1 s2 = ([], [], [(s1, s2)])
-leftsubst :: Normal -> String -> LRSubst
+
+  
+leftsubst :: Normal m -> String -> LRSubst m
 leftsubst ty s = ([(ty, s)], [], [])
-rightsubst :: Normal -> String -> LRSubst
+
+  
+rightsubst :: Normal m -> String -> LRSubst m
 rightsubst ty s =  ([], [(ty, s)], [])
 
 
-findStrSubst :: String -> Subst -> Maybe Normal
+findStrSubst :: String -> Subst m -> Maybe (Normal m)
+
 findStrSubst str ((ty, str') : ss, vars) =
   if str == str' then Just ty
   else findStrSubst str (ss, vars)
+
 findStrSubst str ([], vars) = findVarSubst vars
   where
     findVarSubst [] = Nothing
@@ -270,30 +285,30 @@ findStrSubst str ([], vars) = findVarSubst vars
       else findVarSubst vs
 
 -- TODO 
-rmSubst :: String -> Subst -> Subst
+rmSubst :: String -> Subst m -> Subst m
 rmSubst str ((ty, str') : ss, vars)=
   if str == str' then rmSubst str (ss, vars)
   else let (ss', vars') = rmSubst str (ss, vars) in ((ty, str') : ss', vars')
 rmSubst str ([], vars) = ([], vars)
 
   -- TODO: these are now wrong (maybe?
-findLStrSubst :: String -> LRSubst -> Maybe Normal
+findLStrSubst :: String -> LRSubst  m-> Maybe (Normal m)
 findLStrSubst str (l, _, vs) = findStrSubst str (l, vs)
 
-findRStrSubst :: String -> LRSubst -> Maybe Normal
+findRStrSubst :: String -> LRSubst m -> Maybe (Normal m)
 findRStrSubst str = findLStrSubst str . swap
 
-rmLSubst :: String -> LRSubst -> LRSubst
+rmLSubst :: String -> LRSubst m -> LRSubst m
 rmLSubst str (l, r, v) =
   let (l', v') = rmSubst str (l, v)
   in (l', r, v')
 
-rmRSubst :: String -> LRSubst -> LRSubst
+rmRSubst :: String -> LRSubst m -> LRSubst m
 rmRSubst str (l, r, v) =
   let (r', v') = rmSubst str (r, v)
   in (l, r', v')
 
-renameLSubst :: String -> String -> LRSubst -> LRSubst
+renameLSubst :: String -> String -> LRSubst m -> LRSubst m
 renameLSubst from to (l, r, v) = 
   let l' = map (\(val, var) -> if var == from then (val, to) else (val, var)) l
       r' = map (\(val, var) -> (rename from to val, var)) r 
@@ -304,14 +319,14 @@ renameLSubst from to (l, r, v) =
       let e1 = if v == from then (to, t) else (v, t)
       in (e1, e2)
 
-renameRSubst :: String -> String -> LRSubst -> LRSubst
+renameRSubst :: String -> String -> LRSubst m -> LRSubst m
 renameRSubst s1 s2 = (renameLSubst s1 s2 . swap)
   
-varRight :: Subst -> EvalM Subst
+varRight :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Subst m -> m (Subst m)
 varRight (s, vars) =
   compose (s, []) (map (\((var, ty), (right, _)) -> (Neu (NeuVar var ty) ty, right)) vars, [])
   
-varLeft :: Subst -> EvalM Subst
+varLeft :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Subst m -> m (Subst m)
 varLeft (s, vars) =
   compose (s, []) (map (\((left, _), (var, ty)) -> (Neu (NeuVar var ty) ty, left)) vars, [])
   
@@ -326,11 +341,11 @@ varLeft (s, vars) =
 -- [(NormSct [("x", Int)], "A"), (NormSct [("y", Int)], "A")] should merge and give
 -- [(NormSct [("x", Int), ("y", Int)], "A")]
 
-compose :: Subst -> Subst -> EvalM Subst
+compose :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Subst m -> Subst m -> m (Subst m)
 compose ([], vars) (s', vars') = pure (s', vars <> vars')
 compose (s : ss, vars) (s2, vars') =
   -- iter : apply a substitution to a list of substitutions
-  let iter :: (Normal, String) -> [(Normal, a)] -> EvalM [(Normal, a)]
+  let iter :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => (Normal m, String) -> [(Normal m, a)] -> m [(Normal m, a)]
       iter s [] = pure []
       iter s ((ty, vr) : ss) = do
         ty' <- Eval.normSubst s ty
@@ -347,10 +362,10 @@ composeList s1 (s2:ss) = do
   composeList cmp ss
 
   -- TODO: fix!
-composelr :: LRSubst -> LRSubst -> EvalM LRSubst
+composelr :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => LRSubst m -> LRSubst m -> m (LRSubst m)
 composelr (l1, r1, s1) (l2, r2, s2) = do
   -- iter : apply a substitution to a list of substitutions
-  let iter :: (Normal, String) -> [(Normal, a)] -> EvalM [(Normal, a)]
+  let iter :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => (Normal m, String) -> [(Normal m, a)] -> m [(Normal m, a)]
       iter s [] = pure []
       iter s ((ty, vr) : ss) = do
         ty' <- Eval.normSubst s ty
@@ -369,13 +384,13 @@ composelr (l1, r1, s1) (l2, r2, s2) = do
 
 -- convert a lr substitution to a single substitution
 -- by default, assume that 
-toSing  :: LRSubst -> Subst
+toSing :: LRSubst m -> Subst m
 toSing (left, right, vars) =
   (left <> right, vars)
 
 -- Perform substitution
 -- TODO: do what about order of string substitution? rearranging??
-doSubst :: Subst -> Normal  -> EvalM Normal 
+doSubst :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Subst m -> Normal m -> m (Normal m) 
 doSubst subst ty = case subst of 
   ([], _) -> pure ty 
   (((sty, s) : ss), vrs) -> do
@@ -383,18 +398,18 @@ doSubst subst ty = case subst of
     doSubst (ss, vrs) ty'
 
 -- Throw an error if a variable (string) is contained in a substitution
-checkSubst :: String -> String -> LRSubst -> EvalM ()
+checkSubst :: MonadError String m => String -> String -> LRSubst m -> m ()
 checkSubst msg str (l, r, v) = do
   (checkSubst' str (l <> r))
   if foldr (\((s1, _), (s2, _)) b -> (str == s1 || str == s2 || b)) False v
-    then err msg
+    then throwError msg
   else
     pure ()
   where
     checkSubst' _ [] = pure ()
     checkSubst' str ((ty, str') : ss) = 
       if str == str' then 
-        err msg
+        throwError msg
       else 
         checkSubst' str ss
 
@@ -402,14 +417,14 @@ checkSubst msg str (l, r, v) = do
 -- TODO: we need to shadow bound variables!!
 -- Occurs Check: given a variable x and a type t, x occurs in t 
 -- if some subterm of t is equal to x and x is not equal to t
-occurs :: String -> Normal -> Bool
+occurs :: String -> Normal m -> Bool
 occurs _ (Neu (NeuVar _ _) _) = False
 occurs v t = occurs' v t
 
 -- OccursCheck': Subtly different from occurs, this algorithm is recursive:
 -- occurs' is true for variable v and type t if v = t or occurs' is
 -- true for v any subterms in t
-occurs' :: String -> Normal -> Bool
+occurs' :: String -> Normal m -> Bool
 occurs' v1 (Neu neu _) = occursNeu v1 neu
   -- Primitive types and values
 occurs' _ (PrimVal _) = False
@@ -450,7 +465,7 @@ occurs' v (NormIVal _ _ _ _ params _) = -- TODO: check if we need to ask about f
   foldr (\ty b -> b || occurs' v ty) False params
 
 
-occursNeu :: String -> Neutral -> Bool   
+occursNeu :: String -> Neutral m -> Bool   
 occursNeu v1 (NeuVar v2 _) = v1 == v2
 occursNeu v (NeuApp l r) = occursNeu v l || occurs' v r
 occursNeu v (NeuDot m _) = occursNeu v m
@@ -458,9 +473,9 @@ occursNeu v (NeuIf c e1 e2 _) = occursNeu v c || occurs' v e1 || occurs' v e2
 
 
 -- Given a type and a substitution (thus far), try and infer the variable
-inferVar :: Normal -> Normal -> Environment -> EvalM Normal
+inferVar :: MonadError String m => Normal m -> Normal m -> Environment m -> m (Normal m)
 inferVar n ty ctx = do
-  ty' <- liftExcept $ typeVal n
+  ty' <- typeVal n
   let bl = subType ty ty'
   if bl then
     pure n
@@ -468,7 +483,7 @@ inferVar n ty ctx = do
     deduceVal n ty ctx
 
 -- TODO: how to deal with signatures of types??
-deduceVal :: Normal -> Normal -> Environment -> EvalM Normal
+deduceVal :: MonadError String m => Normal m -> Normal m -> Environment m -> m (Normal m)
 deduceVal (NormSct fields1 sctty) (NormSig tyfields) ctx = 
   let delta = foldr (\(k, _) fs -> case getField k fields1 of
                         Just x -> fs
@@ -478,7 +493,7 @@ deduceVal (NormSct fields1 sctty) (NormSig tyfields) ctx =
       pure (NormSct fields1 sctty)
     -- try and add missing fields
     else 
-      let valMatch :: Normal -> Bool
+      let --valMatch :: Normal m -> Bool
           valMatch (NormSct candFields candTy) = do
             -- given a candidate with feilds candidate fields, we need to ensure:
             -- a) For each field in the derived part of the value, the candidate
@@ -517,7 +532,7 @@ deduceVal v1 v2 _ = throwError ("deduce val used for non-struct values " <> show
 
 
   
-subType :: Normal -> Normal -> Bool
+subType :: Normal m -> Normal m -> Bool
 subType (NormUniv n1) (NormUniv n2) = n1 <= n2
 subType (PrimType p1) (PrimType p2) = p1 == p2
 subType (NormArr n1 n2) (NormArr n1' n2') = subType n1' n1 && subType n2 n2'

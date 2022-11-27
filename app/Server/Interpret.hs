@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 module Server.Interpret (interpreter) where
 
 import Control.Concurrent
@@ -6,22 +7,23 @@ import Control.Concurrent.STM
 import qualified Data.Map as Map 
 import qualified Interpret.Environment as Env
 import Control.Lens hiding (Context, contains)
-import qualified Control.Monad.Except as Except
+import Control.Monad.State (State, MonadState)
+import Control.Monad.Except (ExceptT, MonadError, throwError)
+import Control.Monad.Reader (ReaderT, MonadReader, local, ask)
 
 import Bindings.Libtdl  
 
-import Data(Normal,
-            Normal'(NormSct, NormSig, NormCModule, PrimType),
+import Data(Normal(NormSct, NormSig, NormCModule, PrimType),
             PrimType(CModuleT),
             ProgState,
             Environment,
-            EvalM,
+            Eval,
             AST,
             toEmpty)
 import Syntax.Core(Core, TopCore(..), Definition)
 import Parse (parseModule)
-import Interpret.Eval (evalToEither, eval, evalDef, runIO)
-import Interpret.EvalM (throwError, liftExcept, ask, localF)
+import Interpret.Eval (eval, evalDef, runIO)
+import Interpret.EvalM (runEval)
 import Syntax.Utils (typeVal, getField)
 import Syntax.Macroexpand (macroExpand)
 import Syntax.Conversions (toIntermediate, toTIntermediateTop, toTopCore)
@@ -31,8 +33,7 @@ import Server.Data
 import Server.Message
 
 
-
-interpreter :: IState -> TQueue Message -> IO ()
+interpreter :: IState Eval -> TQueue Message -> IO ()
 interpreter istate inbox = do
   message <- atomically $ readTQueue inbox
   case message of 
@@ -56,7 +57,7 @@ interpreter istate inbox = do
       interpreter (set modules (Left rawTree) istate) inbox
 
 
-runMain :: IState -> IO IState
+runMain :: IState Eval -> IO (IState Eval)
 runMain istate = 
   case view modules istate of 
     Right (Node _ (Just m)) ->
@@ -75,7 +76,7 @@ runMain istate =
       pure istate
 
 
-compileTree :: RawTree -> ProgState -> Environment -> IO (Either String (ModuleTree, ProgState))
+compileTree :: RawTree -> ProgState Eval -> Environment Eval -> IO (Either String (ModuleTree Eval, ProgState Eval))
 compileTree (Node dir mtext) state ctx = do
   case mtext of 
     Just text -> do 
@@ -86,7 +87,7 @@ compileTree (Node dir mtext) state ctx = do
             Right ((inp, fmdles, exp, _), terms) -> do
               mfmodules  <- resolveForeign fmdles
               case mfmodules of 
-                Just fModules -> pure $ evalToEither ((Node dir' . Just) <$> compileModule ((inp, fModules, exp), terms) text dir') ctx state' 
+                Just fModules -> pure $ runEval ((Node dir' . Just) <$> compileModule ((inp, fModules, exp), terms) text dir') ctx state' 
                 Nothing -> pure $ Left ("failed to load foreign modules " <> show fmdles)
             Left err -> pure $ Left $ show err
         Left err -> pure $ Left err
@@ -98,7 +99,7 @@ compileTree (Node dir mtext) state ctx = do
   where
 
     recurse dir = do
-      let compileSub :: String -> RawTree -> IO (Either String (Map.Map String ModuleTree, ProgState)) -> IO (Either String (Map.Map String ModuleTree, ProgState))
+      let compileSub :: String -> RawTree -> IO (Either String (Map.Map String (ModuleTree Eval), ProgState Eval)) -> IO (Either String (Map.Map String (ModuleTree Eval), ProgState Eval))
           compileSub key val mnd = do
             res <- mnd
             case res of 
@@ -112,9 +113,9 @@ compileTree (Node dir mtext) state ctx = do
 
       
     compileModule ((inp, fmdles, exp), terms) source dir = do
-      imports <- liftExcept $ resolveImports inp dir
+      imports <- resolveImports inp dir
       let addToEnv = flip (foldr (\(k, (v, ty)) -> Env.insert k v ty))
-      localF (addToEnv imports . addToEnv fmdles) $ do
+      local (addToEnv imports . addToEnv fmdles) $ do
 
         let foldTerms ty [] = pure ([], [])
             foldTerms ty (def:defs) = do
@@ -127,20 +128,20 @@ compileTree (Node dir mtext) state ctx = do
               -- TODO: typechecking should be monadic
               checked <- case ty of 
                 Just ty -> do
-                  annotated <- liftExcept $ annotate tintermediate ty
+                  annotated <- annotate tintermediate ty
                   typeCheckTop annotated env
                 Nothing -> typeCheckTop tintermediate env
 
               -- TODO: integrate type-checking results into allTypes
               let justvals = (case checked of Left (val, _) -> val; Right val -> val)
-              core <- liftExcept (toTopCore justvals)
+              core <- toTopCore justvals
 
-              res <- liftExcept (defOrAnn core)
+              res <- defOrAnn core
               case res of 
                 Left def -> do
                   -- TODO: if vals is a type-annotation, we must here
                   vals <- evalDef def
-                  (defs, vals') <- localF (flip (foldr (\(k, (v, ty)) -> Env.insert k v ty)) vals) (foldTerms Nothing defs)
+                  (defs, vals') <- local (flip (foldr (\(k, (v, ty)) -> Env.insert k v ty)) vals) (foldTerms Nothing defs)
                   pure (def : defs, vals <> vals')
                 Right (str, core) -> do
                   ty <- eval core
@@ -162,23 +163,23 @@ compileTree (Node dir mtext) state ctx = do
               })
   
 
-resolveImports :: [String] -> Map.Map String ModuleTree -> Except.Except String [(String, (Normal, Normal))]
+resolveImports :: MonadError String m => [String] -> Map.Map String (ModuleTree m) -> m [(String, (Normal m, Normal m))]
 resolveImports [] _ = pure []
 resolveImports (s:ss) dict = 
   case Map.lookup s dict of  
     Just (Node _ ( Just (Module {_vals=vals, _types=types}))) -> do
       tl <- resolveImports ss dict
       pure $ (s, (NormSct (toEmpty vals) (NormSig types), (NormSig types))) : tl
-    _ -> Except.throwError ("couldn't find import: " <> s)
+    _ -> throwError ("couldn't find import: " <> s)
 
   
-resolveForeign :: [(String, String)] -> IO (Maybe [(String, (Normal, Normal))])
+resolveForeign :: [(String, String)] -> IO (Maybe [(String, (Normal m, Normal m))])
 resolveForeign vals = do
   maybes <- mapM loadModule (map snd vals)
   pure $ zip (map fst vals) <$> mapM (fmap $ flip (,) (PrimType CModuleT) . NormCModule) maybes
         
        
-toRaw :: (Either RawTree ModuleTree ) -> RawTree
+toRaw :: (Either RawTree (ModuleTree m)) -> RawTree
 toRaw (Right v) = toRaw' v 
   where
     toRaw' (Node dir (Just (Module {_sourceString=str}))) =
@@ -188,10 +189,10 @@ toRaw (Right v) = toRaw' v
 toRaw (Left raw) = raw
 
       
-defOrAnn :: TopCore  -> Except.Except String (Either Definition (String, Core))
+defOrAnn :: MonadError String m => TopCore m -> m (Either (Definition m) (String, Core m))
 defOrAnn (TopDef definition) = pure $ Left definition
 defOrAnn (TopAnn str core) = pure $ Right (str, core) 
-defOrAnn (TopExpr _) = Except.throwError "toplevel expression encountered"
+defOrAnn (TopExpr _) = throwError "toplevel expression encountered"
 
   
 contains _ [] = False 

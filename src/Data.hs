@@ -1,15 +1,13 @@
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TemplateHaskell, TypeSynonymInstances, FlexibleInstances#-}
+{-# LANGUAGE FlexibleContexts, RankNTypes, GADTs #-}
 
 module Data (Pattern(..),
              CoPattern(..),
              Modifier(..),
-             Normal'(..),
-             Normal,
-             Neutral'(..),
-             Neutral,
-             EvalM,
+             Normal(..),
+             Neutral(..),
+             EvalT(..),
+             Eval,
              Environment(..),
              ProgState(..),
              uid_counter,
@@ -40,61 +38,54 @@ import Foreign.C.Types (CDouble, CInt)
 import Foreign.C.String (CString)  
   
 import Control.Lens hiding (Context, Refl)
-import Control.Monad.State (StateT) 
-import Control.Monad.Except (ExceptT) 
-import Control.Monad.Reader (ReaderT)
+import Control.Monad.State (MonadState, StateT) 
+import Control.Monad.Except (MonadError, ExceptT) 
+import Control.Monad.Reader (MonadReader,ReaderT)
 
 import Bindings.Libtdl
 
 
-data Pattern
+
+data Pattern m
   = WildCard
-  | VarBind String Normal
-  | MatchInduct Int Int [Pattern]
-  | MatchModule [(String, Pattern)]
-  | InbuiltMatch (Normal -> (Normal -> Pattern -> EvalM (Maybe [(String, (Normal, Normal))]))
-                         -> EvalM (Maybe [(String, (Normal, Normal))]))
+  | VarBind String (Normal m)
+  | MatchInduct Int Int [Pattern m]
+  | MatchModule [(String, Pattern m)]
+  | InbuiltMatch (Normal m -> (Normal m -> Pattern m -> m (Maybe [(String, (Normal m, Normal m))]))
+                           -> m (Maybe [(String, (Normal m, Normal m))]))
 
 
-data CoPattern
+data CoPattern m
   = CoWildCard
-  | CoVarBind String Normal
-  | CoMatchInduct String Int Int [CoPattern]
-  | CoMatchModule [(String, CoPattern)]
+  | CoVarBind String (Normal m)
+  | CoMatchInduct String Int Int [CoPattern m]
+  | CoMatchModule [(String, CoPattern m)]
   -- | InbuiltMatch (Normal -> (Normal -> Pattern -> EvalM (Maybe [(String, Normal)]))
   --                        -> EvalM (Maybe [(String, Normal)]))
 
 
-instance Show Pattern where  
+instance Show (Pattern m) where  
   show WildCard = "_"
   show (VarBind sym _) = sym
   show (MatchInduct _ _ _) = "inductive match"
   show (InbuiltMatch _) = "inbuilt match"
 
 
-instance Show CoPattern where  
+instance Show (CoPattern m) where  
   show CoWildCard = "_"
   show (CoVarBind sym _) = sym
   show (CoMatchInduct _ _ _ _) = "coinductive match"
 
 
--- The Value type class is used as an existential type to enable
--- extensions of the language (e.g. the FFI libraries 
-class Value a where
-  eval :: a -> EvalM a
-  typeVal :: a -> Normal
-  -- compile :: a -> Backend -> Maybe a (??)
-  
 newtype Thunk = Thunk { tid :: Int }
-  deriving Show
+  deriving (Show, Eq, Ord)
 
-data Environment = Environment {
-  localCtx      :: Map.Map String (Either (Normal, Normal) Thunk),
-  currentModule :: Normal,
-  globalModule  :: Normal
+data Environment m = Environment {
+  localCtx      :: Map.Map String (Either (Normal m, Normal m) Thunk),
+  currentModule :: Normal m,
+  globalModule  :: Normal m
 }
 
-  
 
 data Special
   -- Definition Forms 
@@ -134,27 +125,28 @@ data PrimVal
 data InbuiltCtor m
   --       name    pattern-match
   = IndPat String
-           ([Pattern] -> Normal' m
-                      -> (Normal -> Pattern -> EvalM (Maybe [(String, (Normal, Normal))]))
-                      -> EvalM (Maybe [(String, (Normal, Normal' m))]))
+           ([Pattern m] -> Normal m
+                        -> (Normal m -> Pattern m
+                        -> m (Maybe [(String, (Normal m, Normal m))]))
+                        -> m (Maybe [(String, (Normal m, Normal m))]))
            -- strip, ctor & type
-           Int (Normal' m) (Normal' m)
+           Int (Normal m) (Normal m)
 
 
 data CollTy m
-  = MaybeTy (Normal' m)
-  | ListTy (Normal' m)
-  | ArrayTy (Normal' m)
-  | IOMonadTy (Normal' m)
+  = MaybeTy (Normal m)
+  | ListTy (Normal m)
+  | ArrayTy (Normal m)
+  | IOMonadTy (Normal m)
   -- TODO: plugin
-  | CPtrTy (Normal' m)
+  | CPtrTy (Normal m)
 
 
 data CollVal m
-  = MaybeVal (Maybe (Normal' m)) (Normal' m)
-  | ListVal [(Normal' m)] (Normal' m)
-  | ArrayVal (Vector (Normal' m)) (Normal' m)
-  | IOAction (IEThread m) (Normal' m)
+  = MaybeVal (Maybe (Normal m)) (Normal m)
+  | ListVal [Normal m] (Normal m)
+  | ArrayVal (Vector (Normal m)) (Normal m)
+  | IOAction (IEThread m) (Normal m)
   -- TOOD: plugin
   | CPtr (Ptr ())
 
@@ -162,8 +154,8 @@ data CollVal m
 data IEThread m
   = IOThread (IO (IEThread m))
   | MThread (m (IEThread m))
-  | Pure (m (Normal' m))
-  | Bind (m (IEThread m)) (m (Normal' m))
+  | Pure (m (Normal m))
+  | Bind (m (IEThread m)) (m (Normal m))
   | Seq (m (IEThread m)) (m (IEThread m))
 
 
@@ -172,78 +164,76 @@ data Modifier = Implicit
 
 
 -- m is the type of monad inside the object
-type Normal = Normal' EvalM
-type Neutral = Neutral' EvalM
 
-data Normal' m 
+data Normal m
   -- Neutral term
-  = Neu (Neutral' m) (Normal' m)
+  = Neu (Neutral m) (Normal m)
   -- Basic & Inbuilt Values and Types
   | PrimVal PrimVal 
   | PrimType PrimType
   | CollVal (CollVal m)
   | CollTy (CollTy m)
-  | PropEq (Normal' m) (Normal' m)
-  | Refl (Normal' m)
+  | PropEq (Normal m) (Normal m)
+  | Refl (Normal m)
   | InbuiltCtor (InbuiltCtor m)
 
   -- Universes
   | NormUniv Int 
 
   -- Dependent Products & Functions
-  | NormProd String (Normal' m) (Normal' m)
-  | NormImplProd String (Normal' m) (Normal' m)
-  | NormArr (Normal' m) (Normal' m)
-  | NormAbs String (Normal' m) (Normal' m)
+  | NormProd String (Normal m) (Normal m)
+  | NormImplProd String (Normal m) (Normal m)
+  | NormArr (Normal m) (Normal m)
+  | NormAbs String (Normal m) (Normal m)
 
-  | Builtin (Normal' m -> m (Normal' m)) (Normal' m)
+  | Builtin (Normal m -> m (Normal m)) (Normal m)
   -- TOOD: BuiltinLzy should take a thunk! (?)
-  | BuiltinLzy (m (Normal' m) -> m (Normal' m)) (Normal' m)
+  | BuiltinLzy (m (Normal m) -> m (Normal m)) (Normal m)
   
   -- Structures & Signatures
-  | NormSct [(String, (Normal' m, [Modifier]))] Normal
-  | NormSig [(String, Normal' m)]
+  | NormSct [(String, (Normal m, [Modifier]))] (Normal m)
+  | NormSig [(String, Normal m)]
 
   -- Inductive and Coinductive Types and Values
   --   NormIVal : name, tyid, valid, strip, vals, type
   --   NormCoVal: tyid, a record of functions
   --                (name, id, vars, func-body)
   --   NormCoDtor : name, tyid, strip, type
-  | NormIType String Int [Normal' m]
-  | NormIVal String Int Int Int [Normal' m] (Normal' m)
-  | NormCoType String Int [(Normal' m)]
-  | NormCoVal [(CoPattern, m (Normal' m))] (Normal' m)
-  | NormCoDtor String Int Int Int Int [Normal' m]  (Normal' m)
+  | NormIType String Int [Normal m]
+  | NormIVal String Int Int Int [Normal m] (Normal m)
+  | NormCoType String Int [Normal m]
+  | NormCoVal [(CoPattern m, m (Normal m))] (Normal m)
+  | NormCoDtor String Int Int Int Int [Normal m] (Normal m)
 
   -- Multi-Stage Programming
-  | BuiltinMac ([AST] -> m AST)
+  | BuiltinMac ([AST m] -> m (AST m))
   | Special Special
   | Keyword String
   | Symbol String 
-  | AST AST
+  | AST (AST m)
 
   -- Foreign values
-  | NormCModule CModule    -- a foreign library
-  | NormCValue CValue (Normal' m) -- a foreign value + its' type
+  | NormCModule CModule      -- a foreign library
+  | NormCValue CValue (Normal m) -- a foreign value + its' type
 
 
-data Neutral' m
-  = NeuVar String (Normal' m)
+data Neutral m
+  = NeuVar String (Normal m)
   -- an inbuilt function waiting on a netural term
-  | NeuApp (Neutral' m) (Normal' m)
-  | NeuDot (Neutral' m) String
-  | NeuIf (Neutral' m) (Normal' m) (Normal' m) (Normal' m)
-  | NeuMatch (Neutral' m) [(Pattern, Normal)] (Normal' m)
-  | NeuCoMatch (Neutral' m) [(CoPattern, Normal)]
-  | NeuBuiltinApp (Normal' m -> m (Normal' m)) (Neutral' m) (Normal' m)
+  | NeuApp (Neutral m) (Normal m)
+  | NeuDot (Neutral m) String
+  | NeuIf (Neutral m) (Normal m) (Normal m) (Normal m)
+  | NeuMatch (Neutral m) [(Pattern m, Normal m)] (Normal m)
+  | NeuCoMatch (Neutral m) [(CoPattern m, Normal m)]
+  | NeuBuiltinApp (Normal m -> m (Normal m)) (Neutral m) (Normal m)
 
 
-data AST
-  = Atom Normal
-  | Cons [AST]
+data AST m
+  = Atom (Normal m)
+  | Cons [AST m]
 
 
-instance Show (Normal' m) where
+instance Show (Normal m) where
   show (Neu neu _)      = show neu
   show (PrimVal prim)   = show prim
   show (PrimType prim)  = show prim
@@ -307,7 +297,7 @@ instance Show (Normal' m) where
   show (NormCValue _ ty) = "<cvalue: " <> show ty <> ">"
 
 
-instance Show (Neutral' m) where
+instance Show (Neutral m) where
   show (NeuVar var _) = var
   show (NeuApp neu (Neu (NeuApp n1 n2) ty)) =
     show neu <> " (" <> show (Neu (NeuApp n1 n2) ty) <> ")"
@@ -332,14 +322,16 @@ data PrimType
   deriving (Eq, Ord)
   
 
-type EvalMT m = ReaderT Environment (ExceptT String (StateT ProgState m))
-type EvalM = EvalMT Identity
+newtype EvalT m a = EvalT { unEvalT :: ReaderT (Environment (EvalT m)) (ExceptT String (StateT (ProgState (EvalT m)) m)) a }
+type Eval = EvalT Identity
 
 
-data ProgState = ProgState { _uid_counter   :: Int
-                           , _var_counter   :: Int
-                           , _thunk_counter :: Int
-                           , _thunk_map :: Map.Map Int (Either (EvalM (Normal, Normal)) (Normal, Normal)) }
+data ProgState m = ProgState
+  { _uid_counter   :: Int
+  , _var_counter   :: Int
+  , _thunk_counter :: Int
+  , _thunk_map :: Map.Map Thunk (Either (m (Normal m, Normal m)) (Normal m, Normal m))
+  }
 
 
   
@@ -400,7 +392,7 @@ instance Show (CollTy m) where
 instance Show (InbuiltCtor m) where
   show (IndPat sym _ _ _ ty) = show sym <> " " <> show ty
 
-instance Show AST where
+instance Show (AST m) where
   show e = "AST: " <> show_ast e
     where
       show_ast (Cons [x]) = "(" <> show_ast x <>  ")"
@@ -427,7 +419,7 @@ toEmpty = map (\(x, y) -> (x, (y, [])))
 getField f ((f', n):xs) = if f == f' then Just n else getField f xs
 getField f [] = Nothing
 
-fncLike :: Normal' m -> Bool
+fncLike :: (Normal m) -> Bool
 fncLike (NormArr _ _)        = True
 fncLike (NormImplProd _ _ _) = True
 fncLike (NormProd _ _ _)     = True

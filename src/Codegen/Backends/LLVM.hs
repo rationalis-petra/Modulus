@@ -22,7 +22,7 @@ data MlsModule
 
   
 
-compileModule :: [String] -> [Definition] -> IO MlsModule
+compileModule :: [String] -> [Definition m] -> IO MlsModule
 compileModule path defs = do
   mdle <- newModule
   pure $ MlsModule mdle path

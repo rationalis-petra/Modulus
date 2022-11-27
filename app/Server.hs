@@ -15,9 +15,8 @@ import Control.Concurrent.STM
 
 
 import Bindings.Libtdl
-import Data (EvalM,
-             Normal,
-             Normal'(NormSct, NormSig),
+import Data (Eval,
+             Normal(NormSct, NormSig),
              CollVal(..),
              Environment,
              ProgState)
@@ -39,7 +38,7 @@ import qualified Control.Exception as Ex
 -- TODO: start server on host: localhost  
 --                       port: 4008
 
-startServer :: ProgState -> Environment -> IO ()  
+startServer :: ProgState Eval -> Environment Eval -> IO ()  
 startServer dstate denvironment  = do 
   retCode <- dlinit 
   if not (retCode < 0) then do

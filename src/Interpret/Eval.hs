@@ -1,6 +1,8 @@
+{-# LANGUAGE RankNTypes, FlexibleContexts #-}
+
 module Interpret.Eval (Normal,
-                       EvalM,
-                       evalToEither,
+                       Eval,
+                       runEval,
                        eval,
                        evalTop,
                        evalDef,
@@ -32,13 +34,13 @@ import Foreign.LibFFI (Arg, callFFI,
 import Foreign.C.String (peekCString)
 import System.IO.Unsafe (unsafePerformIO)
 
-import Control.Monad.State (State, runState, runStateT)
-import Control.Monad.Except (ExceptT, runExceptT)
-import Control.Monad.Reader (ReaderT, runReaderT)
+import Control.Monad.State (State, MonadState, runState, runStateT)
+import Control.Monad.Except (ExceptT, MonadError, throwError, runExceptT)
+import Control.Monad.Reader (ReaderT, MonadReader, local, ask, runReaderT)
 import qualified Interpret.Environment as Env
 
 import Syntax.Utils  
-import Interpret.EvalM
+import Interpret.EvalM (runEval)
 
 import Bindings.Libtdl (CModule, lookupForeignFun, mkFun)
 import Foreign.C.Types (CDouble)
@@ -50,29 +52,29 @@ import qualified Data.Set as Set
 import qualified Data.Vector as Vector
 
   
-data Result
-  = RValue Normal
-  | RDef (Environment -> Environment)
-  | RAnn String Normal
+data Result m
+  = RValue (Normal m)
+  | RDef (Environment m -> Environment m)
+  | RAnn String (Normal m)
   
 
-loopThread :: IEThread EvalM -> Environment -> ProgState -> IO (Either String (Normal, ProgState))
+loopThread :: IEThread Eval -> Environment Eval -> ProgState Eval -> IO (Either String (Normal Eval, ProgState Eval))
 loopThread thread env state = 
   case thread of 
     IOThread io -> io >>= (\t -> loopThread t env state)
-    MThread e -> case evalToEither e env state of
+    MThread e -> case runEval e env state of
       Right (val, state') -> loopThread val env state'
       Left err -> pure $ Left err
-    Seq l r -> case evalToEither l env state of
+    Seq l r -> case runEval l env state of
       Right (val, state') -> do
         res <- loopThread val env state'
         case res of
-          Right (_, state') -> case evalToEither r env state of
+          Right (_, state') -> case runEval r env state of
             Right (val, state') -> loopThread val env state'
             Left err -> pure $ Left err
           Left err -> pure $ Left err
       Left err -> pure $ Left err
-    Bind thread' fnc -> case evalToEither thread' env state of
+    Bind thread' fnc -> case runEval thread' env state of
       Right (thread'', state') -> do
           res <- loopThread thread'' env state'
           case res of 
@@ -83,18 +85,18 @@ loopThread thread env state =
                     case res of
                       (CollVal (IOAction action' ty')) -> pure action'
                       _ -> throwError ("io->>= expects result of called function to be IO monad, not: " <> show res)
-              in case evalToEither mnd env state' of
+              in case runEval mnd env state' of
                 Right (val, state'') -> loopThread val env state'
                 Left err -> pure $ Left err
             Left err -> pure $ Left err
       Left err -> pure $ Left err
 
-    Pure val -> case evalToEither val env state of 
+    Pure val -> case runEval val env state of 
       Right (val', state') -> pure $ Right (val', state')
       Left err -> pure $ Left err
 
 
-runIO :: Normal -> Environment -> ProgState -> IO (Normal, ProgState)
+runIO :: Normal Eval -> Environment Eval -> ProgState Eval -> IO (Normal Eval, ProgState Eval)
 runIO val env state =
   case val of
     (CollVal (IOAction action ty)) -> do
@@ -109,14 +111,14 @@ runIO val env state =
       pure (val, state)
 
 
-evalTop ::  TopCore -> EvalM Result
+evalTop :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => TopCore m -> m (Result m)
 evalTop (TopExpr e) = eval e >>= (\val -> pure (RValue val))
 evalTop (TopDef def) = case def of
   SingleDef name (CAbs sym core norm) ty -> do
     env <- ask
-    let liftedFun = liftFun (\v -> local (Env.insert sym v ty liftedEnv) (eval core)) norm
+    let liftedFun = liftFun (\v -> local (const (Env.insert sym v ty liftedEnv)) (eval core)) norm
         liftedEnv = Env.insert name liftedFun norm env
-    val <- local liftedEnv (eval $ CAbs sym core norm)
+    val <- local (const liftedEnv) (eval $ CAbs sym core norm)
     pure (RDef (Env.insert name val norm))
 
   SingleDef name body ty -> do
@@ -159,20 +161,18 @@ evalTop (TopDef def) = case def of
         tySize _ = 0
     alts' <- mkAlts alts
     pure $ RDef (insertCtor . insertAlts alts')
-
-  
 evalTop (TopAnn sym term) = do
   term' <- eval term
   pure (RAnn sym term')
 
 
-evalDef ::  Definition -> EvalM [(String, (Normal, Normal))]
+evalDef :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Definition m -> m [(String, (Normal m, Normal m))]
 evalDef def = case def of
   SingleDef name (CAbs sym core norm) ty -> do
     env <- ask
-    let liftedFun = liftFun (\v -> local (Env.insert sym v ty liftedEnv) (eval core)) norm
+    let liftedFun = liftFun (\v -> local (const $ Env.insert sym v ty liftedEnv) (eval core)) norm
         liftedEnv = Env.insert name liftedFun norm env
-    val <- local liftedEnv (eval $ CAbs sym core norm)
+    val <- local (const $ liftedEnv) (eval $ CAbs sym core norm)
     pure [(name, (val, ty))]
   SingleDef name body ty -> do
     val <- eval body
@@ -215,7 +215,7 @@ evalDef def = case def of
 
 -- evaluate an expression, to a normal form (not a value!). This means that the
 -- environment now contains only normal forms!
-eval ::  Core -> EvalM Normal
+eval :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Core m -> m (Normal m)
 eval (CNorm n) = pure n
 
 eval (CVar var) = do
@@ -230,18 +230,18 @@ eval (CArr l r) = do
 eval (CProd var a b) = do
   a' <- eval a
   let ty = (NormUniv 0)
-  b' <- localF (Env.insert var (Neu (NeuVar var ty) ty) ty) (eval b)
+  b' <- local (Env.insert var (Neu (NeuVar var ty) ty) ty) (eval b)
   pure $ NormProd var a' b'
 
 eval (CImplProd var a b) = do
   a' <- eval a
   let ty = (NormUniv 0)
-  b' <- localF (Env.insert var (Neu (NeuVar var ty) ty) ty) (eval b)
+  b' <- local (Env.insert var (Neu (NeuVar var ty) ty) ty) (eval b)
   pure $ NormImplProd var a' b'
 
 eval (CAbs var body ty) = do   
   hd <- tyHead ty
-  body' <- localF (Env.insert var (Neu (NeuVar var hd) hd) hd) (eval body)
+  body' <- local (Env.insert var (Neu (NeuVar var hd) hd) hd) (eval body)
   pure $ NormAbs var body' ty
 
 eval (CApp l r) = do
@@ -253,13 +253,13 @@ eval (CSct defs ty) = do
   defs' <- foldDefs defs -- TODO: add implicits to foldDefs
   pure $ NormSct defs' ty
   where
-    foldDefs ::  [Definition] -> EvalM [(String, (Normal, [Modifier]))]
+    --foldDefs :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => [Definition m] -> m [(String, (Normal m, [Modifier]))]
     foldDefs [] = pure []
     foldDefs (def : defs) = do
       case def of  
         SingleDef var core ty -> do
           val <- eval core
-          defs' <- localF (Env.insert var val ty) (foldDefs defs)
+          defs' <- local (Env.insert var val ty) (foldDefs defs)
           pure ((var, (val, [])) : defs')
         InductDef sym indid params ctor ctorty alts -> do
           let mkAlts [] = []
@@ -273,14 +273,14 @@ eval (CSig defs) = do
   defs' <- foldDefs defs
   pure $ NormSig $ defs'
   where
-    foldDefs ::  [Definition] -> EvalM [(String, Normal)]
+    foldDefs :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => [Definition m] -> m [(String, Normal m)]
     foldDefs [] = pure []
     foldDefs (def : defs) = do
       case def of
         SingleDef var core ty -> do
           val <- eval core
   -- TODO: is this really the solution? perhaps. 
-          defs' <- localF (Env.insert var (Neu (NeuVar var ty) ty) ty) (foldDefs defs)
+          defs' <- local (Env.insert var (Neu (NeuVar var ty) ty) ty) (foldDefs defs)
           pure ((var, val) : defs')
         _ -> throwError ("eval foldDefs not implemented for def: " <> show def)
 
@@ -310,15 +310,14 @@ eval (CMatch term alts ty) = do
       binds <- getBinds t pat
       case binds of
         Just b -> do
-          env <- ask
-          let env' = foldr (\(sym, (val, ty)) -> Env.insert sym val ty) env b
-          local env' (eval expr)
+          let update = flip (foldr (\(sym, (val, ty)) -> Env.insert sym val ty)) b
+          local update (eval expr)
         Nothing -> match t as
 
     -- Take a value and a pattern. If the value matches the pattern, return a
     --   list of what variables to bind 
     --   otherwise, return none
-    getBinds ::  Normal -> Pattern -> EvalM (Maybe [(String, (Normal, Normal))])
+    --getBinds :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m -> Pattern m -> m (Maybe [(String, (Normal m, Normal m))])
     getBinds t WildCard = pure $ Just []
     getBinds t (VarBind sym ty) = pure $ Just [(sym, (t, ty))]
     getBinds (NormIVal _ id1 id2 strip params _) (MatchInduct id1' id2' patterns) = do
@@ -333,28 +332,25 @@ eval (CMatch term alts ty) = do
     getBinds _ _ = pure Nothing
 
     -- construct a neutral matching term.
-    neuMatch ::  Neutral -> [(Pattern, Core)] -> EvalM Normal
+    --neuMatch :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Neutral m -> [(Pattern m, Core m)] -> m (Normal m)
     neuMatch n ps = do
       ps' <- mapM (\(pat, core) -> do
-        env <- ask
-        let env' = getPatNeu pat env
-        norm <- local env' (eval core)
+        norm <- local (getPatNeu pat) (eval core)
         pure (pat, norm)) ps
       pure $ Neu (NeuMatch n ps' ty) ty
 
-    getPatNeu :: Pattern -> Environment -> Environment
+    getPatNeu :: Pattern m -> Environment m -> Environment m
     getPatNeu WildCard = id
     getPatNeu (VarBind sym ty) = Env.insert sym (Neu (NeuVar sym ty) ty) ty 
     getPatNeu (MatchInduct id1 id2 pats) = flip (foldr getPatNeu) pats 
 
-eval (CCoMatch patterns ty) = do 
-  funcs <- mapM evalCoPat patterns 
-  pure $ NormCoVal funcs ty
+eval (CCoMatch patterns ty) =
+  pure $ NormCoVal (map evalCoPat patterns) ty
   where
-    evalCoPat (pat, body)  = do 
-      env <- ask
-      pure (pat, (local (getPatNeu pat env) (eval body)))
+    evalCoPat :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => (CoPattern m, Core m) -> (CoPattern m, m (Normal m))
+    evalCoPat (pat, body) = (pat, (local (getPatNeu pat) (eval body)))
 
+    getPatNeu :: CoPattern m -> Environment m -> Environment m
     getPatNeu CoWildCard = id
     getPatNeu (CoVarBind sym ty) = Env.insert sym (Neu (NeuVar sym ty) ty) ty
     getPatNeu (CoMatchInduct _ _ _ pats) = flip (foldr getPatNeu) pats
@@ -385,7 +381,7 @@ eval (CAdaptForeign lang libsym imports) = do
 eval other = throwError ("eval not implemented for" <> show other)
 
 
-normSubst ::  (Normal, String) -> Normal -> EvalM Normal
+normSubst ::  (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => (Normal m, String) -> Normal m -> m (Normal m)
 normSubst (val, var) ty = case ty of 
   Neu neu ty -> neuSubst (val, var) neu
   PrimType p -> pure $ PrimType p
@@ -426,7 +422,7 @@ normSubst (val, var) ty = case ty of
     ty' <- normSubst (val, var) ty
     pure (NormCoVal pats' ty')
     where 
-      substCoPat ::  (CoPattern, EvalM Normal) -> (CoPattern, EvalM Normal)
+      --substCoPat :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => (CoPattern m, m (Normal m)) -> (CoPattern m, m (Normal m))
       substCoPat (copattern, body) = do
         let vars = getCoPatVars copattern in
           if Set.member var vars then
@@ -434,7 +430,7 @@ normSubst (val, var) ty = case ty of
           else
             (copattern, (body >>= normSubst (val, var)))
 
-      getCoPatVars :: CoPattern -> Set.Set String
+      --getCoPatVars :: CoPattern m -> Set.Set String
       getCoPatVars CoWildCard = Set.empty
       getCoPatVars (CoVarBind var _) = Set.singleton var
       getCoPatVars (CoMatchInduct _ _ _ subPatterns) =
@@ -508,7 +504,7 @@ normSubst (val, var) ty = case ty of
   -- Undef 
   s -> throwError ("subst not implemented for: " <> show s)
   where 
-    substFields ::  (Normal, String) -> [(String, Normal)] -> EvalM [(String, Normal)]
+    substFields :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => (Normal m, String) -> [(String, Normal m)] -> m [(String, Normal m)]
     substFields (val, var) ((var', val') : fields) = do
       if var == var' then 
         pure $ (var', val') : fields
@@ -519,7 +515,7 @@ normSubst (val, var) ty = case ty of
     substFields (val, var) [] = pure []
 
   
-neuSubst ::  (Normal, String) -> Neutral -> EvalM Normal
+neuSubst :: (MonadReader (Environment m) m, MonadState (ProgState m) m , MonadError String m) => (Normal m, String) -> Neutral m -> m (Normal m)
 neuSubst (val, var) neutral = case neutral of 
   NeuVar var' ty ->
     if var == var' then
@@ -569,30 +565,30 @@ neuSubst (val, var) neutral = case neutral of
       term -> match term pats
 
      where
-        match t [] = throwError ("couldn't match value: " <> show t)
-        match t ((pat, expr) : as) = do
-          binds <- getBinds t pat
-          case binds of
-            Just b -> do
-              expr' <- foldBinds b expr
-              normSubst (val, var) expr'
-              where
-                foldBinds ((var, val) : bs) expr = normSubst (val, var) expr >>= foldBinds bs
-                foldBinds [] expr = pure expr
-            Nothing -> match t as
+       --match :: (MonadReader Environment m, MonadError String m, MonadState ProgState m) => Normal -> [(Pattern, Normal)] -> m Normal
+       match t [] = throwError ("couldn't match value: " <> show t)
+       match t ((pat, expr) : as) =
+         case getBinds t pat of
+           Just b -> do
+             expr' <- foldBinds b expr
+             normSubst (val, var) expr'
+             where
+               foldBinds ((var, val) : bs) expr = normSubst (val, var) expr >>= foldBinds bs
+               foldBinds [] expr = pure expr
+           Nothing -> match t as
     
-        getBinds ::  Normal -> Pattern -> EvalM (Maybe [(String, Normal)])
-        getBinds t WildCard = pure $ Just []
-        getBinds t (VarBind sym _) = pure $ Just [(sym, t)]
-        getBinds (NormIVal _ id1 id2 strip params _) (MatchInduct id1' id2' patterns) = do
-          if id1 == id1' && id2 == id2' then do
-            nestedBinds <- mapM (uncurry getBinds) (zip (drop strip params) patterns)
-            let allBinds = foldr (\b a -> case (a, b) of
-                                    (Just a', Just b') -> Just (a' <> b')
-                                    _ -> Nothing) (Just []) nestedBinds
-            pure allBinds
-          else pure Nothing
-        getBinds _ _= pure Nothing
+       getBinds :: Normal m -> Pattern m -> Maybe [(String, Normal m)]
+       getBinds t WildCard = Just []
+       getBinds t (VarBind sym _) = Just [(sym, t)]
+       getBinds (NormIVal _ id1 id2 strip params _) (MatchInduct id1' id2' patterns) =
+         if id1 == id1' && id2 == id2' then 
+           let nestedBinds = map (uncurry getBinds) (zip (drop strip params) patterns)
+               allBinds = foldr (\b a -> case (a, b) of
+                                   (Just a', Just b') -> Just (a' <> b')
+                                   _ -> Nothing) (Just []) nestedBinds
+               in allBinds
+         else Nothing
+       getBinds _ _= Nothing
 
 
   NeuIf cond e1 e2 ty -> do
@@ -613,8 +609,7 @@ neuSubst (val, var) neutral = case neutral of
 
   -- NeuDot sig field -> do
   --   sig' <- neuSubst 
-
-tyField ::  String -> Normal -> EvalM Normal  
+tyField :: (MonadError String m) => String -> Normal m -> m (Normal m)  
 tyField field (NormSig fields) =
   case getField field fields of
     Just x -> pure x
@@ -623,21 +618,21 @@ tyField field (NormSct fields _) =
   case getField field (dropMod fields) of
     Just x -> pure x
     Nothing -> throwError ("can't find field: " <> field)
-tyField field term = throwError ("can't get field  "<>field<>" of non struct/sig: " <> show term)
+tyField field term = throwError ("can't get field  " <> field <> " of non struct/sig: " <> show term)
 
-tyApp ::  Normal -> Normal -> EvalM Normal
+tyApp :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m -> Normal m -> m (Normal m)
 tyApp (NormArr l r) _ = pure r 
 tyApp (NormProd sym a b) arg = normSubst (arg, sym) b
 tyApp (NormImplProd sym a b) arg = normSubst (arg, sym) b
 
 
 
-instance Eq (Normal' m) where
+instance Eq (Normal m) where
   a == b = norm_equiv a b (Set.empty, 0) (Map.empty, Map.empty)
 
 
 -- TODO: add Î· reductions to the equality check
-norm_equiv :: (Normal' m) -> (Normal' m) -> Generator -> (Map.Map String String, Map.Map String String) -> Bool 
+norm_equiv :: Normal m -> Normal m -> Generator -> (Map.Map String String, Map.Map String String) -> Bool 
 norm_equiv (NormUniv n1) (NormUniv n2) gen rename = n1 == n2
 norm_equiv (Neu n1 _) (Neu n2 _) gen rename = neu_equiv n1 n2 gen rename
 norm_equiv (PrimVal p1)  (PrimVal p2) _ _  = p1 == p2
@@ -691,7 +686,7 @@ norm_equiv (CollVal x) (CollVal y) gen rename =
 norm_equiv _ _ _ _ = False
 
   
-neu_equiv :: (Neutral' m) -> (Neutral' m) -> Generator -> (Map.Map String String, Map.Map String String)
+neu_equiv :: Neutral m -> Neutral m -> Generator -> (Map.Map String String, Map.Map String String)
         -> Bool 
 neu_equiv (NeuVar v1 _) (NeuVar v2 _) used (lrename, rrename) =
   case (Map.lookup v1 lrename, Map.lookup v2 rrename) of
@@ -702,8 +697,6 @@ neu_equiv (NeuApp l1 r1) (NeuApp l2 r2) used rename =
   (neu_equiv l1 l2 used rename) && (norm_equiv r1 r2 used rename)
 neu_equiv (NeuDot neu1 field1) (NeuDot neu2 field2) used rename
   = (field1 == field2) && neu_equiv neu1 neu2 used rename 
-
-
 
 
 
@@ -725,21 +718,16 @@ genFresh (set, id) =
     else
       (var, (Set.insert var set, id+1))
 
-evalToEither :: EvalM a -> Environment -> ProgState -> Either String (a, ProgState)
-evalToEither inner_mnd ctx state =
-  case runState (runExceptT (runReaderT inner_mnd ctx)) state of
-    (Right obj, state') -> Right (obj, state')
-    (Left err, state') -> Left $ "err: " <> err
 
--- evalToEitherT :: Monad m => EvalM m a -> Environment -> ProgState -> m (Either String (a, ProgState))
--- evalToEitherT inner_mnd ctx state =
+-- runEvalT :: Monad m => EvalM m a -> Environment -> ProgState -> m (Either String (a, ProgState))
+-- runEvalT inner_mnd ctx state =
 --   fmap unwrap (runStateT (runExceptT (runReaderT inner_mnd ctx)) state)
 --   where
 --     unwrap (Right obj, state') = Right (obj, state')
 --     unwrap (Left err, state')  = Left $ "err: " <> err
 
 
-applyDtor :: Int -> Int -> Int -> [Normal] -> EvalM Normal
+applyDtor :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Int -> Int -> Int -> [Normal m] -> m (Normal m)
 applyDtor id1 id2 strip (arg:args) 
   | strip == 0 = case arg of 
       NormCoVal patterns _ -> go args patterns
@@ -773,7 +761,7 @@ applyDtor id1 id2 strip (arg:args)
 applyDtor _ _ _ _ = throwError "bad destructor application"  
 
 
-getAsBuiltin :: CModule -> String -> Normal -> EvalM Normal
+getAsBuiltin :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => CModule -> String -> Normal m -> m (Normal m)
 getAsBuiltin m sym ty =
   case lookupForeignFun m sym of
     Just f ->
@@ -791,7 +779,7 @@ getAsBuiltin m sym ty =
     argList (NormImplProd sym a b) = a : argList b
     argList _ = []
 
-    cCall :: FunPtr () -> [Normal] -> [Arg] -> Normal -> Normal -> Normal -> EvalM Normal
+    --cCall :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => FunPtr () -> [Normal m] -> [Arg m] -> Normal m -> Normal m -> Normal m -> m (Normal m)
     cCall fnc [argTy] cargs retTy ty' arg = do
       carg <- getArg argTy arg
       doCall retTy fnc (carg:cargs)
@@ -808,7 +796,7 @@ getAsBuiltin m sym ty =
         (CollTy (IOMonadTy ty)) -> case ty of 
           (PrimType UnitT) -> 
             pure . CollVal $ IOAction
-              (IOThread (callFFI fnc retVoid cargs >> (pure . Pure . pure $ PrimVal Unit)))
+              (IOThread (callFFI fnc retVoid cargs >> (pure (Pure (pure (PrimVal Unit))))))
               (CollTy (IOMonadTy (PrimType UnitT)))
         _ -> throwError ("bad cffi ret ty: " <> show retTy)
 
@@ -831,7 +819,7 @@ getAsBuiltin m sym ty =
 
 
 
-apply :: Normal -> Core -> EvalM Normal 
+apply :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m -> Core m -> m (Normal m) 
 apply (Neu neu ty) r = do
   -- TODO: thunk about thunks and neutral terms...
   -- thunk <- genThunk r
@@ -897,7 +885,7 @@ apply other _ = throwError ("tried to apply to non-function: " <> show other)
 --     other -> throwError ("tried to apply to non-function: " <> show other)
 
 
-applyNorm :: Normal -> Normal -> EvalM Normal 
+applyNorm :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m -> Normal m -> m (Normal m) 
 applyNorm (Neu neu ty) r' = do
   ty' <- tyApp ty r'
   pure $ Neu (NeuApp neu r') ty'
@@ -918,11 +906,10 @@ applyNorm other _ = throwError ("tried to apply to non-function: " <> show other
 
 
 
-
 ---- FUNCTION LIFTING  
 -- Utilities for lifting Haskell functions on Modulus objects into a Modulus Function.
   
-interceptNeutral :: (Normal -> EvalM Normal) -> Normal -> Normal -> EvalM Normal
+interceptNeutral :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => (Normal m -> m (Normal m)) -> Normal m -> Normal m -> m (Normal m)
 interceptNeutral f ty (Neu neutral nty) = do
   ty' <- tyApp ty nty
   pure $ Neu (NeuBuiltinApp (interceptNeutral f ty) neutral ty') ty'
@@ -930,11 +917,11 @@ interceptNeutral f ty val = f val
 
 
 -- liftFun needs to intercept /neutral/ terms!
-liftFun :: (Normal -> EvalM Normal) -> Normal -> Normal
+liftFun :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => (Normal m -> m (Normal m)) -> Normal m -> Normal m
 liftFun f ty = Builtin (interceptNeutral f ty) ty
 
 
-liftFun2 :: (Normal -> Normal -> EvalM Normal) -> Normal -> Normal
+liftFun2 :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => (Normal m -> Normal m -> m (Normal m)) -> Normal m -> Normal m
 liftFun2 f ty =
   let f' val = case val of
                 (Neu neu nty) -> do
@@ -948,7 +935,7 @@ liftFun2 f ty =
   in Builtin f' ty
 
 
-liftFun3 :: (Normal -> Normal -> Normal -> EvalM Normal) -> Normal -> Normal 
+liftFun3 :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => (Normal m -> Normal m -> Normal m -> m (Normal m)) -> Normal m -> Normal m
 liftFun3 f ty =
   let f' val = case val of
                 (Neu neu nty) -> do
@@ -961,7 +948,7 @@ liftFun3 f ty =
   in Builtin f' ty
 
 
-liftFun4 :: (Normal -> Normal -> Normal -> Normal -> EvalM Normal) -> Normal -> Normal 
+liftFun4 :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => (Normal m -> Normal m -> Normal m -> Normal m -> m (Normal m)) -> Normal m -> Normal m
 liftFun4 f ty =
   let f' val = case val of
                 (Neu neu nty) -> do
@@ -974,7 +961,7 @@ liftFun4 f ty =
   in Builtin f' ty
 
 
-liftFun5 :: (Normal -> Normal -> Normal -> Normal -> Normal -> EvalM Normal) -> Normal -> Normal 
+liftFun5 :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => (Normal m -> Normal m -> Normal m -> Normal m -> Normal m -> m (Normal m)) -> Normal m -> Normal m
 liftFun5 f ty =
   let f' val = case val of
                 (Neu neu nty) -> do
@@ -987,7 +974,7 @@ liftFun5 f ty =
     in Builtin f' ty
 
 
-liftFun6 :: (Normal -> Normal -> Normal -> Normal -> Normal -> Normal -> EvalM Normal) -> Normal -> Normal 
+liftFun6 :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => (Normal m -> Normal m -> Normal m -> Normal m -> Normal m -> Normal m -> m (Normal m)) -> Normal m -> Normal m
 liftFun6 f ty =
   let f' val = case val of
                 (Neu neu nty) -> do
@@ -1008,11 +995,11 @@ liftFun6 f ty =
 --   pure $ Neu (NeuBuiltinApp (interceptNeutral f ty) neutral ty') ty'
 -- interceptNeutral f ty val = f val
 
-liftFunL :: (EvalM Normal -> EvalM Normal) -> Normal -> Normal
+liftFunL :: (m (Normal m) -> m (Normal m)) -> Normal m -> Normal m
 liftFunL f ty = BuiltinLzy f ty
 
 
-liftFunL2 :: (EvalM Normal -> EvalM Normal -> EvalM Normal) -> Normal -> Normal
+liftFunL2 :: Applicative m => (m (Normal m) -> m (Normal m) -> m (Normal m)) -> Normal m -> Normal m
 liftFunL2 f ty =
   let f' val = case ty of
         (NormArr _ r) -> pure $ liftFunL (f val) r
@@ -1021,7 +1008,7 @@ liftFunL2 f ty =
   in BuiltinLzy f' ty
 
 
-liftFunL3 :: (EvalM Normal -> EvalM Normal -> EvalM Normal -> EvalM Normal) -> Normal -> Normal 
+liftFunL3 :: Applicative m => (m (Normal m) -> m (Normal m) -> m (Normal m) -> m (Normal m)) -> Normal m -> Normal m
 liftFunL3 f ty =
   let f' val = case ty of
         (NormArr _ r) -> pure $ liftFunL2 (f val) r
@@ -1030,7 +1017,7 @@ liftFunL3 f ty =
   in BuiltinLzy f' ty
 
 
-liftFunL4 :: (EvalM Normal -> EvalM Normal -> EvalM Normal -> EvalM Normal -> EvalM Normal) -> Normal -> Normal 
+liftFunL4 :: Applicative m => (m (Normal m) -> m (Normal m) -> m (Normal m) -> m (Normal m) -> m (Normal m)) -> Normal m -> Normal m
 liftFunL4 f ty =
   let f' val = case ty of
         (NormArr _ r) -> pure $ liftFunL3 (f val) r
@@ -1039,7 +1026,7 @@ liftFunL4 f ty =
   in BuiltinLzy f' ty
 
 
-liftFunL5 :: (EvalM Normal -> EvalM Normal -> EvalM Normal -> EvalM Normal -> EvalM Normal -> EvalM Normal) -> Normal -> Normal 
+liftFunL5 :: Applicative m => (m (Normal m) -> m (Normal m) -> m (Normal m) -> m (Normal m) -> m (Normal m) -> m (Normal m)) -> Normal m -> Normal m
 liftFunL5 f ty =
   let f' val = case ty of
         (NormArr _ r) -> pure $ liftFunL4 (f val) r
@@ -1048,7 +1035,7 @@ liftFunL5 f ty =
   in BuiltinLzy f' ty
 
 
-liftFunL6 :: (EvalM Normal -> EvalM Normal -> EvalM Normal -> EvalM Normal -> EvalM Normal -> EvalM Normal -> EvalM Normal) -> Normal -> Normal 
+liftFunL6 :: Applicative m => (m (Normal m) -> m (Normal m) -> m (Normal m) -> m (Normal m) -> m (Normal m) -> m (Normal m) -> m (Normal m)) -> Normal m -> Normal m
 liftFunL6 f ty =
   let f' val = case ty of
         (NormArr _ r) -> pure $ liftFunL5 (f val) r

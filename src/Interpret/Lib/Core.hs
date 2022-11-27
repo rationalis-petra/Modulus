@@ -1,12 +1,16 @@
+{-# LANGUAGE FlexibleContexts #-}
 module Interpret.Lib.Core (coreTerms) where
 
+import Control.Monad.Reader (MonadReader)
+import Control.Monad.State  (MonadState)
+import Control.Monad.Except (MonadError, throwError)
 
 import qualified Data.Map as Map
 
 import Data
 import Syntax.Utils
 import Interpret.Eval (liftFun, liftFun2, liftFun3, liftFun4)
-import Interpret.EvalM (throwError)
+import Interpret.EvalM
 
 -- import Typecheck.Typecheck2 (subtype)
 
@@ -19,7 +23,7 @@ get_symlist ((Symbol s) : args) =
     Nothing -> Nothing
 get_symlist _ = Nothing
 
-get_bindlist :: [Normal] -> Maybe ([String], [Normal])
+get_bindlist :: [Normal m] -> Maybe ([String], [Normal m])
 get_bindlist [] = Just ([], [])
 get_bindlist ((Symbol s) : val : bindings) =
   case get_bindlist bindings of
@@ -27,7 +31,7 @@ get_bindlist ((Symbol s) : val : bindings) =
     Nothing -> Nothing
 get_bindlist _ = Nothing
 
-toDefs :: [AST] -> EvalM [AST]
+toDefs :: MonadError String m => [AST m] -> m [AST m]
 toDefs (Cons [Atom (Symbol s), val] : tl) = do
   tl' <- toDefs tl
   pure (Cons [Atom (Special Def), Atom (Symbol s), val] : tl')
@@ -36,69 +40,94 @@ toDefs _ = throwError "error: expected symbol value pair"
 
   
   -- MACROS
-opDot :: [AST] -> EvalM AST
+opDot :: MonadError String m => [AST m] -> m (AST m)
 opDot [(Cons (op : xs)), rhs] = 
   pure $ (Cons [op, (Cons xs), rhs])
 opDot args =  (throwError $ "bad args to macro: dot " <> show args)
+
+mlsDot :: MonadError String m => Normal m
 mlsDot = BuiltinMac opDot
 
-defStructure :: [AST] -> EvalM AST
+
+defStructure :: MonadError String m => [AST m] -> m (AST m)
 defStructure (sym : bdy) = 
   pure $ Cons ([Atom (Special Def), sym, Cons (Atom (Special MkStructure) : bdy)])
 defStructure _ = throwError "Bad Number of to macro: module" 
+
+mlsDefStructure :: MonadError String m => Normal m
 mlsDefStructure = BuiltinMac defStructure
 
-defStruct :: [AST] -> EvalM AST
+
+defStruct :: MonadError String m => [AST m] -> m (AST m)
 defStruct (sym : bdy) = 
   pure $ Cons ([Atom (Special Def), sym, Cons (Atom mlsStruct : bdy)])
 defStruct _ = throwError "Bad Number of to macro: module" 
+
+mlsDefStruct :: MonadError String m => Normal m
 mlsDefStruct = BuiltinMac defStruct
 
-defSig :: [AST] -> EvalM AST
+
+defSig :: MonadError String m => [AST m] -> m (AST m)
 defSig (sym : bdy) = 
   pure $ Cons ([Atom (Special Def), sym, Cons (Atom (Special MkSig) : bdy)])
 defSig _ = throwError "Bad Number of to macro: module" 
+
+mlsDefSignature :: MonadError String m => Normal m
 mlsDefSignature = BuiltinMac defSig
 
-defFun :: [AST] -> EvalM AST
+
+defFun :: MonadError String m => [AST m] -> m (AST m)
 defFun (sym : fncdef) = 
   pure $ (Cons [Atom (Special Def), sym, Cons (Atom (Special Lambda) : fncdef)])
 defFun args =  throwError $ "bad args to macro: defn" <> show args
+
+mlsDefn :: MonadError String m => Normal m
 mlsDefn = BuiltinMac defFun
 
-defMac :: [AST] -> EvalM AST
+
+defMac :: MonadError String m => [AST m] -> m (AST m)
 defMac [sym, symlist, bdy] = 
   pure $ Cons [Atom (Special Def), sym, Cons [Atom (Special Mac), symlist, bdy]]
 defMac args =  throwError $ "bad args to macro: defsyntax" <> show args
+
+mlsDefmac :: MonadError String m => Normal m
 mlsDefmac = BuiltinMac defMac
 
 
 --- Structures
-struct :: [AST] -> EvalM AST
+struct :: MonadError String m => [AST m] -> m (AST m)
 struct bindlist = do
   mldebdy <- toDefs bindlist 
   pure $ Cons (Atom (Special MkStructure) : mldebdy)
+
+mlsStruct :: MonadError String m => Normal m
 mlsStruct = BuiltinMac struct
 
-sig :: [AST] -> EvalM AST
+sig :: MonadError String m => [AST m] -> m (AST m)
 sig bindlist = do
   mldebdy <- toDefs bindlist 
   pure $ Cons (Atom (Special MkSig) : mldebdy)
+
+mlsSig :: MonadError String m => Normal m
 mlsSig = BuiltinMac sig
       
   
 -- TYPES 
 
 -- TODO: to be well formed, these must accept types...
-mkTupleType :: Normal -> Normal -> EvalM Normal
-mkTupleType t1 t2 = 
-  pure $ NormSig [("_1", t1), ("_2", t2)]
+mkTupleType :: Applicative m => Normal m -> Normal m -> m (Normal m)
+mkTupleType t1 t2 = pure $ NormSig [("_1", t1), ("_2", t2)]
+
+mlsMkTupleType :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsMkTupleType = liftFun2 mkTupleType (NormArr (NormUniv 0) (NormArr (NormUniv 0) (NormUniv 0)))
 
 -- TUPLES
-mkTuple :: Normal -> Normal -> Normal -> Normal -> EvalM Normal
+mkTuple :: Applicative m => Normal m -> Normal m -> Normal m -> Normal m -> m (Normal m)
 mkTuple t1 t2 e1 e2 = 
   pure $ NormSct [("_1", (e1, [])), ("_2", (e2, []))] (NormSig [("_1", t1), ("_2", t2)])
+
+  
+mlsMkTuple :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsMkTuple = liftFun4 mkTuple (NormImplProd "A" (NormUniv 0)
                                  (NormImplProd "B" (NormUniv 0)
                                   (NormArr (mkVar "A")
@@ -108,23 +137,25 @@ mlsMkTuple = liftFun4 mkTuple (NormImplProd "A" (NormUniv 0)
   
 -- CONSTRAINTS
 
-mkPropEqType :: Normal
+mkPropEqType :: Normal m
 mkPropEqType = NormImplProd "A" (NormUniv 0) (NormArr (mkVar "A") (NormArr (mkVar "A") (NormUniv 0)))
+
+mkPropEq :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mkPropEq = liftFun3 f mkPropEqType
   where
     f _ l r = pure $ PropEq l r
 
-mkReflType :: Normal 
+mkReflType :: Normal m
 mkReflType = NormImplProd "A" (NormUniv 0) (NormProd "a" (mkVar "A")
                                              (PropEq (Neu (NeuVar "a" (mkVar "A")) (mkVar "A")) (Neu (NeuVar "a" (mkVar "A")) (mkVar "A"))))
 
-mkRefl :: Normal
+mkRefl :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mkRefl = liftFun2 f mkReflType 
   where 
     f _ a = pure $ Refl a
 
   
-coreTerms :: [(String, Normal)]
+coreTerms :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => [(String, Normal m)]
 coreTerms =
   [ ("Bool", PrimType BoolT)
   , ("Unit", PrimType UnitT)

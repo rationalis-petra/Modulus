@@ -1,12 +1,15 @@
+{-# LANGUAGE FlexibleContexts #-}
 module Interpret.Lib.Data.Array (arrayStructure, arraySignature) where
 
 import qualified Data.Map as Map
 import Data.Vector hiding (mapM)
 import qualified Data.Vector as Vec
+import Control.Monad.Reader (MonadReader)
+import Control.Monad.State  (MonadState)
+import Control.Monad.Except (MonadError, throwError)
 
 import Data
 import Syntax.Core
-import Interpret.EvalM 
 import Interpret.Eval (eval)
 import Syntax.Utils (mkVar)
 import Interpret.Eval ( liftFun
@@ -16,69 +19,69 @@ import Interpret.Eval ( liftFun
                       , liftFun5)
 import qualified Interpret.Environment as Env
 
-mlsArrTy :: Normal
+mlsArrTy :: Normal m
 mlsArrTy = NormArr (NormUniv 0) (NormUniv 0)
 
 
-mlsArr :: Normal
+mlsArr :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsArr = liftFun mkArrTy mlsArrTy
   where
-    mkArrTy :: Normal -> EvalM Normal
+    mkArrTy :: Applicative m => Normal m -> m (Normal m)
     mkArrTy ty = pure $ CollTy $ ArrayTy ty
 
   
 -- Constructors
-mlsIndicesOfTy :: Normal  
+mlsIndicesOfTy :: Normal m
 mlsIndicesOfTy = NormArr (PrimType IntT) (CollTy (ArrayTy (PrimType IntT)))
 
 
-mlsIndicesOf :: Normal  
+mlsIndicesOf :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsIndicesOf = liftFun f mlsIndicesOfTy
-  where f :: Normal -> EvalM Normal
+  where f :: Applicative m => Normal m -> m (Normal m)
         f (PrimVal (Int n)) = do
           pure $ CollVal $ ArrayVal (fmap (PrimVal . Int) (fromList [1..n])) (PrimType IntT)
 
 
-mlsNilTy :: Normal  
+mlsNilTy :: Normal m
 mlsNilTy = NormImplProd "A" (NormUniv 0)
             (CollTy . ArrayTy $ mkVar "A")
 
 
-mlsNil :: Normal  
+mlsNil :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsNil = liftFun f mlsNilTy
-  where f :: Normal -> EvalM Normal
+  where f :: Applicative m => Normal m -> m (Normal m)
         f a = pure $ CollVal $ ArrayVal (Vec.empty) a
   
 
-mlsConsTy :: Normal  
+mlsConsTy :: Normal m
 mlsConsTy = NormImplProd "A" (NormUniv 0)
              (NormArr (mkVar "A")
                (NormArr (CollTy . ArrayTy $ mkVar "A")
                  (CollTy . ArrayTy $ mkVar "A")))
 
 
-mlsCons :: Normal  
+mlsCons :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsCons = liftFun3 f mlsConsTy
-  where f :: Normal -> Normal -> Normal -> EvalM Normal
+  where f :: Applicative m => Normal m -> Normal m -> Normal m -> m (Normal m)
         f a val (CollVal (ArrayVal xs _)) = do
           pure $ CollVal $ ArrayVal (Vec.cons val xs) a
 
-mlsSnocTy :: Normal  
+mlsSnocTy :: Normal m
 mlsSnocTy = NormImplProd "A" (NormUniv 0)
              (NormArr (mkVar "A")
                (NormArr (CollTy . ArrayTy $ mkVar "A")
                  (CollTy . ArrayTy $ mkVar "A")))
 
 
-mlsSnoc :: Normal  
+mlsSnoc :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsSnoc = liftFun3 f mlsSnocTy
-  where f :: Normal -> Normal -> Normal -> EvalM Normal
+  where f :: Applicative m => Normal m -> Normal m -> Normal m -> m (Normal m)
         f a val (CollVal (ArrayVal xs _)) = do
           pure $ CollVal $ ArrayVal (Vec.snoc xs val) a
   
 
 -- Array Operations  
-mlsEachTy :: Normal  
+mlsEachTy :: Normal m
 mlsEachTy = NormImplProd "A" (NormUniv 0)
               (NormImplProd "B" (NormUniv 0)
                 (NormArr (NormArr (mkVar "A") (mkVar "B"))
@@ -86,15 +89,15 @@ mlsEachTy = NormImplProd "A" (NormUniv 0)
                     (CollTy (ArrayTy (mkVar "B"))))))
 
 
-mlsEach :: Normal  
+mlsEach :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsEach = liftFun4 f mlsEachTy
-  where f :: Normal -> Normal -> Normal -> Normal -> EvalM Normal
+  where f :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m -> Normal m -> Normal m -> Normal m -> m (Normal m)
         f _ b func (CollVal (ArrayVal xs _)) = do
           res <- Vec.mapM (\v -> eval (CApp (CNorm func) (CNorm v))) xs
           pure $ CollVal $ ArrayVal res b
 
   
-mlsFoldTy :: Normal  
+mlsFoldTy :: Normal m
 mlsFoldTy = NormImplProd "A" (NormUniv 0)
               (NormImplProd "B" (NormUniv 0)
                 (NormArr (NormArr (mkVar "A") (NormArr (mkVar "B") (mkVar "B")))
@@ -102,38 +105,38 @@ mlsFoldTy = NormImplProd "A" (NormUniv 0)
                    (NormArr (CollTy (ArrayTy (mkVar "A"))) (mkVar "B")))))
 
 
-mlsFold :: Normal  
+mlsFold :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsFold = liftFun5 f mlsFoldTy
-  where f :: Normal -> Normal -> Normal -> Normal -> Normal -> EvalM Normal
+  where f :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m -> Normal m -> Normal m -> Normal m -> Normal m -> m (Normal m)
         f _ b func z (CollVal (ArrayVal xs _)) =
           Vec.foldr (liftFold func) (pure z) xs
 
-        liftFold :: Normal -> Normal -> EvalM Normal -> EvalM Normal
+        liftFold :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m -> Normal m -> m (Normal m) -> m (Normal m)
         liftFold func val accum = do
           accum' <- accum
           eval (CApp (CApp (CNorm func) (CNorm val)) (CNorm accum'))
 
   
-mlsReduceTy :: Normal  
+mlsReduceTy :: Normal m
 mlsReduceTy = NormImplProd "A" (NormUniv 0)
               (NormImplProd "B" (NormUniv 0)
                 (NormArr (NormArr (mkVar "A") (NormArr (mkVar "B") (mkVar "B")))
                   (NormArr (mkVar "B")
                    (NormArr (CollTy (ArrayTy (mkVar "A"))) (mkVar "B")))))
 
-mlsReduce :: Normal  
+mlsReduce :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsReduce = liftFun5 f mlsReduceTy
-  where f :: Normal -> Normal -> Normal -> Normal -> Normal -> EvalM Normal
+  where f :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) =>Normal m -> Normal m -> Normal m -> Normal m -> Normal m -> m (Normal m)
         f _ b func z (CollVal (ArrayVal xs _)) =
           Vec.foldl (liftFold func) (pure z) xs
 
-        liftFold :: Normal -> EvalM Normal -> Normal -> EvalM Normal
+        liftFold :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m -> m (Normal m) -> Normal m -> m (Normal m)
         liftFold func accum val = do
           accum' <- accum
           eval (CApp (CApp (CNorm func) (CNorm val)) (CNorm accum'))
 
   
-mlsScanTy :: Normal  
+mlsScanTy :: Normal m
 mlsScanTy = NormImplProd "A" (NormUniv 0)
              (NormImplProd "B" (NormUniv 0)
                (NormArr (NormArr (mkVar "A") (NormArr (mkVar "B") (mkVar "B")))
@@ -141,41 +144,41 @@ mlsScanTy = NormImplProd "A" (NormUniv 0)
                    (NormArr (CollTy (ArrayTy (mkVar "A"))) (CollTy (ArrayTy (mkVar "B")))))))
 
 
-mlsScan :: Normal  
+mlsScan :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsScan = liftFun5 f mlsFoldTy
-  where f :: Normal -> Normal -> Normal -> Normal -> Normal -> EvalM Normal
+  where f :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) =>Normal m -> Normal m -> Normal m -> Normal m -> Normal m -> m (Normal m)
         f _ b func z (CollVal (ArrayVal xs _)) = do
           let vec = Vec.tail $ Vec.scanl (liftScan func) (pure z) xs 
           res' <- unfoldrM extract vec
           pure $ CollVal $ ArrayVal res' b
 
-        liftScan :: Normal -> EvalM Normal -> Normal -> EvalM Normal
+        liftScan :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m -> m (Normal m) -> Normal m -> m (Normal m)
         liftScan func accum val = do
           accum' <- accum
           eval (CApp (CApp (CNorm func) (CNorm accum')) (CNorm val))
 
-        extract :: Vector (EvalM Normal) -> EvalM (Maybe (Normal, Vector (EvalM Normal)))
+        extract :: Applicative m => Vector (m (Normal m)) -> m (Maybe (Normal m, Vector (m (Normal m))))
         extract vec = case uncons vec of
           Just (mnd, tail) -> fmap (\val -> Just (val, tail)) mnd
           Nothing -> pure Nothing
 
    
-mlsCatTy :: Normal  
+mlsCatTy :: Normal m
 mlsCatTy = NormImplProd "A" (NormUniv 0)
              (NormArr (CollTy (ArrayTy (mkVar "A")))
                (NormArr (CollTy (ArrayTy (mkVar "A")))
                  (CollTy (ArrayTy (mkVar "A")))))
 
 
-mlsCat :: Normal  
+mlsCat :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsCat = liftFun3 f mlsCatTy
-  where f :: Normal -> Normal -> Normal -> EvalM Normal
+  where f :: Applicative m => Normal m -> Normal m -> Normal m -> m (Normal m)
         f a (CollVal (ArrayVal xs _)) (CollVal (ArrayVal ys _)) = do
           pure $ CollVal $ ArrayVal (xs <> ys) a
   
 
 
-arraySignature :: Normal
+arraySignature :: Normal m
 arraySignature = NormSig
                  [ ("Array", mlsArrTy)
                  , ("Ɩ", mlsIndicesOfTy)
@@ -196,7 +199,7 @@ arraySignature = NormSig
                  
                                 
 
-arrayStructure :: Normal
+arrayStructure :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 arrayStructure = NormSct (toEmpty
                  [ ("Array", mlsArr)
                  , ("Ɩ", mlsIndicesOf)

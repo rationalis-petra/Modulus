@@ -1,7 +1,9 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module Syntax.Utils where
 
 import Data
-import Control.Monad.Except (Except, throwError, catchError)
+import Control.Monad.Except (MonadError, throwError, catchError)
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -49,7 +51,7 @@ restrict ((k, v) : tail) sig =
 
   
 
-typeVal :: Normal -> Except String Normal
+typeVal :: (MonadError String m) => Normal n -> m (Normal n)
 typeVal (PrimType e) = pure $ NormUniv 0
 typeVal (PrimVal e) = pure (PrimType (typePrim e))
   where
@@ -112,7 +114,7 @@ class Expression a where
   
 
 -- TODO: should type annotations be included in free???
-instance Expression (Normal' m) where 
+instance Expression (Normal m) where 
   free (Builtin _ _) = Set.empty
   free (PrimType  _) = Set.empty
   free (NormUniv  _) = Set.empty
@@ -175,7 +177,7 @@ instance Expression (Normal' m) where
                 (field, rename s1 s2 val):renameFields fields
 
 
-instance Expression (Neutral' m) where
+instance Expression (Neutral m) where
   free (NeuVar var ty) = Set.insert var (free ty)
   free (NeuApp l r) = (free l) <> (free r)
   free (NeuDot sig field) = (free sig)
@@ -194,7 +196,7 @@ instance Expression (Neutral' m) where
         NeuVar var (rename s1 s2 ty)
     (NeuApp l r) -> NeuApp (rename s1 s2 l) (rename s1 s2 r)
 
-patVars :: Pattern -> Set.Set String
+patVars :: Pattern m -> Set.Set String
 patVars WildCard = Set.empty
 patVars (VarBind sym _) = Set.singleton sym
 patVars (MatchInduct id1 id2 subpats) = foldr Set.union Set.empty (map patVars subpats)
@@ -209,19 +211,19 @@ freshen set str =
   else
     str
 
-tyHead :: Normal -> EvalM Normal
+tyHead :: (MonadError String m) => Normal m -> m (Normal m)
 tyHead (NormArr l r) = pure l
 tyHead (NormProd sym a b) = pure a
 tyHead (NormImplProd sym a b) = pure a
 tyHead hd = throwError ("can't get type tail of " <> show hd)
 
-tyTail :: Normal -> EvalM Normal
+tyTail :: (MonadError String m) => Normal m -> m (Normal m)
 tyTail (NormArr l r) = pure r
 tyTail (NormProd sym a b) = pure b
 tyTail (NormImplProd sym a b) = pure b
 tyTail hd = throwError ("can't get type tail of " <> show hd)
 
-isFncType :: Normal -> Bool
+isFncType :: Normal m -> Bool
 isFncType (NormArr _ _) = True
 isFncType (NormProd _ _ _) = True
 isFncType (NormImplProd _ _ _) = True

@@ -1,69 +1,79 @@
+{-# LANGUAGE FlexibleContexts #-}
 module Interpret.Lib.Monad.IO (ioMonadStructure, ioMonadSignature) where
 
+import Control.Monad.Reader (MonadReader, local, ask)
+import Control.Monad.State  (MonadState)
+import Control.Monad.Except (MonadError, throwError)
+
 import Data
-import Interpret.EvalM (ask, get, put, local, throwError)
-import Interpret.Eval (eval, evalToEither, liftFun, liftFun2, liftFun4, liftFunL4)
+import Interpret.Eval (eval, liftFun, liftFun2, liftFun4, liftFunL4)
 
 mkVar s = (Neu (NeuVar s (NormUniv 0)) (NormUniv 0))
 
-getAction :: EvalM Normal -> EvalM (IEThread EvalM)
+getAction :: MonadError String m => m (Normal m) -> m (IEThread m)
 getAction n = n >>= f
   where 
     f (CollVal (IOAction t _)) = pure t
     f _ = throwError "bad argument to bind" 
+
         
-ioPureTy :: Normal
+ioPureTy :: Normal m
 ioPureTy = NormImplProd "A" (NormUniv 0)
              (NormArr (mkVar "A")
                (CollTy (IOMonadTy (mkVar "A"))))
 
-ioPure :: Normal
+
+ioPure :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 ioPure = liftFun2 f ioPureTy
-  where f :: Normal -> Normal -> EvalM Normal
+  where f :: (Applicative m) => Normal m -> Normal m -> m (Normal m)
         f _ v = pure $ CollVal $ IOAction (Pure . pure $v) ioPureTy
 
 -- Bind :: {A B} → M A → (A → M B) → M B
-ioBindTy :: Normal
+ioBindTy :: Normal m
 ioBindTy = NormImplProd "A" (NormUniv 0)
             (NormImplProd "B" (NormUniv 0)
               (NormArr (CollTy (IOMonadTy (mkVar "A")))
                 (NormArr (NormArr (mkVar "A") (CollTy (IOMonadTy (mkVar "B"))))
                  (CollTy (IOMonadTy (mkVar "B"))))))
-ioBind :: Normal
+
+
+ioBind :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 ioBind = liftFunL4 f ioBindTy
-  where f :: EvalM Normal -> EvalM Normal -> EvalM Normal -> EvalM Normal -> EvalM Normal
+  where f :: (MonadReader (Environment m) m, MonadError String m) => m (Normal m) -> m (Normal m) -> m (Normal m) -> m (Normal m) -> m (Normal m)
         f a b monad func = do
           env <- ask
           a' <- a
           b' <- b
           pure $ CollVal $ IOAction
-            (Bind (local env $ getAction monad) (local env func))
+            (Bind (local (const env) $ getAction monad) (local (const env) func))
             (CollTy (IOMonadTy b'))
 
 -- Seq :: {A B} → M A → M B → M B
-ioSeqTy :: Normal
+ioSeqTy :: Normal m
 ioSeqTy = NormImplProd "A" (NormUniv 0)
             (NormImplProd "B" (NormUniv 0)
               (NormArr (CollTy (IOMonadTy (mkVar "A")))
                 (NormArr (CollTy (IOMonadTy (mkVar "B")))
                   (CollTy (IOMonadTy (mkVar "B"))))))
-ioSeq :: Normal
+
+  
+ioSeq :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 ioSeq = liftFunL4 f ioSeqTy
-  where f :: EvalM Normal -> EvalM Normal -> EvalM Normal -> EvalM Normal -> EvalM Normal
+  where f :: (MonadReader (Environment m) m, MonadError String m) => m (Normal m) -> m (Normal m) -> m (Normal m) -> m (Normal m) -> m (Normal m)
         f a b monad1 monad2 = do
           env <- ask
           a' <- a
           b' <- b
-          pure $ CollVal $ IOAction (Seq (local env $ getAction monad1)
-                                         (local env $ getAction monad2))
+          pure $ CollVal $ IOAction (Seq (local (const env) $ getAction monad1)
+                                         (local (const env) $ getAction monad2))
                                     (CollTy (IOMonadTy b'))
 
-ioTyCtor :: Normal   
+ioTyCtor :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 ioTyCtor = liftFun f (NormArr (NormUniv 0) (NormUniv 0))
-  where f :: Normal -> EvalM Normal
+  where f :: (Applicative m) => Normal m -> m (Normal m)
         f ty = pure . CollTy . IOMonadTy $ ty
   
-ioMonadSignature :: Normal
+ioMonadSignature :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 ioMonadSignature = NormSig
   [ ("IO", (NormArr (NormUniv 0) (NormUniv 0)))
   , ("pure", ioPureTy)
@@ -71,7 +81,7 @@ ioMonadSignature = NormSig
   , (">>", ioSeqTy)
   ] 
 
-ioMonadStructure :: Normal
+ioMonadStructure :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 ioMonadStructure = NormSct (toEmpty
                    [ ("IO", ioTyCtor)
                    , ("pure", ioPure)

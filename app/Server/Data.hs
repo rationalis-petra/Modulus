@@ -12,13 +12,13 @@ data ModuleHeader = ModuleHeader { _imports :: [String],
                                    _args    :: [String],
                                    _exports :: [String] }
 
-data Module = Module { _vals :: [(String, Normal)],
-                       _types :: [(String, Normal)],
+data Module m = Module { _vals :: [(String, Normal m)],
+                       _types :: [(String, Normal m)],
                        _header :: ModuleHeader,
-                       _sourceCore :: [Definition],
+                       _sourceCore :: [Definition m],
                        _sourceString :: Text  }
 
-instance Show Module where    
+instance Show (Module m) where    
   show Module { _vals=vals } = showVals vals
     where
       showVals [] = ""
@@ -32,14 +32,14 @@ emptyTree :: DTree a b
 emptyTree = Node Map.empty Nothing
 
 type RawTree = DTree String Text
-type ModuleTree = DTree String Module
+type ModuleTree m = DTree String (Module m)
 
 
 
 
-data IState = IState { _progState   :: ProgState,
-                       _environment :: Environment,
-                       _modules     :: Either RawTree ModuleTree }
+data IState m = IState { _progState   :: ProgState m,
+                         _environment :: Environment m,
+                         _modules     :: Either RawTree (ModuleTree m) }
 
 $(makeLenses ''IState)
 $(makeLenses ''Module)

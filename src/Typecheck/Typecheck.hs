@@ -1,22 +1,23 @@
+{-# LANGUAGE FlexibleContexts #-}
 module Typecheck.Typecheck where
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Control.Monad.Except (runExcept)
-import Control.Monad.State 
+
+import Control.Monad.Except (MonadError, throwError)
+import Control.Monad.State (MonadState)
+import Control.Monad.Reader (MonadReader, local)
 
 import Data (PrimType(..),
-             Normal,
-             Normal'(..),
-             Neutral,
-             Neutral'(..),
+             Normal(..),
+             Neutral(..),
              Environment,
-             EvalM,
+             ProgState,
              var_counter)
 import Syntax.Core(Core(..))
 import Syntax.TIntermediate
 
-import qualified Control.Monad.Except as Except
+
 import qualified Interpret.Environment as Env
 import qualified Syntax.Conversions as Conv 
 import Interpret.EvalM
@@ -26,8 +27,8 @@ import Syntax.Utils (tyHead, tyTail, typeVal, free, getField, mkVar)
 import Typecheck.Constrain
 
 
-typeCheckTop :: TIntTop TIntermediate' -> Environment
-             -> EvalM (Either (TIntTop Normal, Normal) (TIntTop Normal))
+typeCheckTop :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => TIntTop m TIntermediate' -> Environment m
+             -> m (Either (TIntTop m Normal, Normal m) (TIntTop m Normal))
 typeCheckTop (TExpr e) ctx = do
       (expr, ty, subst) <-  typeCheck e ctx
       -- (expr', ty') <- buildDepFn expr ty
@@ -35,7 +36,6 @@ typeCheckTop (TExpr e) ctx = do
 typeCheckTop (TAnnotation sym bdy) ctx = do
       (bdy', ty, subst) <- typeCheck bdy ctx
       pure $ Right $ (TAnnotation sym bdy')
-
 typeCheckTop (TDefinition def) ctx = 
   case def of 
     TSingleDef name expr Nothing -> do
@@ -80,8 +80,8 @@ typeCheckTop (TDefinition def) ctx =
       pure $ Right $ TDefinition $ TInductDef sym id params' indCtor alts'
 
       where
-        processAlts :: [(String, Int, TIntermediate')] -> [(String, Normal)] -> Environment
-                    -> EvalM [(String, Int, Normal)]
+        processAlts :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => [(String, Int, TIntermediate' m)] -> [(String, Normal m)] -> Environment m
+                    -> m [(String, Int, Normal m)]
         processAlts [] params ctx = pure []
         processAlts ((sym, id, (TIntermediate' ty)) : alts) ps ctx = do
           -- TODO: check for well-formedness!!
@@ -93,7 +93,7 @@ typeCheckTop (TDefinition def) ctx =
             captureParams [] ty = ty
             captureParams ((sym, ty) : ps) tl = NormImplProd sym ty (captureParams ps tl)
 
-        updateFromParams :: [(String, TIntermediate')] -> Environment -> EvalM (Environment, [(String, Normal)])
+        updateFromParams :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => [(String, TIntermediate' m)] -> Environment m -> m (Environment m, [(String, Normal m)])
         updateFromParams [] ctx = pure (ctx, [])
         updateFromParams ((sym, TIntermediate' ty) : args) ctx = do
           ty' <- evalTIntermediate ty ctx
@@ -101,7 +101,7 @@ typeCheckTop (TDefinition def) ctx =
                              (Env.insert sym (Neu (NeuVar sym ty') ty') ty' ctx)
           pure (Env.insert sym (Neu (NeuVar sym ty') ty') ty' ctx', ((sym, ty') : args'))
 
-        readIndex :: Normal -> EvalM [(String, Normal)]
+        readIndex :: (MonadState (ProgState m) m, MonadError String m) => Normal m -> m [(String, Normal m)]
         readIndex (NormUniv n) = pure []
         readIndex (NormProd sym a b) = do 
           tl  <- readIndex b
@@ -114,9 +114,10 @@ typeCheckTop (TDefinition def) ctx =
 
         -- take first the parameters, then and the index, along with the index's type.  
         -- return a constructor for the type, and the type of the constructor
-        mkIndexTy :: [(String, Normal)] -> [(String, Normal)] -> Normal -> Int -> EvalM (Normal, Normal)
+        mkIndexTy :: Monad m => [(String, Normal m)] -> [(String, Normal m)] -> Normal m -> Int -> m (Normal m, Normal m)
         mkIndexTy params index ty id = mkIndexTy' params index (ty, id) []
-        mkIndexTy' :: [(String, Normal)] -> [(String, Normal)] -> (Normal, Int) -> [(String, Normal)] -> EvalM (Normal, Normal) 
+
+        mkIndexTy' :: Monad m => [(String, Normal m)] -> [(String, Normal m)] -> (Normal m, Int) -> [(String, Normal m)] -> m (Normal m, Normal m) 
         mkIndexTy' [] [] (ty, id) args = do 
           pure (NormIType sym id (reverse (map (\(var, ty) -> Neu (NeuVar var ty) ty) args)), ty)
 
@@ -141,8 +142,9 @@ typeCheckTop (TDefinition def) ctx =
       pure $ Right $ TDefinition $ TCoinductDef sym id params' indCtor alts'
 
       where
-        processAlts :: [(String, Int, TIntermediate')] -> [(String, Normal)] -> Environment
-                    -> EvalM [(String, Int, Normal)]
+        processAlts :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) =>
+                       [(String, Int, TIntermediate' m)] -> [(String, Normal m)] -> Environment m
+                       -> m [(String, Int, Normal m)]
         processAlts [] params ctx = pure []
         processAlts ((sym, id, (TIntermediate' ty)) : alts) ps ctx = do
           -- TODO: check for well-formedness!!
@@ -154,7 +156,7 @@ typeCheckTop (TDefinition def) ctx =
             captureParams [] ty = ty
             captureParams ((sym, ty) : ps) tl = NormImplProd sym ty (captureParams ps tl)
 
-        updateFromParams :: [(String, TIntermediate')] -> Environment -> EvalM (Environment, [(String, Normal)])
+        updateFromParams :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => [(String, TIntermediate' m)] -> Environment m -> m (Environment m, [(String, Normal m)])
         updateFromParams [] ctx = pure (ctx, [])
         updateFromParams ((sym, TIntermediate' ty) : args) ctx = do
           ty' <- evalTIntermediate ty ctx
@@ -162,7 +164,7 @@ typeCheckTop (TDefinition def) ctx =
                              (Env.insert sym (Neu (NeuVar sym ty') ty') ty' ctx)
           pure (Env.insert sym (Neu (NeuVar sym ty') ty') ty' ctx', ((sym, ty') : args'))
 
-        readIndex :: Normal -> EvalM [(String, Normal)]
+        readIndex :: (MonadState (ProgState m) m, MonadError String m) => Normal m -> m [(String, Normal m)]
         readIndex (NormUniv n) = pure []
         readIndex (NormProd sym a b) = do 
           tl  <- readIndex b
@@ -175,26 +177,25 @@ typeCheckTop (TDefinition def) ctx =
 
         -- take first the parameters, then and the index, along with the index's type.  
         -- return a constructor for the type, and the type of the constructor
-        mkIndexTy :: [(String, Normal)] -> [(String, Normal)] -> Normal -> Int -> EvalM (Normal, Normal)
+        mkIndexTy :: Monad m => [(String, Normal m)] -> [(String, Normal m)] -> Normal m -> Int -> m (Normal m, Normal m)
         mkIndexTy params index ty id = mkIndexTy' params index (ty, id) []
-        mkIndexTy' :: [(String, Normal)] -> [(String, Normal)] -> (Normal, Int) -> [(String, Normal)] -> EvalM (Normal, Normal) 
+
+        mkIndexTy' :: Monad m => [(String, Normal m)] -> [(String, Normal m)] -> (Normal m, Int) -> [(String, Normal m)] -> m (Normal m, Normal m) 
         mkIndexTy' [] [] (ty, id) args = do 
           pure (NormIType sym id (reverse (map (\(var, ty) -> Neu (NeuVar var ty) ty) args)), ty)
-
         mkIndexTy' ((sym, ty) : params) index body args = do
           (ctor, ctorty) <- mkIndexTy' params index body ((sym, ty) : args)
           let fty = NormProd sym ty ctorty
           pure $ (NormAbs sym ctor fty, fty)
-
         mkIndexTy' [] ((sym, ty) : ids) index args = do
           (ctor, ctorty) <- mkIndexTy' [] ids index ((sym, ty) : args)
           pure $ (NormAbs sym ctor ctorty, ctorty)
           
 
-typeCheck :: TIntermediate TIntermediate' -> Environment -> EvalM (TIntermediate Normal, Normal, Subst)
+typeCheck :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => TIntermediate m TIntermediate' -> Environment m -> m (TIntermediate m Normal, Normal m, Subst m)
 typeCheck expr env = case expr of
   (TValue v) -> do
-    t <- liftExcept (typeVal v)
+    t <- typeVal v
     pure (TValue v, t, nosubst)
 
   (TSymbol s) -> do
@@ -253,8 +254,8 @@ typeCheck expr env = case expr of
 
 
                   -- lhs/ty  rhs/ty     rhs
-      deriveFn :: Normal -> Normal -> TIntermediate Normal
-               -> EvalM ([(Bool, TIntermediate Normal)], [(Normal, String)], Subst, Normal)
+      -- deriveFn :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) =>
+      --             Normal m -> Normal m -> TIntermediate m Normal -> m ([(Bool, TIntermediate m Normal)], [(Normal m, String)], Subst m, Normal m)
       deriveFn (NormImplProd var a t2) tr r = do
         (args, unbnd, subst, rettype) <- deriveFn t2 tr r
         case findStrSubst var subst of 
@@ -278,16 +279,18 @@ typeCheck expr env = case expr of
         -- else
         pure ([(False, r)], [], subst, var')
 
-      mkFnlFn :: [(Bool, TIntermediate Normal)] -> [(Normal, String)] -> TIntermediate Normal -> Normal
-              -> (TIntermediate Normal, Normal)
+      mkFnlFn :: [(Bool, TIntermediate m Normal)] -> [(Normal m, String)] -> TIntermediate m Normal -> Normal m
+              -> (TIntermediate m Normal, Normal m)
       mkFnlFn args unbound bdy bodyty = (fnlfn, fnlty)
         where
-          fnlfn :: TIntermediate Normal
+          --fnlfn :: TIntermediate m Normal
           fnlfn = if (null args)
             then
               (mkbdy [] bdy)
             else
               TLambda (map (\(ty, s) -> (BoundArg s ty, True)) unbound) (mkbdy args bdy) (Just bodyty) 
+
+          mkbdy :: [(Bool, TIntermediate m Normal)] -> TIntermediate m Normal -> TIntermediate m Normal
           mkbdy [] bdy = bdy
           mkbdy ((implicit, term):xs) bdy =
             if implicit then
@@ -297,12 +300,13 @@ typeCheck expr env = case expr of
 
           -- justification for empty environment: the "inner" (bodyty) should be
           -- an application of the term to all unbound type variables, *and* 
-          fnlty :: Normal
+          --fnlty :: Normal m
           fnlty =
             case unbound of 
               [] -> bodyty -- TODO: eval bodyty if empty
               ((ty, var) : xs) -> NormImplProd var ty (mkFnlBdy xs bodyty)
-          mkFnlBdy :: [(Normal, String)] -> Normal -> Normal
+
+          mkFnlBdy :: [(Normal m, String)] -> Normal m -> Normal m
           mkFnlBdy [] ret = ret
           mkFnlBdy ((ty, var) : xs) ret = NormImplProd var ty (mkFnlBdy xs ret) 
           
@@ -329,7 +333,7 @@ typeCheck expr env = case expr of
          pure (fnl_lambda, fnlTy, fnlsubst)
 
      where 
-       buildFnType :: [(TArg Normal, Bool)] -> Subst -> Normal -> EvalM Normal 
+       buildFnType :: MonadError String m => [(TArg m Normal, Bool)] -> Subst m -> Normal m -> m (Normal m) 
        buildFnType [] _ bodyty = pure bodyty
        -- TODO: consider substitutions!
        buildFnType ((ty, bl):tys) subst bodyty = do
@@ -352,13 +356,13 @@ typeCheck expr env = case expr of
 
        -- fixArgs will take a list of Typed arguments, and convert any
        -- inference arguments to string arguments
-       fixArgs :: [(TArg Normal, Bool)] -> Subst -> ([(TArg Normal, Bool)], Subst)
+       fixArgs :: [(TArg m Normal, Bool)] -> Subst m -> ([(TArg m Normal, Bool)], Subst m)
        fixArgs args subst =
          let (args', subst', impl) = fixArgs' args subst
          in (map (\str -> (BoundArg str (NormUniv 0), True)) impl <> args', subst')
          
 
-       fixArgs' :: [(TArg Normal, Bool)] -> Subst -> ([(TArg Normal, Bool)], Subst, [String])
+       fixArgs' :: [(TArg m Normal, Bool)] -> Subst m -> ([(TArg m Normal, Bool)], Subst m, [String])
        fixArgs' [] subst = ([], subst, [])
        fixArgs' ((arg, isImpl) : args) subst =
          let (args', subst', impl) = fixArgs' args subst in
@@ -376,7 +380,7 @@ typeCheck expr env = case expr of
        -- ann args takes a type annotation and argument list, and will annotate
        -- the arguments based on the type
        -- TODO consider the inference status of an argument!
-       annArgs :: Normal -> [(TArg TIntermediate', Bool)] -> EvalM ([(TArg TIntermediate', Bool)], Normal)
+       annArgs :: MonadError String m => Normal m -> [(TArg m TIntermediate', Bool)] -> m ([(TArg m TIntermediate', Bool)], Normal m)
        annArgs ret [] = pure ([], ret)
        annArgs ty ((arg, bl) : args) = case arg of 
          InfArg str id -> do
@@ -430,8 +434,8 @@ typeCheck expr env = case expr of
     pure (TIF cond'' e1'' e2'' (Just fnlTy), fnlTy, s4)
 
   (TStructure defs Nothing) -> do  
-    let foldDefs :: [TDefinition TIntermediate'] -> Environment
-                 -> EvalM ([TDefinition Normal], [(String, Normal)], Subst)
+    let foldDefs :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => [TDefinition m TIntermediate'] -> Environment m
+                 -> m ([TDefinition m Normal], [(String, Normal m)], Subst m)
         foldDefs [] _ = pure ([], [], nosubst)
         foldDefs (def : defs) env = do
           (def', deflist, subst) <- typeCheckDef def env
@@ -446,8 +450,8 @@ typeCheck expr env = case expr of
     pure (TStructure defs' (Just (NormSig fields)), NormSig fields, subst)
 
   (TSignature defs) -> do  
-    let foldDefs :: [TDefinition TIntermediate'] -> Environment
-                 -> EvalM ([TDefinition Normal], [(String, Normal)], Subst)
+    let foldDefs :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => [TDefinition m TIntermediate'] -> Environment m
+                 -> m ([TDefinition m Normal], [(String, Normal m)], Subst m)
         foldDefs [] _ = pure ([], [], nosubst)
         foldDefs (def : defs) env = do
           (def', deflist, subst) <- typeCheckDef def env
@@ -476,14 +480,13 @@ typeCheck expr env = case expr of
       -- Check Patterns: take a list of patterns as input, along with the
       -- matching type and return type, to be unified with
       -- return a pattern, the return type of that pattern and the required substituion
-      checkPatterns :: [(TPattern TIntermediate', TIntermediate TIntermediate')] -> Normal -> Normal
-                    -> EvalM ([(TPattern Normal, TIntermediate Normal)], Subst)
+      -- checkPatterns :: [(TPattern m TIntermediate', TIntermediate m TIntermediate')] -> Normal m -> Normal m
+      --               -> m ([(TPattern m Normal, TIntermediate m Normal)], Subst m)
       checkPatterns [] _ _ = pure ([], nosubst)
       checkPatterns ((p, e) : ps) matchty retty = do
         -- an updated pattern, and the type thereof  
         (p', matchty', envUpd) <- getPatternType p
         
-  
         let env' = foldr (\(sym, ty) env -> Env.insert sym (Neu (NeuVar sym ty) ty) ty env) env envUpd
         (e', eret, esubst) <- typeCheck e env'
 
@@ -508,7 +511,7 @@ typeCheck expr env = case expr of
       -- 2. The value of the type to be matched against
       -- 3. A list of bindings of strings to types 
         
-      getPatternType :: TPattern TIntermediate' -> EvalM (TPattern Normal, Normal, [(String, Normal)])
+      --getPatternType :: TPattern m TIntermediate' -> m (TPattern m Normal, Normal m, [(String, Normal m)])
       getPatternType TWildPat = do
         ty <- freshVar
         pure (TWildPat, ty, [])
@@ -533,7 +536,7 @@ typeCheck expr env = case expr of
         retty <- foldTyApp strip ty' norms
         pure $ (TBuiltinMatch fnc strip ty' subpatterns', retty, vars)
         where 
-          foldTyApp :: Int -> Normal -> [Normal] -> EvalM Normal
+          foldTyApp :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Int -> Normal m -> [Normal m] -> m (Normal m)
           foldTyApp 0 ty [] = pure ty
           foldTyApp 0 ty (n : ns) = do
             ty' <- Eval.tyApp ty n
@@ -543,7 +546,7 @@ typeCheck expr env = case expr of
             pure $ NormImplProd sym a b'
 
       -- The secondary version takes in a list of types to constrain against
-      getPatternType' :: (TPattern TIntermediate', Normal) -> EvalM (TPattern Normal, Normal, [(String, Normal)]) 
+      getPatternType' :: Applicative m => (TPattern m TIntermediate', Normal m) -> m (TPattern m Normal, Normal m, [(String, Normal m)]) 
       getPatternType' (TWildPat, ty) =
         pure (TWildPat, ty, [])
       getPatternType' (TBindPat sym Nothing, ty) = 
@@ -560,14 +563,13 @@ typeCheck expr env = case expr of
       -- Check Patterns: take a list of patterns as input, along with the
       -- matching type and return type, to be unified with
       -- return a pattern, the return type of that pattern and the required substituion
-      checkPatterns :: [(TCoPattern TIntermediate', TIntermediate TIntermediate')] -> Normal
-                    -> EvalM ([(TCoPattern Normal, TIntermediate Normal)], Subst)
+      -- checkPatterns :: [(TCoPattern m TIntermediate', TIntermediate m TIntermediate')] -> Normal m
+      --               -> m ([(TCoPattern m Normal, TIntermediate m Normal)], Subst m)
       checkPatterns [] _ = pure ([], nosubst)
       checkPatterns ((p, e) : ps) retTy = do
         -- an updated pattern, and the type thereof  
         (p', fncRet, retTy', envUpd) <- getPatternType p
         
-  
         let env' = foldr (\(sym, ty) env -> Env.insert sym (Neu (NeuVar sym ty) ty) ty env) env envUpd
         (e', bodyTy, esubst) <- typeCheck e env'
 
@@ -589,22 +591,22 @@ typeCheck expr env = case expr of
       -- Get the type of a single pattern, to be constrained against.
       -- Also, return a list of variables and their types
         
-      getPatternType :: TCoPattern TIntermediate' -> EvalM (TCoPattern Normal, Normal, Normal, [(String, Normal)]) 
+      --getPatternType :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => TCoPattern m TIntermediate' -> m (TCoPattern m Normal, Normal m, Normal m, [(String, Normal m)])
       getPatternType (TCoinductPat name indid altid strip (TIntermediate' altTy) subpatterns) = do 
         altTy' <- evalTIntermediate altTy env
         let types = getTypes (dropTypes strip altTy')
             fncRetTy = fnlType altTy'
             retTy = head types
             args = tail types
-        lst <- mapM getPatternType' (zip args subpatterns)
-        let (subpatterns', norms, vars) = foldr (\(s, n, v) (ss, ns, vs) -> (s:ss, n:ns, v <> vs)) ([], [], []) lst 
+            lst = map getPatternType' (zip args subpatterns)
+            (subpatterns', norms, vars) = foldr (\(s, n, v) (ss, ns, vs) -> (s:ss, n:ns, v <> vs)) ([], [], []) lst 
         pure $ (TCoinductPat name indid altid strip altTy' subpatterns', fncRetTy, retTy, vars)
 
       getPatternType _ = throwError "comatch requires coterm as top-level pattern"
         
-      getPatternType' :: (Normal, TCoPattern TIntermediate') -> EvalM (TCoPattern Normal, Normal, [(String, Normal)]) 
-      getPatternType' (ty, TCoWildPat) = pure (TCoWildPat, ty, [])
-      getPatternType' (ty, TCoBindPat sym Nothing) = pure (TCoBindPat sym (Just ty), ty, [(sym, ty)])
+      getPatternType' :: (Normal m, TCoPattern m TIntermediate') -> (TCoPattern m Normal, Normal m, [(String, Normal m)])
+      getPatternType' (ty, TCoWildPat) = (TCoWildPat, ty, [])
+      getPatternType' (ty, TCoBindPat sym Nothing) = (TCoBindPat sym (Just ty), ty, [(sym, ty)])
 
 
   
@@ -619,7 +621,7 @@ typeCheck expr env = case expr of
     throwError ("typecheck unimplemented for intermediate term " <> show other)
 
   where
-    updateFromArgs :: Environment -> [(TArg TIntermediate', Bool)] -> EvalM (Environment, [(TArg Normal, Bool)])
+    updateFromArgs :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Environment m -> [(TArg m TIntermediate', Bool)] -> m (Environment m, [(TArg m Normal, Bool)])
     updateFromArgs ctx [] = pure (ctx, [])
     updateFromArgs ctx ((arg, bl) : args) = do 
       case arg of
@@ -633,12 +635,11 @@ typeCheck expr env = case expr of
                                (InfArg str id, bl) : args')
 
 
-
   
 
-typeCheckDef :: TDefinition TIntermediate' -> Environment
-             -> EvalM (TDefinition Normal, [(String, Normal)], Subst)
-typeCheckDef (TSingleDef name body ty) ctx = do 
+typeCheckDef :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => TDefinition m TIntermediate' -> Environment m
+             -> m (TDefinition m Normal, [(String, Normal m)], Subst m)
+typeCheckDef (TSingleDef name body ty) ctx = do
   bnd <- case ty of 
     Nothing -> freshVar
     Just (TIntermediate' ty) -> evalTIntermediate ty ctx
@@ -651,11 +652,11 @@ typeCheckDef (TInductDef sym id params (TIntermediate' ty) alts) ctx = do
   ty' <- evalTIntermediate ty ctx
   index <- readIndex ty'
   (ctx', params') <- updateFromParams params ctx
-  (indCtor, indTy) <- mkIndexTy params' index ty' id
+  let (indCtor, indTy) = mkIndexTy params' index ty' id
   alts' <- processAlts alts params' (Env.insert sym indCtor indTy ctx')
 
   let defs = ((sym, indCtor) : mkAltDefs alts')
-      mkAltDefs :: [(String, Int, Normal)] -> [(String, Normal)]
+      mkAltDefs :: [(String, Int, Normal m)] -> [(String, Normal m)]
       mkAltDefs [] = []
       mkAltDefs ((sym, altid, ty) : alts) =
           let alt = NormIVal sym id altid (length params) [] ty
@@ -663,8 +664,8 @@ typeCheckDef (TInductDef sym id params (TIntermediate' ty) alts) ctx = do
           in ((sym, alt) : alts')
   pure $ (TInductDef sym id params' indCtor alts', defs, nosubst)
   where
-    processAlts :: [(String, Int, TIntermediate')] -> [(String, Normal)] -> Environment
-                -> EvalM [(String, Int, Normal)]
+    processAlts :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => [(String, Int, TIntermediate' m)] -> [(String, Normal m)] -> Environment m
+                -> m [(String, Int, Normal m)]
     processAlts [] params ctx = pure []
     processAlts ((sym, id, (TIntermediate' ty)) : alts) ps ctx = do
       -- TODO: check for well-formedness!!
@@ -676,14 +677,14 @@ typeCheckDef (TInductDef sym id params (TIntermediate' ty) alts) ctx = do
         captureParams [] ty = ty
         captureParams ((sym, ty) : ps) tl = NormImplProd sym ty (captureParams ps tl)
 
-    updateFromParams :: [(String, TIntermediate')] -> Environment -> EvalM (Environment, [(String, Normal)])
+    updateFromParams :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => [(String, TIntermediate' m)] -> Environment m -> m (Environment m, [(String, Normal m)])
     updateFromParams [] ctx = pure (ctx, [])
     updateFromParams ((sym, TIntermediate' ty) : args) ctx = do
       ty' <- evalTIntermediate ty ctx
       (ctx', args') <- updateFromParams args (Env.insert sym (Neu (NeuVar sym ty') ty') ty' ctx)
       pure (Env.insert sym (Neu (NeuVar sym ty') ty') ty' ctx', ((sym, ty') : args'))
 
-    readIndex :: Normal -> EvalM [(String, Normal)]
+    readIndex :: (MonadState (ProgState m) m, MonadError String m) => Normal m -> m [(String, Normal m)]
     readIndex (NormUniv n) = pure []
     readIndex (NormProd sym a b) = do 
       tl  <- readIndex b
@@ -696,30 +697,30 @@ typeCheckDef (TInductDef sym id params (TIntermediate' ty) alts) ctx = do
 
     -- take first the parameters, then and the index, along with the index's type.  
     -- return a constructor for the type, and the type of the constructor
-    mkIndexTy :: [(String, Normal)] -> [(String, Normal)] -> Normal -> Int -> EvalM (Normal, Normal)
+    mkIndexTy :: [(String, Normal m)] -> [(String, Normal m)] -> Normal m -> Int -> (Normal m, Normal m)
     mkIndexTy params index ty id = mkIndexTy' params index (ty, id) []
-    mkIndexTy' :: [(String, Normal)] -> [(String, Normal)] -> (Normal, Int) -> [(String, Normal)] -> EvalM (Normal, Normal) 
-    mkIndexTy' [] [] (ty, id) args = do 
-      pure (NormIType sym id (reverse (map (\(sym, ty) -> (Neu (NeuVar sym ty) ty)) args)), ty)
+    mkIndexTy' :: [(String, Normal m)] -> [(String, Normal m)] -> (Normal m, Int) -> [(String, Normal m)] -> (Normal m, Normal m) 
+    mkIndexTy' [] [] (ty, id) args = 
+      (NormIType sym id (reverse (map (\(sym, ty) -> (Neu (NeuVar sym ty) ty)) args)), ty)
 
     mkIndexTy' ((sym, ty) : params) index body args = do
-      (ctor, ctorty) <- mkIndexTy' params index body ((sym, ty) : args)
-      let fty = NormProd sym ty ctorty
-      pure $ (NormAbs sym ctor fty, fty)
+      let (ctor, ctorty) = mkIndexTy' params index body ((sym, ty) : args)
+          fty = NormProd sym ty ctorty
+        in (NormAbs sym ctor fty, fty)
 
     mkIndexTy' [] ((sym, ty) : ids) index args = do
-      (ctor, ctorty) <- mkIndexTy' [] ids index ((sym, ty) : args)
-      pure $ (NormAbs sym ctor ctorty, ctorty)
+      let (ctor, ctorty) = mkIndexTy' [] ids index ((sym, ty) : args)
+        in (NormAbs sym ctor ctorty, ctorty)
 
 
 typeCheckDef def _ = do
   throwError ("typeCheckDef not implemented for")
 
 
-annotate :: TIntTop TIntermediate' -> Normal -> Except.Except String (TIntTop TIntermediate')
+annotate :: MonadError String m => TIntTop m TIntermediate' -> Normal m -> m (TIntTop m TIntermediate')
 annotate (TDefinition (TSingleDef str val _)) ty =
   pure . TDefinition $ TSingleDef str val (Just $ TIntermediate' $ TValue ty)
-annotate _ _ = Except.throwError "annotation must be followed by definition"
+annotate _ _ = throwError "annotation must be followed by definition"
 
 
 
@@ -727,38 +728,27 @@ annotate _ _ = Except.throwError "annotation must be followed by definition"
 -- PRIVATE FUNCTIONS  
       
 -- Apply a term to a list of normal values
-mkApp :: TIntermediate Normal -> [Normal] -> TIntermediate Normal
+mkApp :: TIntermediate m Normal -> [Normal m] -> TIntermediate m Normal
 mkApp term [] = term
 mkApp term (v:vs) = mkApp (TApply term (TValue v)) vs
 
-tyApp :: Normal -> [Normal] -> EvalM Normal
+tyApp :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m -> [Normal m] -> m (Normal m)
 tyApp ty [] = pure ty
 tyApp (NormArr l r) (v:vs) = tyApp r vs
 tyApp (NormProd s a b) (v:vs) = Eval.normSubst (v, s) b >>= (\n -> tyApp n vs)
 tyApp (NormImplProd s a b) (v:vs) = Eval.normSubst (v, s) b >>= (\n -> tyApp n vs)
 
-  
-freshVar :: EvalM Normal  
-freshVar = do
-  id <- use var_counter 
-  var_counter += 1
-  pure (Neu (NeuVar ("#" <> show id) (NormUniv 0)) (NormUniv 0))
 
-
-evalTIntermediate :: TIntermediate TIntermediate' -> Environment -> EvalM Normal  
+evalTIntermediate :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => TIntermediate m TIntermediate' -> Environment m -> m (Normal m)  
 evalTIntermediate tint ctx = do 
   (checked, _, _) <- typeCheck tint ctx -- TODO: dodge??
-  c_term <- case runExcept (Conv.toCore checked) of 
-        Left err -> throwError err
-        Right val -> pure val
-  local ctx (Eval.eval c_term) 
+  c_term <- Conv.toCore checked
+  local (const ctx) (Eval.eval c_term) 
 
-evalNIntermediate :: TIntermediate Normal -> Environment -> EvalM Normal  
-evalNIntermediate tint ctx = do 
-  c_term <- case runExcept (Conv.toCore tint) of 
-        Left err -> throwError err
-        Right val -> pure val
-  local ctx (Eval.eval c_term) 
+evalNIntermediate :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => TIntermediate m Normal -> Environment m -> m (Normal m)  
+evalNIntermediate tint env = do 
+  c_term <- Conv.toCore tint
+  local (const env) (Eval.eval c_term) 
 
 getTypes (NormArr l r) = l : getTypes r
 getTypes (NormProd _ a b) = a : getTypes b

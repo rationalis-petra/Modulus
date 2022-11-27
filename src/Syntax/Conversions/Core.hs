@@ -1,43 +1,36 @@
+{-# LANGUAGE PolyKinds, FlexibleContexts #-}
 module Syntax.Conversions.Core where
 
-import Data(EvalM,
-            Pattern(..),
+import Data(Pattern(..),
             CoPattern(..),
-            Normal,
-            Normal'(..),
-            Neutral,
-            Neutral'(..))
+            Normal(..),
+            Neutral(..))
 import Syntax.Core
 import Syntax.Intermediate(Intermediate(..),
                            IDefinition(..),
                            IPattern(..),
                            IArg(..))
 
-import Interpret.EvalM (local, fresh_id, fresh_var, throwError)
 import Control.Monad.State (State, runState)
-import Control.Monad.Except (ExceptT, Except, runExceptT, runExcept)
-import qualified Control.Monad.Except as Except
+import Control.Monad.Except (MonadError, throwError)
 
 import qualified Interpret.Environment as Env
-import qualified Interpret.Eval as Eval
 import Syntax.TIntermediate
 import Syntax.Utils (typeVal)
-
-err = Except.throwError
   
-toTopCore :: TIntTop Normal -> Except String TopCore  
+toTopCore :: MonadError String m => TIntTop n Normal -> m (TopCore n)  
 toTopCore (TDefinition def) = TopDef <$> fromDef def
   where
     fromDef (TSingleDef name body (Just ty)) = do
       coreBody <- toCore body
       pure (SingleDef name coreBody ty)
-    fromDef (TSingleDef name body Nothing) = err "definitions must be typed"
+    fromDef (TSingleDef name body Nothing) = throwError "definitions must be typed"
 
     fromDef (TOpenDef body (Just ty)) = do
       coreBody <- toCore body
       let (NormSig sig) = ty
       pure (OpenDef coreBody sig)
-    fromDef (TOpenDef body Nothing) = err "definitions must be typed"
+    fromDef (TOpenDef body Nothing) = throwError "definitions must be typed"
 
     fromDef (TInductDef sym id params ctor alts) = do
       ctorty <- typeVal ctor
@@ -49,7 +42,7 @@ toTopCore (TExpr expr) = TopExpr <$> toCore expr
 toTopCore (TAnnotation sym term) = TopAnn sym <$> toCore term
 
 
-toCore :: TIntermediate Normal -> Except String Core  
+toCore :: MonadError String m => TIntermediate n Normal -> m (Core n)  
 toCore (TValue v) = pure (CNorm v)
 toCore (TSymbol s) = pure (CVar s)
 toCore (TAccess int field) = do
@@ -66,11 +59,11 @@ toCore (TImplApply t1 t2) = do
 toCore (TLambda args body lty) = do
   ty <- case lty of 
     Just ty -> pure ty
-    Nothing -> err "cannot convert untyped lambda to core!"
+    Nothing -> throwError "cannot convert untyped lambda to core!"
   mkLambdaTyVal args body ty
 
   where
-    mkLambdaTyVal :: [(TArg Normal, Bool)] -> TIntermediate Normal -> Normal -> Except String Core
+    mkLambdaTyVal :: MonadError String m => [(TArg n Normal, Bool)] -> TIntermediate n Normal -> Normal n -> m (Core n)
     mkLambdaTyVal [] body _ = toCore body
     mkLambdaTyVal (arg : args) body (NormArr l r) = do
       let arg' = getVar arg
@@ -84,10 +77,10 @@ toCore (TLambda args body lty) = do
       let arg' = getVar arg
       body' <- mkLambdaTyExpr args body r
       pure $ CAbs arg' body' (NormImplProd var l r)
-    mkLambdaTyVal _ _ ty = err ("mkLambdaTyVal failed: " <> show ty) 
+    mkLambdaTyVal _ _ ty = throwError ("mkLambdaTyVal failed: " <> show ty) 
 
 
-    mkLambdaTyExpr :: [(TArg Normal, Bool)] -> TIntermediate Normal -> Normal -> Except String Core
+    mkLambdaTyExpr :: MonadError String m => [(TArg n Normal, Bool)] -> TIntermediate n Normal -> Normal n -> m (Core n)
     mkLambdaTyExpr [] body _ = toCore body
     mkLambdaTyExpr (arg : args) body (NormArr l r) = do
       let arg' = getVar arg
@@ -102,7 +95,7 @@ toCore (TLambda args body lty) = do
       body' <- mkLambdaTyExpr args body r
       pure $ CAbs arg' body' (NormImplProd var l r)
 
-    getVar :: (TArg ty, Bool) -> String
+    getVar :: (TArg m ty, Bool) -> String
     getVar (BoundArg var _, _)  = var
     getVar (InfArg var _  , _)  = var
 
@@ -116,7 +109,7 @@ toCore (TProd (arg, bl) body) = do
         pure $ CProd var (CNorm ty) body'
     TWildCard ty ->
       if bl then
-        err "cannot have implicit arrow!"
+        throwError "cannot have implicit arrow!"
       else
         pure $ CArr (CNorm ty) body'
   
@@ -129,11 +122,11 @@ toCore (TStructure map (Just ty)) = do
     defToCore (TSingleDef nme bdy (Just ty)) = do
       bdy' <- toCore bdy
       pure (SingleDef nme bdy' ty)
-    defToCore (TSingleDef nme bdy Nothing) = err "definition not typed"
+    defToCore (TSingleDef nme bdy Nothing) = throwError "definition not typed"
     defToCore (TOpenDef bdy (Just ty)) = do
       sig <- case ty of 
         NormSig sm -> pure sm
-        _ -> err "open provided with non-module!"
+        _ -> throwError "open provided with non-module!"
       bdy' <- toCore bdy
       pure (OpenDef bdy' sig)
       
@@ -158,11 +151,11 @@ toCore (TSignature map) = do
     defToCore (TOpenDef bdy (Just ty)) = do
       sig <- case ty of 
         NormSig sm -> pure sm
-        _ -> err "open provided with non-module!"
+        _ -> throwError "open provided with non-module!"
       bdy' <- toCore bdy
       pure (OpenDef bdy' sig)
       
-    defToCore (TOpenDef bdy Nothing) = err "open not typed"
+    defToCore (TOpenDef bdy Nothing) = throwError "open not typed"
     -- defToCore (TVariantDef nme [String] Int [(String, Int, [Normal])]
     -- defToCore (TEffectDef  nme [String] Int [(String, Int, [Normal])]
 
@@ -184,7 +177,7 @@ toCore (TMatch term patterns (Just ty)) = do
       ps' <- toCoreCases ps
       pure ((p', e') : ps')
 
-    toCorePat :: TPattern Normal -> Except String Pattern
+    toCorePat :: MonadError String m => TPattern n Normal -> m (Pattern n)
     toCorePat TWildPat = pure WildCard
     toCorePat (TBindPat str (Just ty)) = pure (VarBind str ty)
     toCorePat (TIMatch id1 id2 _ ty pats) = do
@@ -206,7 +199,7 @@ toCore (TCoMatch patterns (Just ty)) = do
       ps' <- toCoreCases ps
       pure ((p', e') : ps')
 
-    toCorePat :: TCoPattern Normal -> Except String CoPattern
+    toCorePat :: MonadError String m => TCoPattern n Normal -> m (CoPattern n)
     toCorePat TCoWildPat = pure CoWildCard
     toCorePat (TCoBindPat str (Just ty)) = pure (CoVarBind str ty)
     toCorePat (TCoinductPat name id1 id2 _ ty pats) = do
@@ -216,4 +209,4 @@ toCore (TCoMatch patterns (Just ty)) = do
 
 toCore (TAdaptForeign lang lib imports (Just ty)) =
   pure $ CAdaptForeign lang lib imports
-toCore x = err ("toCore: unimplemented for " <> show x)
+toCore x = throwError ("toCore: unimplemented for " <> show x)

@@ -3,41 +3,41 @@ module Syntax.Core (Core(..),
                     Definition(..),
                    ) where
 
-import Data (Normal, Normal(..), CoPattern(..), Pattern(..))
+import Data (Normal(..), CoPattern(..), Pattern(..), Eval)
 
 
-data Core
-  = CNorm Normal                           -- Normalised value
-  | CVar String                            -- Variable
-  | CDot Core String                       -- Access a field from a struct/signature
-  | CArr Core Core                         -- Arrow Type (degenerate product)
-  | CProd String Core Core                 -- Dependent Product 
-  | CImplProd String Core Core             -- Dependent Product 
-  | CAbs String Core Normal                -- Function abstraction
-  | CApp Core Core                         -- Function application 
-  | CMAbs String Normal Core               -- Macro abstraction
-  | CLet [(String, Core)] Core Normal      -- Local binding
-  | CMatch Core [(Pattern, Core)] Normal   -- Pattern-Match
-  | CCoMatch [(CoPattern, Core)] Normal    -- Pattern-Comatch (for coinductive types)
+data Core m
+  = CNorm (Normal m)                                 -- Normalised value
+  | CVar String                                      -- Variable
+  | CDot (Core m) String                             -- Access a field from a struct/signature
+  | CArr (Core m) (Core m)                           -- Arrow Type (degenerate product)
+  | CProd String (Core m) (Core m)                   -- Dependent Product 
+  | CImplProd String (Core m) (Core m)               -- Dependent Product 
+  | CAbs String (Core m) (Normal m)                  -- Function abtraction
+  | CApp (Core m) (Core m)                           -- Function application 
+  | CMAbs String (Normal m) (Core m)                 -- Macro abstraction
+  | CLet [(String, Core m)] (Core m) (Normal m)      -- Local binding
+  | CMatch (Core m) [(Pattern m, Core m)] (Normal m) -- Pattern-Match
+  | CCoMatch [(CoPattern m, Core m)] (Normal m)      -- Pattern-Comatch (for coinductive types)
 
   -- TODO: remove this via lazy functions (induction?!)
-  | CIf Core Core Core Normal              -- Conditional 
-  | CSct [Definition] Normal               -- Structure Definition
-  | CSig [Definition]                      -- Signature Definition (similar to dependent sum)
+  | CIf (Core m) (Core m) (Core m) (Normal m)   -- Conditional 
+  | CSct [Definition m] (Normal m)              -- Structure Definition
+  | CSig [Definition m]                         -- Signature Definition (similar to dependent sum)
 
   -- TODO: plugin
   -- TODO: we want compile-time + run-time variants!
-  | CAdaptForeign String String [(String, String, Normal)]
+  | CAdaptForeign String String [(String, String, Normal m)]
   deriving Show
 
 
-data TopCore = TopDef Definition | TopExpr Core | TopAnn String Core
+data TopCore m = TopDef (Definition m) | TopExpr (Core m) | TopAnn String (Core m)
   deriving Show
 
 
-data Definition
-  = SingleDef String Core Normal
-  | InductDef   String Int [(String, Normal)] Normal Normal [(String, Int, Normal)] 
-  | CoinductDef String Int [(String, Normal)] Normal Normal [(String, Int, Normal)] 
-  | OpenDef Core [(String, Normal)]
+data Definition m
+  = SingleDef   String (Core m) (Normal m)
+  | InductDef   String Int [(String, Normal m)] (Normal m) (Normal m) [(String, Int, Normal m)] 
+  | CoinductDef String Int [(String, Normal m)] (Normal m) (Normal m) [(String, Int, Normal m)] 
+  | OpenDef (Core m) [(String, Normal m)]
   deriving Show

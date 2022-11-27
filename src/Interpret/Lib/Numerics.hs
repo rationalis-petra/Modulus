@@ -1,10 +1,14 @@
+{-# LANGUAGE FlexibleContexts #-}
 module Interpret.Lib.Numerics (numStructure, numSignature) where
 
 import qualified Data.Map as Map
+import Control.Monad.Reader (MonadReader)
+import Control.Monad.State (MonadState)
+import Control.Monad.Except (MonadError)
 
 import Data
 import Data.Text (pack)
-import Interpret.EvalM (throwError)
+import Interpret.EvalM
 import Interpret.Eval (liftFun, liftFun2)
 
 int_t = PrimType IntT
@@ -13,91 +17,91 @@ float_t = PrimType FloatT
 
 mkVar s = (Neu (NeuVar s (NormUniv 0)) (NormUniv 0))
 
-floatShow :: Normal  
+floatShow :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 floatShow = liftFun newf (NormArr float_t (PrimType StringT))
   where
-    newf :: Normal -> EvalM Normal
+    newf :: Applicative m => Normal m -> m (Normal m)
     newf (PrimVal (Float f)) = pure (PrimVal (String (pack (show f))))
 
 
-mkFloatUni :: (Float -> Float) -> Normal
+mkFloatUni :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => (Float -> Float) -> Normal m
 mkFloatUni f = 
   liftFun newf unifloat
   where
-    newf :: Normal -> EvalM Normal
+    newf :: Applicative m => Normal m -> m (Normal m)
     newf (PrimVal (Float f1)) = pure $ PrimVal $ Float $ f f1
 
 
-mkFloatOp :: (Float -> Float -> Float) -> Normal
+mkFloatOp :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => (Float -> Float -> Float) -> Normal m
 mkFloatOp f = 
   liftFun2 newf binfloat
   where
-    newf :: Normal -> Normal -> EvalM Normal
+    newf :: Applicative m => Normal m -> Normal m -> m (Normal m)
     newf (PrimVal (Float f1)) (PrimVal (Float f2)) =
       pure $ PrimVal $ Float $ f f1 f2
 
 
-mkFltCmp :: (Float -> Float -> Bool) -> Normal
+mkFltCmp :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => (Float -> Float -> Bool) -> Normal m
 mkFltCmp f = 
   liftFun2 newf floatCompare
   where
-    newf :: Normal -> Normal -> EvalM Normal
+    newf :: Applicative m => Normal m -> Normal m -> m (Normal m)
     newf (PrimVal (Float n1)) (PrimVal (Float n2)) =
       pure $ PrimVal $ Bool $ f n1 n2
 
 
-intShow :: Normal  
+intShow :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 intShow = liftFun newf (NormArr int_t (PrimType StringT))
   where
-    newf :: Normal -> EvalM Normal
+    newf :: Applicative m => Normal m -> m (Normal m)
     newf (PrimVal (Int n1)) = pure (PrimVal (String (pack (show n1))))
   
 
-mkIntUni :: (Integer -> Integer) -> Normal
+mkIntUni :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => (Integer -> Integer) -> Normal m
 mkIntUni f = 
   liftFun newf uniint
   where
-    newf :: Normal -> EvalM Normal
+    newf :: Applicative m => Normal m -> m (Normal m)
     newf (PrimVal (Int n1)) = pure $ PrimVal $ Int $ f n1
 
   
-mkIntOp :: (Integer -> Integer -> Integer) -> Normal
+mkIntOp :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => (Integer -> Integer -> Integer) -> Normal m
 mkIntOp f = 
   liftFun2 newf binint
   where
-    newf :: Normal -> Normal -> EvalM Normal
+    newf :: Applicative m => Normal m -> Normal m -> m (Normal m)
     newf (PrimVal (Int n1)) (PrimVal (Int n2)) =
       pure $ PrimVal $ Int $ f n1 n2
 
 
-mkCmpOp :: (Integer -> Integer -> Bool) -> Normal
+mkCmpOp :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => (Integer -> Integer -> Bool) -> Normal m
 mkCmpOp f = 
   liftFun2 newf intcompare
   where
-    newf :: Normal -> Normal -> EvalM Normal
+    newf :: Applicative m => Normal m -> Normal m -> m (Normal m)
     newf (PrimVal (Int n1)) (PrimVal (Int n2)) =
       pure $ PrimVal $ Bool $ f n1 n2
 
 
-mkBoolOp :: (Bool -> Bool -> Bool) -> Normal
+mkBoolOp :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => (Bool -> Bool -> Bool) -> Normal m
 mkBoolOp f = 
   liftFun2 newf binbool
   where
-    newf :: Normal -> Normal -> EvalM Normal
+    newf :: Applicative m => Normal m -> Normal m -> m (Normal m)
     newf (PrimVal (Bool b1)) (PrimVal (Bool b2)) =
       pure $ PrimVal $ Bool $ f b1 b2
 
 
-mkBoolSing :: (Bool -> Bool) -> Normal
+mkBoolSing :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => (Bool -> Bool) -> Normal m
 mkBoolSing f = 
   liftFun newf (NormArr bool_t bool_t)
   where
-    newf :: Normal -> EvalM Normal
+    newf :: Applicative m => Normal m -> m (Normal m)
     newf (PrimVal (Bool b)) =
       pure $ PrimVal $ Bool $ f b
 
 
-intSignature :: Normal
+intSignature :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 intSignature =
   let binIntTy = NormArr (mkVar "T") (NormArr (mkVar "T") (mkVar "T"))
       binIntCmp = NormArr (mkVar "T") (NormArr (mkVar "T") (PrimType BoolT))
@@ -126,7 +130,7 @@ intSignature =
             , ("≥", binIntCmp)
             ]
 
-intStructure :: [(String, Normal)]
+intStructure :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => [(String, Normal m)]
 intStructure = 
   [ ("T", int_t)
   , ("ℤ", int_t)
@@ -152,7 +156,7 @@ intStructure =
   , ("≠", mkCmpOp (/=))
   ]
 
-floatSignature :: Normal
+floatSignature :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 floatSignature =
   let binFltTy = NormArr (mkVar "T") (NormArr (mkVar "T") (mkVar "T"))
       binFltCmp = NormArr (mkVar "T") (NormArr (mkVar "T") (PrimType BoolT))
@@ -178,7 +182,7 @@ floatSignature =
             ,  ("≥", binFltCmp)
             ]
 
-floatStructure :: [(String, Normal)] 
+floatStructure :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => [(String, Normal m)] 
 floatStructure =
    [ ("T",     float_t)
    , ("Float", float_t)
@@ -204,7 +208,7 @@ floatStructure =
    ]
 
   
-boolFields :: [(String, Normal)] 
+boolFields :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => [(String, Normal m)] 
 boolFields =
    [ ("∧", mkBoolOp (&&))
    , ("∨", mkBoolOp (||))
@@ -212,18 +216,17 @@ boolFields =
    , ("not", mkBoolSing not)
    ]
 
-numSignature :: Normal  
+numSignature :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 numSignature = NormSig
                [ ("int", intSignature)
                , ("float", floatSignature)
                ]
 
-numStructure :: Normal
+numStructure :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 numStructure = NormSct (toEmpty
                [ ("int", NormSct (toEmpty intStructure) intSignature)
                , ("float", NormSct (toEmpty floatStructure) floatSignature)
                ]) numSignature
-
   
 
 binfloat = NormArr float_t (NormArr float_t float_t)

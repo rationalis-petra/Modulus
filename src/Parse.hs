@@ -1,10 +1,10 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, FlexibleContexts #-}
 module Parse where
 
-import Data
--- import Interpret.Eval (Normal'(..), Normal)
+import Control.Monad.Reader (MonadReader)
+import Control.Monad.State  (MonadState)
+import Control.Monad.Except (MonadError)
 
-  
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
@@ -13,6 +13,7 @@ import Data.Text (Text, pack, unpack)
 import Data.Void
 import qualified Data.Map as Map
 
+import Data
 import Interpret.Lib.Data.String (mlsConcat, implShow)
 
 type Parser = Parsec Void Text
@@ -55,13 +56,13 @@ symbol = L.symbol sc
 many1 :: Parser a -> Parser [a]
 many1 p = (:) <$> p <*> (many p)
   
-pSym :: Parser Normal
+pSym :: Parser (Normal m)
 pSym = (lexeme $ Symbol <$> pSymStr) <|> (try (between (symbol "(") (symbol ")") pSpecial))
   
 pSymStr = (:) <$> (letterChar <|> char '_') <*> many (alphaNumChar <|> char '_' <|> char '-')
 
 
-pSpecial :: Parser Normal
+pSpecial :: Parser (Normal m)
 pSpecial = (lexeme $ Symbol <$> pSpecialStr)
   <|> (try (between (symbol "`") (symbol "`") pSym)) 
 
@@ -73,15 +74,15 @@ pSpecialStr = ((:) <$> specialChar <*> (many $ specialChar))
     oneOf :: [Char] -> Parser Char
     oneOf x = choice (map char x)
   
-pTightSym :: Parser Normal
+pTightSym :: Parser (Normal m)
 pTightSym = lexeme $ Symbol . unpack
   <$> (try (choice [symbol ".", symbol "<:"]))
 
-pRightSym :: Parser Normal
+pRightSym :: Parser (Normal m)
 pRightSym = lexeme $ Symbol . unpack <$> (try (choice [symbol "→", symbol ":"]))
 
 
-pLiteral :: Parser AST
+pLiteral :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Parser (AST m)
 pLiteral = choice[(Atom <$> (PrimVal <$> choice [pUnit, pBool, pFloat, pInteger])),
                   pString,
                   (Atom <$> pSym)]
@@ -99,24 +100,21 @@ pLiteral = choice[(Atom <$> (PrimVal <$> choice [pUnit, pBool, pFloat, pInteger]
 
 
 -- Strings can be template strings, i.e. allow arbitrary code-execution!  
-pString :: Parser AST
+pString :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Parser (AST m)
 pString = toStringTemplate <$> lexeme (between (char '"') (char '"') (many (pSubStr <|> pStrVal)))
   where
-    toStringTemplate :: [Either AST String] -> AST
+    toStringTemplate :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => [Either (AST m) String] -> (AST m)
     toStringTemplate = joinall . map toAST
     
-    toAST :: Either AST String -> AST
     toAST (Left ast)  = Cons [Atom implShow, ast]
     toAST (Right str) = (Atom . PrimVal . String . pack $ str)
 
-    joinall :: [AST] -> AST
     joinall [] = (Atom . PrimVal . String . pack $ "")
     joinall [x] = x
     joinall (x:xs) = Cons [Atom mlsConcat, x, joinall xs]
 
-    pStrVal :: Parser (Either AST String)
     pStrVal = Left <$> between (string "${") (string "}") pNormal
-    pSubStr :: Parser (Either AST String)
+    pSubStr :: Parser (Either (AST m) String)
     pSubStr = do
       notFollowedBy (string "\"" <|> string "${")
       Right <$> many (notFollowedBy (string "${") >> satisfy (/= '"'))
@@ -129,13 +127,13 @@ larens   = between (symbol "⟨") (symbol "⟩")
 curens   = between (symbol "{") (symbol "}")
 torens   = between (symbol "⦗") (symbol "⦘")
 
-toSeq :: [AST] -> AST 
+toSeq :: [AST m] -> AST m
 --toSeq (Atom val) = Cons [(Atom . Symbol $ "cons"), Atom val, Atom . Symbol $ "nil"]
 toSeq [] = Atom . Symbol $ "nil"
 toSeq (x:xs) = Cons [(Atom . Symbol $ "cons"), x, toSeq xs]
   
 
-pTerm :: Parser AST 
+pTerm :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Parser (AST m) 
 pTerm = choice [pLiteral,
                 (parens pNormal),
                 (toSeq <$> torens (many pNormalNoFun)),
@@ -145,26 +143,24 @@ pTerm = choice [pLiteral,
           Cons (op : args)
 
 
-mkOp :: Text -> Parser ([AST] -> AST -> AST)
+mkOp :: Text -> Parser ([AST m] -> AST m -> AST m)
 mkOp str = (\str x y ->
               Cons ([(Atom . Symbol . unpack) str] <> x <> [y])) <$> symbol str
-mkOpP :: Parser Normal -> Parser ([AST] -> AST -> AST)
+mkOpP :: Parser (Normal m) -> Parser ([AST m] -> AST m -> AST m)
 mkOpP = (<$>) (\sym x y -> Cons ([Atom sym] <> x <> [y]))
 
 
 
-pNormalNoFun :: Parser AST 
+pNormalNoFun :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Parser (AST m) 
 pNormalNoFun =
-  let mkBin :: Parser (Either AST [AST]) -> Parser AST -> Parser ([AST] -> AST -> AST) -> Parser AST
+  let mkBin :: Parser (Either (AST m) [AST m]) -> Parser (AST m) -> Parser ([AST m] -> AST m -> AST m) -> Parser (AST m)
       mkBin l r op = (l >>= go0) where
-        go0 :: Either AST [AST] -> Parser AST
         go0 acc = choice [(((\f x -> f (case acc of Left ast -> [ast]; Right lst -> lst) x)
                               <$> op <*> r) >>= go1),
                           pure (case acc of Left ast -> ast; Right lst -> Cons lst)]
 
-        go1 :: AST -> Parser AST
         go1 acc = choice [(((\f x -> f [acc] x) <$> op <*> r) >>= go1), pure acc]
-      mkBin' :: Parser AST -> Parser ([AST] -> AST -> AST) -> Parser AST
+
       mkBin' = mkBin (((\v -> case v of Cons l -> Right l; x -> Right [x]) <$> larens pNormal)
                       <|> (\x -> Left x) <$> pTerm)
 
@@ -173,44 +169,43 @@ pNormalNoFun =
       expr   = mkBin' sml    (mkOpP pSpecial)
     in expr
 
-pMaybeFunc :: Parser AST -> Parser AST  
+
+pMaybeFunc :: Parser (AST m) -> Parser (AST m)
 pMaybeFunc p = maybeFun <$> p  <*> many p
   where maybeFun p [] = p
         maybeFun p xs = Cons (p : xs)
 
-pFunc :: AST ->  Parser AST -> Parser AST  
+
+pFunc :: AST m -> Parser (AST m) -> Parser (AST m)  
 pFunc v p = mkFun <$> p <*> many p
   where mkFun p [] = p
         mkFun p xs = Cons (v : p : xs)
 
 
-pNormal :: Parser AST 
+pNormal :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Parser (AST m)
 pNormal = 
   let mkBin l r op = l >>= go0 where
-        go0 :: Either AST [AST] -> Parser AST
         go0 acc = choice [(((\f x -> f (toLst acc) x) <$> op <*> pMaybeFunc r) >>= go1),
                          ((mkCall (toVal acc)
                            <$> r
                            <*> many r) >>= go1),
                          return (toVal acc)]
-        go1 :: AST -> Parser AST
+
         go1 acc = choice [(((\f x -> f [acc] x) <$> op <*> pMaybeFunc r) >>= go1),
                          (pFunc acc r >>= go1),
                          return acc]
 
       mkBinTight l r op = l >>= go0 where
-        go0 :: Either AST [AST] -> Parser AST
         go0 acc = choice [(((\f x -> f (toLst acc) x) <$> op <*> r) >>= go1), return (toVal acc)]
-
-        go1 :: AST -> Parser AST
         go1 acc = choice [(((\f x -> f [acc] x) <$> op <*> r) >>= go1), return acc]
+
+      pLeft :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Parser (Either (AST m) [AST m])
       pLeft = ((\v -> case v of Cons l -> Right l; x -> Right [x]) <$> larens pNormal)
                  <|> ((\x -> Left x) <$> pTerm)
 
 
   
       mkRBin l r op = l >>= go where
-        go :: Either AST [AST] -> Parser AST
         go acc = choice [((\f x -> f (toLst acc) x) <$> op <*> mkRBin l r op),
                          return (toVal acc)]
 
@@ -265,7 +260,7 @@ pHeader = do
       lexeme $ (:) <$> (letterChar <|> char '_') <*> many (alphaNumChar <|> char '_' <|> char '-')
  
 
-pTop :: Parser [AST]
+pTop :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Parser [AST m]
 pTop = sc *> try (many (parens pNormal)) <* sc
 
 
@@ -289,9 +284,11 @@ pPreRepl = choice
     oneOf :: [Char] -> Parser Char
     oneOf x = choice (map char x)
 
-pRepl :: Parser AST
+
+pRepl :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Parser (AST m)
 pRepl = sc *> pNormal
 
+pMod :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Parser (([String], [(String, String)], [String], [a]), [AST m])
 pMod = do
   sc
   header <- parens pHeader
@@ -302,10 +299,15 @@ pMod = do
   
 parsePreRepl = runParser (pPreRepl <* eof)
 
+
+parseScript :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => String -> Text -> Either (ParseErrorBundle Text Void) [AST m]
 parseScript = runParser (pTop <* eof)
 
+
+parseRepl :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => String -> Text -> Either (ParseErrorBundle Text Void) (AST m)
 parseRepl = runParser (pRepl <* eof)
 
 -- parseModule :: String -> Text -> Either (String AST
+parseModule :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => String -> Text -> Either (ParseErrorBundle Text Void) (([String], [(String, String)], [String], [a]), [AST m])
 parseModule = runParser (pMod <* eof) 
 

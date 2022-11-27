@@ -1,7 +1,10 @@
+{-# LANGUAGE FlexibleContexts #-}
 module Interpret.Lib where
 
 
-import Control.Monad.State (State)
+import Control.Monad.Reader (MonadReader)
+import Control.Monad.State  (MonadState)
+import Control.Monad.Except (MonadError)
 
 import Syntax.Utils  
 
@@ -19,7 +22,7 @@ import qualified Interpret.Lib.Algebra.Ring as Ring
 import qualified Interpret.Lib.Algebra.Field as Field
 import qualified Interpret.Lib.Data.String as String
 
-import Data (Normal, Normal'(NormSct, NormSig), EvalM, toEmpty)
+import Data (Normal(NormSct, NormSig), toEmpty, Environment, ProgState)
 import qualified Data.Map as Map
 
 
@@ -31,13 +34,13 @@ implTerms =
   , ("÷", Field.implDiv)
   , ("show", String.implShow)
   ]
-  where pathLookup :: [String] -> Normal -> Normal
+  where pathLookup :: [String] -> Normal m -> Normal m
         pathLookup [] v = v
         pathLookup (s : ss) (NormSct lst _) = case getField s lst of 
           Just (v, _) -> pathLookup ss v
   
 
-defaultStructure :: [(String, Normal)]
+defaultStructure :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => [(String, Normal m)]
 defaultStructure =
   insertLeft (coreTerms <> commonTerms <> implTerms)
            [ ("num",     numStructure)

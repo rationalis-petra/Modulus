@@ -1,35 +1,39 @@
+{-# LANGUAGE FlexibleContexts #-}
 module Interpret.Lib.Common (commonTerms, commonStructure) where
 
 
 import qualified Data.Map as Map
+import Control.Monad.Reader (MonadReader)
+import Control.Monad.State  (MonadState)
+import Control.Monad.Except (MonadError, throwError)
 
 import Data
 import Syntax.Core
 import Syntax.Utils
 import Interpret.Eval (eval, liftFun, liftFun2, liftFun3, liftFun4, liftFun5, liftFun6)
-import Interpret.EvalM (throwError)
+import Interpret.EvalM
 import Syntax.Utils (mkVar)
 
 
-mlsLeftType :: Normal  
+mlsLeftType :: Normal m
 mlsLeftType = NormImplProd "A" (NormUniv 0) 
                (NormImplProd "B" (NormUniv 0)
                 (NormArr (mkVar "A") (NormArr (mkVar "B") (mkVar "A"))))
   
-mlsLeft :: Normal
+mlsLeft :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsLeft = liftFun4 f mlsLeftType
   where f _ _ l _ = pure l
 
-mlsRightType :: Normal  
+mlsRightType :: Normal m
 mlsRightType = NormImplProd "A" (NormUniv 0) 
                (NormImplProd "B" (NormUniv 0)
                 (NormArr (mkVar "A") (NormArr (mkVar "B") (mkVar "B"))))
 
-mlsRight :: Normal
+mlsRight :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsRight = liftFun4 f mlsRightType
   where f _ _ _ r = pure r
   
-mlsComposeType :: Normal  
+mlsComposeType :: Normal m
 mlsComposeType = NormImplProd "A" (NormUniv 0) 
                  (NormImplProd "B" (NormUniv 0)
                   (NormImplProd "C" (NormUniv 0)
@@ -37,12 +41,12 @@ mlsComposeType = NormImplProd "A" (NormUniv 0)
                     (NormArr (NormArr (mkVar "B") (mkVar "C"))
                      (NormArr (mkVar "A") (mkVar "C"))))))
 
-mlsCompose :: Normal
+mlsCompose :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsCompose = liftFun5 f mlsComposeType
   where f a _ c l r = pure $ liftFun (cmp l r) (NormArr a c)
         cmp f1 f2 arg = eval (CApp (CNorm f1) (CApp (CNorm f2) (CNorm arg)))
 
-mlsOverType :: Normal  
+mlsOverType :: Normal m 
 mlsOverType = NormImplProd "A" (NormUniv 0) 
                  (NormImplProd "B" (NormUniv 0)
                   (NormImplProd "C" (NormUniv 0)
@@ -50,19 +54,19 @@ mlsOverType = NormImplProd "A" (NormUniv 0)
                     (NormArr (NormArr (mkVar "A") (mkVar "B"))
                      (NormArr (mkVar "A") (NormArr (mkVar "A") (mkVar "C")))))))
 
-mlsOver :: Normal
+mlsOver :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsOver = liftFun5 f mlsOverType
   where f a b c l r = pure $ liftFun2 (over l r) (NormArr a (NormArr a c))
         over f g x y = eval (CApp (CApp (CNorm f) (CApp (CNorm g) (CNorm x))) (CApp (CNorm g) (CNorm y)))
 
-mlsFlipType :: Normal  
+mlsFlipType :: Normal m  
 mlsFlipType = NormImplProd "A" (NormUniv 0) 
                (NormImplProd "B" (NormUniv 0)
                 (NormImplProd "C" (NormUniv 0)
                  (NormArr (NormArr (mkVar "A") (NormArr (mkVar "B") (mkVar "C")))
                   (NormArr (mkVar "B") (NormArr (mkVar "A") (mkVar "C"))))))
 
-mlsFlip :: Normal
+mlsFlip :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsFlip = liftFun4 f mlsFlipType
   where f a b c fnc = pure $ liftFun2 (newFnc fnc) (newType a b c)
         newFnc f x y = eval $ (CApp (CApp (CNorm f) (CNorm x)) (CNorm y))
@@ -72,7 +76,7 @@ mlsFlip = liftFun4 f mlsFlipType
 -- f : a → b 
 -- g : b → a → c
 -- x : a
-mlsBeforeType :: Normal
+mlsBeforeType :: Normal m
 mlsBeforeType = NormImplProd "A" (NormUniv 0)
                 (NormImplProd "B" (NormUniv 0)
                  (NormImplProd "C" (NormUniv 0)
@@ -80,7 +84,7 @@ mlsBeforeType = NormImplProd "A" (NormUniv 0)
                    (NormArr (NormArr (mkVar "B") (NormArr (mkVar "A") (mkVar "C")))
                     (NormArr (mkVar "A") (mkVar "C"))))))
 
-mlsBefore :: Normal  
+mlsBefore :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsBefore = liftFun5 f mlsBeforeType
   where f a b c f g = pure $ liftFun (newFnc f g) (newType a c)
         newFnc f g x = eval $ (CApp (CApp (CNorm g) (CApp (CNorm f) (CNorm x))) (CNorm x))
@@ -92,7 +96,7 @@ mlsBefore = liftFun5 f mlsBeforeType
 -- g : a → b
 -- x : a
 
-mlsAfterType :: Normal
+mlsAfterType :: Normal m
 mlsAfterType = NormImplProd "A" (NormUniv 0)
                 (NormImplProd "B" (NormUniv 0)
                  (NormImplProd "C" (NormUniv 0)
@@ -100,7 +104,7 @@ mlsAfterType = NormImplProd "A" (NormUniv 0)
                    (NormArr (NormArr (mkVar "A") (mkVar "C"))
                     (NormArr (mkVar "A") (mkVar "C"))))))
 
-mlsAfter :: Normal  
+mlsAfter :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsAfter = liftFun5 f mlsBeforeType
   where f a b c f g = pure $ liftFun (newFnc f g) (newType a c)
         newFnc f g x = eval $ (CApp (CApp (CNorm f) (CNorm x)) (CApp (CNorm g) (CNorm x)))
@@ -116,7 +120,7 @@ mlsAfter = liftFun5 f mlsBeforeType
 -- mlsFork :: Normal
 
   
-commonSignature :: Normal
+commonSignature :: Normal m
 commonSignature = NormSig $
   [ ("⊣", mlsLeftType)
   , ("⊢", mlsRightType)
@@ -128,10 +132,10 @@ commonSignature = NormSig $
   ]
 
 
-commonStructure :: Normal
+commonStructure :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 commonStructure = NormSct (toEmpty commonTerms) commonSignature
 
-commonTerms :: [(String, Normal)]
+commonTerms :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => [(String, Normal m)]
 commonTerms =
   [ ("⊣", mlsLeft)
   , ("⊢", mlsRight)

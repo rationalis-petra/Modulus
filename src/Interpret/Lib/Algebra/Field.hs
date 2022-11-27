@@ -12,11 +12,10 @@ import Syntax.Utils hiding (tyTail)
 
 
 
-fieldTy :: Normal  
+fieldTy :: Normal m
 fieldTy = NormUniv 0
 
-
-field :: Normal
+field :: Normal m
 field = NormSig 
   [ ("T",  NormUniv 0)
   , ("e0", mkVar "T")
@@ -27,15 +26,11 @@ field = NormSig
   , ("÷",  NormArr (mkVar "T") (NormArr (mkVar "T") (mkVar "T")))
   ]
 
-  
 
-  
-
-
-implDivTy :: Normal
+implDivTy :: Normal m
 implDivTy = implSubTy
 
-implDiv :: Normal
+implDiv :: Normal m
 implDiv =
   NormAbs "f"
   (NormAbs "x"
@@ -48,7 +43,8 @@ implDiv =
     t2 = tyTail t1
     t3 = tyTail t2
 
-fieldSignature :: Normal
+
+fieldSignature :: Normal m
 fieldSignature = NormSig
   [ ("Field", fieldTy)
   , ("+",     implAddTy)
@@ -58,7 +54,7 @@ fieldSignature = NormSig
   ]
 
 
-fieldStructure :: Normal
+fieldStructure :: Normal m
 fieldStructure = NormSct
   [ ("Field", (field, []))
   , ("+", (implAdd, [Implicit]))

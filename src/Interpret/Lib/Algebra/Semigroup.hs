@@ -7,21 +7,21 @@ import Interpret.Lib.LibUtils
 import Syntax.Utils hiding (tyTail)
 
 
-semigroupTy :: Normal  
+semigroupTy :: Normal m  
 semigroupTy = NormUniv 0
 
-semigroup :: Normal
+semigroup :: Normal m
 semigroup = NormSig 
   [ ("T", NormUniv 0)
   , ("⋅", NormArr (mkVar "T") (NormArr (mkVar "T") (mkVar "T")))
   ]
 
-implStarTy :: Normal
+implStarTy :: Normal m
 implStarTy = NormImplProd "g" semigroup 
              (NormArr gt (NormArr gt gt))
   where gt = Neu (NeuDot (NeuVar "g" semigroup) "T") semigroup
 
-implStar :: Normal
+implStar :: Normal m
 implStar =
   NormAbs "g"
   (NormAbs "x"
@@ -35,14 +35,14 @@ implStar =
     t3 = tyTail t2
 
 
-semigroupSignature :: Normal
+semigroupSignature :: Normal m
 semigroupSignature = NormSig
   [ ("Semigroup", semigroupTy)
   , ("⋅",         implStarTy)
   ]
 
 
-semigroupStructure :: Normal
+semigroupStructure :: Normal m
 semigroupStructure = NormSct
   [ ("Semigroup", (semigroup, []))
   , ("⋅", (implStar, [Implicit]))

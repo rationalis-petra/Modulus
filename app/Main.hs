@@ -6,7 +6,8 @@ import Bindings.Libtdl
 
 import Parse (parseScript, parseRepl, parsePreRepl, ReplMessage(..))
 import Data
-import Interpret.Eval (evalToEither, evalTop, Result(..), runIO)
+import Interpret.Eval (evalTop, Result(..), runIO)
+import Interpret.EvalM (runEval)
 import Syntax.Core
 import Syntax.Macroexpand 
 import Syntax.Conversions (toIntermediate,
@@ -81,7 +82,7 @@ main = do
             | otherwise -> putStrLn "bad mode argument"
   
 -- The REPL 
-defaultEnv :: Environment 
+defaultEnv :: Environment Eval
 defaultEnv = Environment
   { localCtx = Map.empty
   , currentModule = NormSct (toEmpty defaultStructure) (NormSig [])
@@ -94,21 +95,21 @@ data ReplSettings = ReplSettings { displayTypes :: Bool }
 defaultSettings = ReplSettings { displayTypes = False }
   
 
-repl :: Environment -> ProgState -> IO ()
+repl :: Environment Eval -> ProgState Eval -> IO ()
 repl env state = repl' env state defaultSettings
-  where 
+  where
     repl' env state settings = do
       putStr "> "
       hFlush stdout
       line <- getLine
-      case parsePreRepl "repl" (pack line) of 
+      case parsePreRepl "repl" (pack line) of
         Left err -> printFlush err >> repl' env state settings
         Right Quit -> pure ()
         Right ToggleType -> repl' env state
           (settings {displayTypes = (not $ displayTypes settings)})
         Right (LoadForeign str) -> do
           mdle <- loadModuleWithErr str
-          case mdle of  
+          case mdle of
             Right v -> printFlush "success!"
             Left err -> printFlush ("failed to load " <> str <> ": " <> err)
           repl' env state  settings
@@ -123,7 +124,7 @@ repl env state = repl' env state defaultSettings
           
 
 
-runInteractively :: String -> Environment -> ProgState -> IO (Environment, ProgState)
+runInteractively :: String -> Environment Eval -> ProgState Eval -> IO (Environment Eval, ProgState Eval)
 runInteractively str env state =
   case parseScript "file" (pack str) of
       Left err -> printFlush err >> pure (env, state)
@@ -131,7 +132,7 @@ runInteractively str env state =
 
 -- runExprs takes in an AST list, an environment, a state and a flag (whether to
 -- run any IO actions encountered)
-runExprs :: [AST] -> Environment -> ProgState -> ReplSettings -> IO (Environment, ProgState)
+runExprs :: [AST Eval] -> Environment Eval -> ProgState Eval -> ReplSettings -> IO (Environment Eval, ProgState Eval)
 runExprs [] env state _ = pure (env, state)
 runExprs (e : es) env state sets = do
   -- result <- evalToIO compile env state 
@@ -179,7 +180,7 @@ runExprs (e : es) env state sets = do
   where
     failWith err = (putStrLn err) >> (pure (env, state))
 
-evalTopCore :: TopCore -> Environment -> ProgState -> IO (Environment, ProgState, Maybe Normal)   
+evalTopCore :: TopCore Eval -> Environment Eval -> ProgState Eval -> IO (Environment Eval, ProgState Eval, Maybe (Normal Eval))   
 evalTopCore core env state = do
   out <- evalToIO (evalTop core) env state
   case out of 
@@ -192,7 +193,7 @@ evalTopCore core env state = do
 printFlush s = print s >> hFlush stdout   
 
 
-evalToIO v e s = case evalToEither v e s of
+evalToIO v e s = case runEval v e s of
   Right val -> pure $ Just val
   Left err -> printFlush err >> pure Nothing
 

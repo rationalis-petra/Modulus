@@ -1,31 +1,38 @@
+{-# LANGUAGE FlexibleContexts #-}
 module Interpret.Lib.Data.List (listStructure, listSignature) where
 
 import qualified Data.Map as Map
+import Control.Monad.Reader (MonadReader)
+import Control.Monad.State  (MonadState)
+import Control.Monad.Except (MonadError, throwError)
 
-import qualified Data.Map as Map
 import Data
 import Syntax.Core
 import Interpret.Eval (eval, liftFun, liftFun2, liftFun3, liftFun4, liftFun5, liftFun6)
-import Interpret.EvalM
 import Syntax.Utils (mkVar)
 
-mlsListCtorTy :: Normal
+mlsListCtorTy :: Normal m
 mlsListCtorTy = NormArr (NormUniv 0) (NormUniv 0)
 
-mlsListCtor :: Normal
+
+mlsListCtor :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsListCtor = liftFun f mlsListCtorTy
   where f a = pure (CollTy (ListTy a))
 
-consType :: Normal
+
+consType :: Normal m
 consType = NormImplProd "A" (NormUniv 0) (NormArr (mkVar "A")
                                           (NormArr (CollTy (ListTy (mkVar "A")))
                                            (CollTy (ListTy (mkVar "A")))))
-mlsCons :: Normal
+
+  
+mlsCons :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsCons = InbuiltCtor $ IndPat "cons" consMatch 1 (liftFun3 consCtor consType) consType
   where
-    consMatch :: Monoid m => ([Pattern] -> Normal
-                            -> (Normal -> Pattern -> EvalM (Maybe m))
-                            -> EvalM (Maybe m))
+    -- consMatch :: [Pattern m] -> Normal m
+    --                     -> (Normal m -> Pattern m
+    --                     -> m (Maybe [(String, (Normal m, Normal m))]))
+    --                     -> m (Maybe [(String, (Normal m, Normal m))])
     consMatch [p1, p2] (CollVal (ListVal (x:xs) ty)) matcher = do
       p1' <- matcher x p1 
       p2' <- matcher (CollVal (ListVal xs ty)) p2 
@@ -34,61 +41,67 @@ mlsCons = InbuiltCtor $ IndPat "cons" consMatch 1 (liftFun3 consCtor consType) c
         _ -> pure Nothing
     consMatch _ _ _ = pure Nothing
 
-    consCtor :: Normal -> Normal -> Normal -> EvalM Normal
+    consCtor :: MonadError String m => Normal m -> Normal m -> Normal m -> m (Normal m)
     consCtor _ hd (CollVal (ListVal tl ty)) = pure (CollVal (ListVal (hd:tl) ty))
     consCtor _ _ _ = throwError "bad arguments to constructor: cons"
     
 
-nilType :: Normal
+nilType :: Normal m
 nilType = NormImplProd "A" (NormUniv 0) (CollTy (ListTy (mkVar "A")))
 
-mlsNil :: Normal
+
+mlsNil :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsNil = InbuiltCtor $ IndPat "nil" nilMatch 1 (liftFun nilCtor nilType) nilType
   where
 
-    nilMatch :: Monoid m => ([Pattern] -> Normal
-                           -> (Normal -> Pattern -> EvalM (Maybe m))
-                           -> EvalM (Maybe m))
+    -- nilMatch :: Monoid m => ([Pattern] -> Normal
+    --                        -> (Normal -> Pattern -> EvalM (Maybe m))
+    --                        -> EvalM (Maybe m))
     nilMatch [] (CollVal (ListVal [] _)) _ = pure $ Just mempty
     nilMatch _ _ _ = pure Nothing
 
-    nilCtor :: Normal -> EvalM Normal
+    nilCtor :: Applicative m => Normal m -> m (Normal m)
     nilCtor ty = pure (CollVal (ListVal [] ty))
     
 
-mlsIndicesOfTy :: Normal  
+mlsIndicesOfTy :: Normal m
 mlsIndicesOfTy = NormArr (PrimType IntT) (CollTy (ListTy (PrimType IntT)))
 
-mlsIndicesOf :: Normal  
+
+mlsIndicesOf :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsIndicesOf = liftFun f mlsIndicesOfTy
-  where f :: Normal -> EvalM Normal
+  where f :: Applicative m => Normal m -> m (Normal m)
         f (PrimVal (Int n)) = do
           pure $ CollVal $ ListVal (map (PrimVal . Int) [1..n]) (PrimType IntT)
 
-mlsEachTy :: Normal  
+
+mlsEachTy :: Normal m
 mlsEachTy = NormImplProd "A" (NormUniv 0)
               (NormImplProd "B" (NormUniv 0)
                 (NormArr (NormArr (mkVar "A") (mkVar "B"))
                   (NormArr (CollTy (ListTy (mkVar "A")))
                     (CollTy (ListTy (mkVar "B"))))))
 
-mlsEach :: Normal  
+
+mlsEach :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsEach = liftFun4 f mlsEachTy
-  where f :: Normal -> Normal -> Normal -> Normal -> EvalM Normal
+  where f ::  (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m -> Normal m -> Normal m -> Normal m -> m (Normal m)
         f _ b func (CollVal (ListVal xs _)) = do
           res <- mapM (\v -> eval (CApp (CNorm func) (CNorm v))) xs
           pure $ CollVal $ ListVal res b
 
-mlsFoldTy :: Normal  
+  
+mlsFoldTy :: Normal m
 mlsFoldTy = NormImplProd "A" (NormUniv 0)
               (NormImplProd "B" (NormUniv 0)
                 (NormArr (NormArr (mkVar "A") (NormArr (mkVar "B") (mkVar "B")))
                   (NormArr (mkVar "B")
                    (NormArr (CollTy (ListTy (mkVar "A"))) (mkVar "B")))))
 
-mlsFold :: Normal  
+
+mlsFold :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsFold = liftFun5 f mlsFoldTy
-  where f :: Normal -> Normal -> Normal -> Normal -> Normal -> EvalM Normal
+  where f :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m -> Normal m -> Normal m -> Normal m -> Normal m -> m (Normal m)
         f _ b func z (CollVal (ListVal xs _)) = do
           res <- evalFold func z xs
           pure $ res
@@ -98,16 +111,18 @@ mlsFold = liftFun5 f mlsFoldTy
           tl <- evalFold func z xs 
           eval (CApp (CApp (CNorm func) (CNorm x)) (CNorm tl)) 
            
-mlsReduceTy :: Normal  
+
+mlsReduceTy :: Normal m
 mlsReduceTy = NormImplProd "A" (NormUniv 0)
               (NormImplProd "B" (NormUniv 0)
                 (NormArr (NormArr (mkVar "A") (NormArr (mkVar "B") (mkVar "B")))
                   (NormArr (mkVar "B")
                    (NormArr (CollTy (ListTy (mkVar "A"))) (mkVar "B")))))
 
-mlsReduce :: Normal  
+
+mlsReduce :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsReduce = liftFun5 f mlsFoldTy
-  where f :: Normal -> Normal -> Normal -> Normal -> Normal -> EvalM Normal
+  where f :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m -> Normal m -> Normal m -> Normal m -> Normal m -> m (Normal m)
         f _ b func z (CollVal (ListVal xs _)) = do
           res <- evalFold func z xs
           pure $ res
@@ -117,16 +132,17 @@ mlsReduce = liftFun5 f mlsFoldTy
           res <- eval (CApp (CApp (CNorm func) (CNorm x)) (CNorm z))
           evalFold func res xs
   
-mlsScanTy :: Normal  
+mlsScanTy :: Normal m
 mlsScanTy = NormImplProd "A" (NormUniv 0)
              (NormImplProd "B" (NormUniv 0)
                (NormArr (NormArr (mkVar "A") (NormArr (mkVar "B") (mkVar "B")))
                  (NormArr (mkVar "B")
                    (NormArr (CollTy (ListTy (mkVar "A"))) (CollTy (ListTy (mkVar "B")))))))
 
-mlsScan :: Normal  
+
+mlsScan :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsScan = liftFun5 f mlsFoldTy
-  where f :: Normal -> Normal -> Normal -> Normal -> Normal -> EvalM Normal
+  where f :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m -> Normal m -> Normal m -> Normal m -> Normal m -> m (Normal m)
         f _ b func z (CollVal (ListVal xs _)) = do
           res <- evalScan func z xs [z]
           pure $ CollVal $ ListVal res b
@@ -136,22 +152,25 @@ mlsScan = liftFun5 f mlsFoldTy
           res <- eval (CApp (CApp (CNorm func) (CNorm x)) (CNorm z))
           evalScan func res xs (res : accum)
 
-mlsJoinTy :: Normal  
+
+mlsJoinTy :: Normal m
 mlsJoinTy = NormImplProd "A" (NormUniv 0)
              (NormArr (CollTy (ListTy (CollTy (ListTy (mkVar "A")))))
                (CollTy (ListTy (mkVar "A"))))
 
-mlsJoin :: Normal  
+
+mlsJoin :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsJoin = liftFun2 f mlsJoinTy
-  where f :: Normal -> Normal -> EvalM Normal
+  where f :: Applicative m => Normal m -> Normal m -> m (Normal m)
         f a (CollVal (ListVal xs _)) = do
           pure $ CollVal $ ListVal (join xs) a
 
-        join :: [Normal] -> [Normal]
+        join :: [Normal m] -> [Normal m]
         join [] = []
         join ((CollVal (ListVal ys _)) : xs) = ys <> join xs
 
-mlsZipTy :: Normal  
+
+mlsZipTy :: Normal m
 mlsZipTy = NormImplProd "A" (NormUniv 0)
               (NormImplProd "B" (NormUniv 0)
                (NormImplProd "C" (NormUniv 0)
@@ -162,80 +181,90 @@ mlsZipTy = NormImplProd "A" (NormUniv 0)
                   (NormArr (CollTy (ListTy (mkVar "B")))
                    (CollTy (ListTy (mkVar "C"))))))))
 
-mlsZip :: Normal
+
+mlsZip :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsZip =  liftFun6 f mlsZipTy
-  where f :: Normal -> Normal -> Normal -> Normal -> Normal -> Normal -> EvalM Normal
+  where f :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m -> Normal m -> Normal m -> Normal m -> Normal m -> Normal m -> m (Normal m)
         f _ _ c func (CollVal (ListVal xs _)) (CollVal (ListVal ys _)) = do
           res <- join func xs ys
           pure $ CollVal $ ListVal res c
 
-        join :: Normal -> [Normal] -> [Normal] -> EvalM [Normal]
+        join :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m -> [Normal m] -> [Normal m] -> m [Normal m]
         join func (x:xs) (y:ys) = do
           res <- eval (CApp (CApp (CNorm func) (CNorm x)) (CNorm y))
           tl <- join func xs ys
           pure (res : tl)
         join _ _ _ = pure []
 
-mlsCatTy :: Normal  
+
+mlsCatTy :: Normal m
 mlsCatTy = NormImplProd "A" (NormUniv 0)
              (NormArr (CollTy (ListTy (mkVar "A")))
                (NormArr (CollTy (ListTy (mkVar "A")))
                  (CollTy (ListTy (mkVar "A")))))
 
-mlsCat :: Normal  
+
+mlsCat :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsCat = liftFun3 f mlsCatTy
-  where f :: Normal -> Normal -> Normal -> EvalM Normal
+  where f :: Applicative m => Normal m -> Normal m -> Normal m -> m (Normal m)
         f a (CollVal (ListVal xs _)) (CollVal (ListVal ys _)) = do
           pure $ CollVal $ ListVal (xs <> ys) a
 
 
-mlsTakeTy :: Normal  
+mlsTakeTy :: Normal m
 mlsTakeTy = NormImplProd "A" (NormUniv 0)
              (NormArr (PrimType IntT)
                (NormArr (CollTy (ListTy (mkVar "A")))
                  (CollTy (ListTy (mkVar "A")))))
 
-mlsTake :: Normal  
+
+mlsTake :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsTake = liftFun3 f mlsTakeTy
-  where f :: Normal -> Normal -> Normal -> EvalM Normal
+  where f :: Applicative m => Normal m -> Normal m -> Normal m -> m (Normal m)
         f _ (PrimVal (Int n)) (CollVal (ListVal xs a)) = do
           pure $ CollVal $ ListVal (take (fromIntegral n) xs) a
   
-mlsDropTy :: Normal  
+
+mlsDropTy :: Normal m
 mlsDropTy = NormImplProd "A" (NormUniv 0)
              (NormArr (PrimType IntT)
                (NormArr (CollTy (ListTy (mkVar "A")))
                  (CollTy (ListTy (mkVar "A")))))
 
-mlsDrop :: Normal  
+
+mlsDrop :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsDrop = liftFun3 f mlsDropTy
-  where f :: Normal -> Normal -> Normal -> EvalM Normal
+  where f :: Applicative m => Normal m -> Normal m -> Normal m -> m (Normal m)
         f _ (PrimVal (Int n)) (CollVal (ListVal xs a)) = do
           pure $ CollVal $ ListVal (drop (fromIntegral n) xs) a
 
-mlsReverseTy :: Normal  
+
+mlsReverseTy :: Normal m
 mlsReverseTy = NormImplProd "A" (NormUniv 0)
                 (NormArr (CollTy (ListTy (mkVar "A")))
                   (CollTy (ListTy (mkVar "A"))))
 
-mlsReverse :: Normal  
+mlsReverse :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsReverse = liftFun2 f mlsReverseTy
-  where f :: Normal -> Normal -> EvalM Normal
+  where f :: Applicative m => Normal m -> Normal m -> m (Normal m)
         f a (CollVal (ListVal xs _)) = do
           pure $ CollVal $ ListVal (reverse xs) a
 
-mlsLenTy :: Normal  
+
+mlsLenTy :: Normal m
 mlsLenTy = NormImplProd "A" (NormUniv 0)
                 (NormArr (CollTy (ListTy (mkVar "A")))
                   (PrimType IntT))
 
-mlsLen :: Normal  
+
+mlsLen :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsLen = liftFun2 f mlsLenTy
-  where f :: Normal -> Normal -> EvalM Normal
+  where f :: Applicative m => Normal m -> Normal m -> m (Normal m)
         f _ (CollVal (ListVal xs _)) = do
           pure $ PrimVal $ Int (fromIntegral (length xs))
 
-listSignature :: Normal
+
+listSignature :: Normal m
 listSignature = NormSig 
   [ ("M", mlsListCtorTy)
   , ("List", mlsListCtorTy)
@@ -260,7 +289,7 @@ listSignature = NormSig
   ]
   
 
-listStructure :: Normal
+listStructure :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 listStructure = NormSct (toEmpty 
   [ ("M", mlsListCtor)
   , ("List", mlsListCtor)

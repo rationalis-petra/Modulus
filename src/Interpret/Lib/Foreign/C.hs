@@ -1,4 +1,9 @@
+{-# LANGUAGE FlexibleContexts #-}
 module Interpret.Lib.Foreign.C where
+
+import Control.Monad.Reader (MonadReader)
+import Control.Monad.State  (MonadState)
+import Control.Monad.Except (MonadError)
 
 import Foreign.Ptr (FunPtr, Ptr, castPtr, nullPtr)
 import Foreign.Storable (peek, poke)
@@ -11,33 +16,33 @@ import Data.Text (pack, unpack)
 import Interpret.Eval (eval, liftFun, liftFun2, liftFun3, liftFun4, liftFun5, liftFun6)
 import Syntax.Utils (mkVar)
 
-mkCPtr :: Normal
+mkCPtr :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mkCPtr = liftFun f (NormArr (NormUniv 0) (NormUniv 0))
   where
     f ty = pure . CollTy . CPtrTy $ ty
 
-toCInt :: Normal
+toCInt :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 toCInt = liftFun f (NormArr (PrimType IntT) (PrimType CIntT))
   where
     f (PrimVal (Int i)) = pure . PrimVal . CInt . fromIntegral $ i
 
-fromCInt :: Normal
+fromCInt :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 fromCInt = liftFun f (NormArr (PrimType CIntT) (PrimType IntT))
   where
     f (PrimVal (CInt i)) = pure . PrimVal . Int . toInteger $ i
 
-toCDouble :: Normal
+toCDouble :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 toCDouble = liftFun f (NormArr (PrimType FloatT) (PrimType CDoubleT))
   where
     f (PrimVal (Float f64)) = pure . PrimVal . CDouble . realToFrac $ f64
 
-fromCDouble :: Normal
+fromCDouble :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 fromCDouble = liftFun f (NormArr (PrimType CDoubleT) (PrimType FloatT))
   where
     f (PrimVal (CDouble dbl)) = pure . PrimVal . Float . realToFrac $ dbl
 
 
-toCString :: Normal
+toCString :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 toCString = liftFun f (NormArr (PrimType StringT) (CollTy . IOMonadTy $ (PrimType CStringT)))
   where
     f (PrimVal (String str)) =
@@ -45,7 +50,7 @@ toCString = liftFun f (NormArr (PrimType StringT) (CollTy . IOMonadTy $ (PrimTyp
         (IOThread ((newCString . unpack $ str) >>= (pure . Pure . pure . PrimVal . CString)))
         (CollTy . IOMonadTy $ PrimType CStringT)
 
-fromCString :: Normal
+fromCString :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 fromCString = liftFun f (NormArr (PrimType CStringT) (CollTy . IOMonadTy $ (PrimType StringT)))
   where
     f (PrimVal (CString str)) =
@@ -55,19 +60,19 @@ fromCString = liftFun f (NormArr (PrimType CStringT) (CollTy . IOMonadTy $ (Prim
               pure . Pure . pure $ (PrimVal . String . pack $ hsStr)))
         (CollTy . IOMonadTy $ PrimType StringT)
 
-strRefTy :: Normal
+strRefTy :: Normal m
 strRefTy = (NormArr (PrimType CStringT)
              (CollTy . IOMonadTy $ CollTy . CPtrTy $ (PrimType CStringT)))
 
-nullPtrTy :: Normal
+nullPtrTy :: Normal m
 nullPtrTy = (NormImplProd "A" (NormUniv 0) (CollTy . CPtrTy $ (mkVar "A")))
 
-mnullPtr :: Normal
+mnullPtr :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mnullPtr = liftFun f nullPtrTy 
   where
     f a =pure . CollVal . CPtr $ nullPtr
   
-strRef :: Normal
+strRef :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 strRef = liftFun f strRefTy
   where
     f (PrimVal (CString s)) =
@@ -78,7 +83,7 @@ strRef = liftFun f strRefTy
                pure . Pure . pure . CollVal . CPtr $ castPtr ptr))
         (CollTy . IOMonadTy $ PrimType StringT)
 
-csignature :: Normal
+csignature :: Normal m
 csignature = NormSig
   [ ("CInt", NormUniv 0)
   , ("CDouble", NormUniv 0)
@@ -97,7 +102,7 @@ csignature = NormSig
   ]
 
   
-cstructure :: Normal
+cstructure :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 cstructure = NormSct (toEmpty
              [ ("CInt", PrimType CIntT)
              , ("CDouble", PrimType CDoubleT)
