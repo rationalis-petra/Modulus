@@ -1,0 +1,13 @@
+#+html_head: <link rel="stylesheet" href="../../../../modulus-style.css" type="text/css"/>
+#+title: Library: Data
+#+options: toc:nil num:nil html-postamble:nil
+
+#+html: <div style="text-align:right">
+[[file:../../../../index.org][Modulus]] / [[file:../../../index.org][Documentation]] / [[../../index.org][Library]] / [[../index.org][Abstractions]] / Data
+#+html: </div>
+
++ [[file:functor.org][Functor]]
++ [[file:applicative.org][Applicative]]
++ [[file:monad.org][Monad]]
++ [[file:foldable.org][Foldable]]
++ [[file:traversable.org][Traversable]]

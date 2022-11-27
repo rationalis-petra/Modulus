@@ -3,7 +3,7 @@
 #+options: toc:nil num:nil html-postamble:nil
 
 #+html: <div style="text-align:right">
-[[file:f:/Home/wiki/mlsio/index.org][Modulus]] / [[file:index.org][Tutorials]] / Quickstart
+[[file:../index.org][Modulus]] / [[file:index.org][Tutorials]] / Quickstart
 #+html: </div>
 
 This is a guide for those who want to try out the language without committing to

@@ -3,7 +3,7 @@
 #+options: toc:nil num:nil html-postamble:nil
 
 #+html: <div style="text-align:right">
-[[file:f:/Home/wiki/mlsio/index.org][Modulus]] / Tooling
+[[file:../index.org][Modulus]] / Tooling
 #+html: </div>
 
 * Text Editors

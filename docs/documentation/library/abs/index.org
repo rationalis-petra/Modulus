@@ -1,0 +1,21 @@
+#+html_head: <link rel="stylesheet" href="../../../modulus-style.css" type="text/css"/>
+#+title: Library: Abstractions
+#+options: toc:nil num:nil html-postamble:nil
+
+#+html: <div style="text-align:right">
+[[file:../../index.org][Modulus]] /  [[file:../..//index.org][Documentation]] / [[file:../index.org][Library]] / Abstractions
+#+html: </div>
+
+
++ [[file:data/index.org][Data]]
+  + [[file:data/functor.org][Functor]]
+  + [[file:data/applicative.org][Applicative]]
+  + [[file:data/monad.org][Monad]]
+  + [[file:data/foldable.org][Foldable]]
+  + [[file:data/traversable.org][Traversable]]
+
++ Numerics
+
++ Category
+
++ Group

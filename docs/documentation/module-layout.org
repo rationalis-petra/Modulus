@@ -3,7 +3,7 @@
 #+options: toc:nil num:nil html-postamble:nil
 
 #+html: <div style="text-align:right">
-[[file:f:/Home/wiki/mlsio/index.org][Modulus]] / [[file:index.org][Documentation]] / Module Layout
+[[file:../index.org][Modulus]] / [[file:index.org][Documentation]] / Module Layout
 #+html: </div>
 
 Module

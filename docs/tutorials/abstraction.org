@@ -1,0 +1,163 @@
+#+html_head: <link rel="stylesheet" href="../modulus-style.css" type="text/css"/>
+#+title: Tutorial: Modulus Abstractions
+#+options: toc:nil num:nil html-postamble:nil
+
+#+html: <div style="text-align:right">
+[[file:../index.org][Modulus]] / [[file:index.org][Tutorials]] / Abstraction
+#+html: </div>
+
+* Motivation
+In Programming, abstraction refers to the process of hiding information
+about something, generally for the purpose of writing code which is more
+flexible and useful in a wider variety of scenarios.
+
+To start, let's consider a sorting algorithm for a list of integers:
+
+
+#+begin_src modulus
+(merge : List ℤ → List ℤ → List ℤ)
+(merge [l1 l2]
+  (match (l1, l2)
+    ((nil, fnl) → fnl)
+    ((fnl, nil) → fnl)
+    (((x::xs), (y::ys)) →
+       (if (x < y)
+           (x :: merge xs (y::ys))
+           (y :: merge (x::xs) ys)))))
+
+(sort : List ℤ → List ℤ)
+(defn sort [list]
+  (match list
+    (nil → nil)
+    (_ → (let [half (len list / 2)]
+           (merge (take half list) (drop half list))))))
+#+end_src
+
+If you're unfamiliar with mergesort, you can see an [explanation] here. This is
+a perfectly fine sorting algorithm, but it is only applicable for integers. What
+if we wanted to sort a list of strings? Well, then we'd need to re-write:
+
+#+begin_src modulus
+(str-merge : List String → List String → List String)
+(str-merge [l1 l2]
+  (match (l1, l2)
+    ((nil, fnl) → fnl)
+    ((fnl, nil) → fnl)
+    (((x::xs), (y::ys)) →
+       (if (x < y)
+           (x :: str-merge xs (y::ys))
+           (y :: str-merge (x::xs) ys)))))
+
+(sort : List ℤ → List ℤ)
+(defn sort [list]
+  (match list
+    (nil → nil)
+    (_ → (let [half (len list / 2)]
+           (str-merge (take half list) (drop half list))))))
+#+end_src
+
+What is unfortunate is that this is almost all repeat code - we're repeating
+work we've already done :(. The solution is, of course, to use
+abstraction. The information we want to hide is the specific type:
+=String/ℤ/...=. What's actually important is that we can compare them with
+~<~. Therefore, We want to re-write our sort function to say "for some type, If
+you give me a way of comparing values of that type, and a list of values, I'll
+give you a sorted list"
+
+#+begin_src modulus
+(sort : (A : 𝒰) → (A → A → Bool) → List A → List A)
+
+(sort String (data.string.less) (list "a" "c" "d" "b"))
+;; outputs (list "a" "b" "c" "d")
+
+(sort ℤ (num.int.less) (list 1 5 2 3 4))
+;; outputs (list 1 2 3 4 5)
+#+end_src
+
+
+An actual implementation of this is
+
+#+begin_src modulus
+(merge : (A : 𝒰) → (A → A → Bool) → List A → List A → List A)
+(merge [A comp l1 l2]
+  (match (l1, l2)
+    ((nil, fnl) → fnl)
+    ((fnl, nil) → fnl)
+    (((x::xs), (y::ys)) →
+       (if (comp x y)
+           (x :: merge xs (y::ys))
+           (y :: merge (x::xs) ys)))))
+
+(sort : (A : 𝒰) → (A → A → Bool) → List A → List A)
+(defn sort [A comp list]
+  (match list
+    (nil → nil)
+    (_ → (let [half (len list / 2)]
+           (merge A comp (take half list) (drop half list))))))
+#+end_src
+
+The cool thing is we can re-purpose our function to also sort in descending
+order:
+#+begin_src modulus
+(sort : (A : 𝒰) → (A → A → Bool) → List A → List A)
+
+(sort String (data.string.less) (list "a" "c" "d" "b"))
+;; outputs (list "a" "b" "c" "d")
+
+(sort ℤ (num.int.less) (list 1 5 2 3 4))
+;; outputs (list 1 2 3 4 5)
+#+end_src
+
+** Summary
+
+
+* Implicit Types
+
+#+begin_src modulus
+(sort : {A : 𝒰} → (A → A → Bool) → List A → List A)
+
+(sort (data.string.less) (list "a" "c" "d" "b"))
+
+(sort {String} (data.string.less) (list "a" "c" "d" "b"))
+#+end_src
+
+* Structures and Signatures
+
+#+begin_src modulus
+(defsignature Order
+  (T : 𝒰)
+  (compare : T → T → Bool))
+
+(defstructure Str-Order 
+  (T : String)
+  (compare : data.string.(<)))
+
+(defstructure Int-Order 
+  (T : ℤ)
+  (compare : data.int.(<)))
+#+end_src
+
+#+begin_src modulus
+(sort : (o : Order) → List o.T → List o.T)
+
+(sort Str-Order (list "a" "b" "c"))
+#+end_src
+
+#+begin_src modulus
+(sort : {o : Order} → List o.T → List o.T)
+
+(sort (list "a" "b" "c"))
+;; 
+#+end_src
+
+** Summary, Common Functions 
+
+#+begin_src modulus
+(< : {WkOrd} → )
+
+#+end_src
+
+* Implicit Structures
+** TODO Describe Implicit Structure Lookup Process
+
+  

@@ -3,6 +3,10 @@
 
 #+options: toc:nil num:nil
 
+#+html: <div style="text-align:right">
+[[file:../index.org][Modulus]] / [[file:index.org][Tooling]] / Emacs
+#+html: </div>
+
 * Who this is For
 This section details the Modulus Server, with the intent it is used to implement
 clients in various text-editors.  

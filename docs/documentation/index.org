@@ -3,7 +3,7 @@
 #+options: toc:nil num:nil html-postamble:nil
 
 #+html: <div style="text-align:right">
-[[file:f:/Home/wiki/mls/io/index.org][Modulus]] / Documentation
+[[file:~/Projects/Programming/Modulus/modulus/docs/index.org][Modulus]] / Documentation
 #+html: </div>
 
 
@@ -12,7 +12,7 @@ examples) and the reasoning behind them.
 
 
 Tooling
-+ Unicode
++ Unicode (How to type the characters)
 + The Server & Live Coding
 
 Concepts 
@@ -30,4 +30,6 @@ Concepts
 Libraries  
 + Modules, Structures & Signatures
 + [[file:module-layout.org][Standard Module Layout]]
-+ [[file:library.org][The Standard Library]]
++ [[file:library/index.org][The Standard Library]]
+
+

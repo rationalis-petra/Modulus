@@ -3,7 +3,7 @@
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 <head>
-<!-- 2022-11-02 Wed 12:48 -->
+<!-- 2022-11-23 Wed 17:02 -->
 <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Modulus Docs: Expressions and Parsing</title>
@@ -204,13 +204,13 @@
 </p>
 </div>
 
-<div id="outline-container-org7b5373c" class="outline-2">
-<h2 id="org7b5373c">Symbols, Prefix &amp; Infix Operations</h2>
-<div class="outline-text-2" id="text-org7b5373c">
+<div id="outline-container-orgad08f7b" class="outline-2">
+<h2 id="orgad08f7b">Symbols, Prefix &amp; Infix Operations</h2>
+<div class="outline-text-2" id="text-orgad08f7b">
 </div>
-<div id="outline-container-org6b58f56" class="outline-3">
-<h3 id="org6b58f56">Arithmetic</h3>
-<div class="outline-text-3" id="text-org6b58f56">
+<div id="outline-container-orgaa9247b" class="outline-3">
+<h3 id="orgaa9247b">Arithmetic</h3>
+<div class="outline-text-3" id="text-orgaa9247b">
 <p>
 Like many other programming languages, Modulus has arithmetic-style expressions:
 </p>
@@ -234,16 +234,15 @@ Precedence is right-to-left, meaning functions are evaluated left-to-right, so
 </div>
 </div>
 
-<div id="outline-container-org74e9d46" class="outline-3">
-<h3 id="org74e9d46">Function Call</h3>
-<div class="outline-text-3" id="text-org74e9d46">
+<div id="outline-container-orgcbfbd9e" class="outline-3">
+<h3 id="orgcbfbd9e">Function Call</h3>
+<div class="outline-text-3" id="text-orgcbfbd9e">
 <p>
-So far, I've only mentioned binary functions, but what about 'normal'
-functions?. In many languages, function-calls are written <code>f(x, y, z)</code> - in
-Modulus, we use juxtaposition to apply a function, i.e. <code>f x y z</code>. This syntax
-extends beyond just functions and also includes 'special' forms like <code>if</code> and
-<code>defn</code> (define-function). We could therefore define a minimum function <code>min x
-y</code>, which returns whichever of <code>x</code> and <code>y</code> is smaller:
+In many languages, function-calls are written <code>f(x, y, z)</code> - in Modulus, use
+juxtaposition to apply a function, i.e. <code>f x y z</code>. This syntax extends beyond
+functions and also includes 'special' forms like <code>if</code> and <code>defn</code>
+(define function). We could therefore define a minimum function <code>min x y</code>, which
+returns whichever of <code>x</code> and <code>y</code> is smaller:
 </p>
 
 <div class="org-src-container">
@@ -252,30 +251,39 @@ y</code>, which returns whichever of <code>x</code> and <code>y</code> is smalle
 </div>
 
 <p>
-To use min, we write <code>min 2 3</code>, which in this case evaluates to 2. 
+To use min, write <code>min 2 3</code>, which in this case evaluates to 2. 
 </p>
 </div>
 </div>
 
-<div id="outline-container-org5693c39" class="outline-3">
-<h3 id="org5693c39">Infix, or Prefix?</h3>
-<div class="outline-text-3" id="text-org5693c39">
+<div id="outline-container-org088b4d5" class="outline-3">
+<h3 id="org088b4d5">Infix, or Prefix?</h3>
+<div class="outline-text-3" id="text-org088b4d5">
 <p>
-<code>(+) 1 2</code>.
+To call an infix function (like +) prefix, surround it with parentheses. For
+example, <code>(-) 1 2</code> and <code>1 - 2</code> mean the same thing. Conversely, To write a
+normal (prefix) function as infix, surround it with curvy angle brackets, so
+<code>min 2 3</code> and <code>2 ⧼min⧽ 3</code>, are the same. These have codes <code>;-&lt;</code> and <code>;&gt;-</code>.
 </p>
 </div>
 </div>
 </div>
 
 
-<div id="outline-container-orgb8070de" class="outline-2">
-<h2 id="orgb8070de">Parenthesis Types</h2>
-<div class="outline-text-2" id="text-orgb8070de">
+<div id="outline-container-orgc8d88fd" class="outline-2">
+<h2 id="orgc8d88fd">Parenthesis Types</h2>
+<div class="outline-text-2" id="text-orgc8d88fd">
 <p>
-Modulus makes use of several different <i>types</i> of parentheses: notably <code>()</code>,
-<code>[]</code>, <code>{}</code> and <code>⦗⦘</code>. The latter two (<code>{}</code> and <code>⦗⦘</code> have specific meanings which
-we will discuss later, while the former two (<code>[]</code> and <code>()</code>) are <i>almost</i>
-identical, but with subtle differences.
+Modulus makes use of many different types of parentheses: notably <code>()</code>, <code>[]</code>,
+<code>{}</code>, <code>⦗⦘</code>, <code>⟨⟩</code> and <code>⧼⧽</code>. The latter three (<code>{}</code>, <code>⦗⦘</code> and <code>⧼⧽</code> have specific
+discussed both below and elsewhere in the documentation, while the former two
+(<code>[]</code> and <code>()</code>) are <i>almost</i> identical, but with subtle differences.
+</p>
+
+
+<p>
+The key distinction is that <code>()</code> is for precedence, while <code>[]</code> constructs a new
+AST node. To demonstrate, 
 </p>
 
 <p>

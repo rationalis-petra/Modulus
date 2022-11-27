@@ -3,7 +3,7 @@
 #+options: toc:nil num:nil html-postamble:nil
 
 #+html: <div style="text-align:right">
-[[file:f:/Home/wiki/mls/io/index.org][Modulus]] / [[file:index.org][Tutorials]] / Custom Data
+[[file:../index.org][Modulus]] / [[file:index.org][Tutorials]] / Custom Data
 #+html: </div>
 
 * Build Data

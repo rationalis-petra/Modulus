@@ -3,7 +3,7 @@
 #+options: toc:nil num:nil html-postamble:nil
 
 #+html: <div style="text-align:right">
-[[file:f:/Home/wiki/mlsio/index.org][Modulus]] / [[file:index.org][Documentation]] / Expressions & Parsing 
+[[file:../index.org][Modulus]] / [[file:index.org][Documentation]] / Expressions & Parsing 
 #+html: </div>
 
 * Symbols, Prefix & Infix Operations
@@ -23,32 +23,41 @@ Precedence is right-to-left, meaning functions are evaluated left-to-right, so
 =2 + 3 - 4= is ~(2 + 3) - 4 = 1~, /not/ ~2 + (3 - 4) = 3~. 
 
 ** Function Call
-So far, I've only mentioned binary functions, but what about 'normal'
-functions?. In many languages, function-calls are written =f(x, y, z)= - in
-Modulus, we use juxtaposition to apply a function, i.e. =f x y z=. This syntax
-extends beyond just functions and also includes 'special' forms like =if= and
-=defn= (define-function). We could therefore define a minimum function =min x
-y=, which returns whichever of =x= and =y= is smaller:
+In many languages, function-calls are written =f(x, y, z)= - in Modulus, use
+juxtaposition to apply a function, i.e. =f x y z=. This syntax extends beyond
+functions and also includes 'special' forms like =if= and =defn=
+(define function). We could therefore define a minimum function =min x y=, which
+returns whichever of =x= and =y= is smaller:
 
 #+begin_src modulus
 (defn min (x y) (if (x < y) x y))
 #+end_src
 
-To use min, we write =min 2 3=, which in this case evaluates to 2. 
+To use min, write =min 2 3=, which in this case evaluates to 2. 
 
 ** Infix, or Prefix?
-=(+) 1 2=.
+To call an infix function (like +) prefix, surround it with parentheses. For
+example, =(-) 1 2= and =1 - 2= mean the same thing. Conversely, To write a
+normal (prefix) function as infix, surround it with curvy angle brackets, so
+=min 2 3= and =2 ⧼min⧽ 3=, are the same. These have codes =;-<= and =;>-=.
 
 
 * Parenthesis Types
-Modulus makes use of several different /types/ of parentheses: notably =()=,
-=[]=, ={}= and =⦗⦘=. The latter two (={}= and =⦗⦘= have specific meanings which
-we will discuss later, while the former two (=[]= and =()=) are /almost/
-identical, but with subtle differences.
+Modulus makes use of many different types of parentheses: notably =()=, =[]=,
+={}=, =⦗⦘=, =⟨⟩= and =⧼⧽=. The latter three (={}=, =⦗⦘= and =⧼⧽= have specific
+discussed both below and elsewhere in the documentation, while the former two
+(=[]= and =()=) are /almost/ identical, but with subtle differences.
+
+
+The key distinction is that =()= is for precedence, while =[]= constructs a new
+AST node. To demonstrate, 
 
 In most cases, =[]= and =()= can be treated /identically/, except in the case
 where you place 1 or 0 values inside the parentheses. This means that =(f 2 3
 4)= and =[g 2 3 4]= are identical, but =(f)= and =[f]= are not (also =()= and
 =[]=). 
 
-How =[x]= and =x= are different. 
+
+
+
+

@@ -3,5 +3,5 @@
 #+options: toc:nil num:nil html-postamble:nil
 
 #+html: <div style="text-align:right">
-[[file:f:/Home/wiki/mlsio/index.org][Modulus]] / [[file:index.org][Tutorials]] / Tooling-Introudction
+[[file:../index.org][Modulus]] / [[file:index.org][Tutorials]] / Tooling
 #+html: </div>

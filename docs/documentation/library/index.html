@@ -3,7 +3,7 @@
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 <head>
-<!-- 2022-11-09 Wed 09:23 -->
+<!-- 2022-11-27 Sun 16:19 -->
 <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Modulus Standard Library</title>
@@ -191,7 +191,7 @@
     { font-size: 10px; font-weight: bold; white-space: nowrap; }
   .org-info-js_search-highlight
     { background-color: #ffff00; color: #000000; font-weight: bold; }
-  .org-svg { width: 90%; }
+  .org-svg { }
 </style>
 <link rel="stylesheet" href="../../modulus-style.css" type="text/css"/>
 </head>
@@ -200,71 +200,94 @@
 <h1 class="title">Modulus Standard Library</h1>
 <div style="text-align:right">
 <p>
-<a href="file:///f:/Home/wiki/mls/io/index.html">Modulus</a> / <a href="index.html">Documentation</a> / Library
+<a href="../index.html">Modulus</a> / <a href="index.html">Documentation</a> / Library
 </p>
 </div>
 
-<div id="outline-container-orgddca030" class="outline-2">
-<h2 id="orgddca030">Standard Library</h2>
-<div class="outline-text-2" id="text-orgddca030">
+<div id="outline-container-org7bacabc" class="outline-2">
+<h2 id="org7bacabc">Standard Library</h2>
+<div class="outline-text-2" id="text-org7bacabc">
+<p>
+Most standard libraries 
+</p>
+
+
 <ul class="org-ul">
-<li>Abstractions / <code>abs</code>
+<li>Prelude</li>
+
+<li><a href="abs/index.html">Abstractions</a> (<code>abs</code>)
 <ul class="org-ul">
-<li>Numerics / <code>num</code></li>
-<li>Functor / <code>func</code>
+<li><a href="abs/index.html">Data Structures</a> (<code>data</code>)
 <ul class="org-ul">
-<li>Functor</li>
-<li>Applicative</li>
-<li>Monad</li>
-<li>Collection</li>
-<li>Sequence</li>
-<li>fold/traverse/&#x2026;</li>
+<li><a href="abs/data/functor.html">Functor</a></li>
+<li><a href="abs/data/applicative.html">Applicative</a></li>
+<li><a href="abs/data/monad.html">Monad</a></li>
+<li><a href="abs/data/foldable.html">Foldable</a></li>
+<li><a href="abs/data/traversable.html">Traversable</a></li>
 </ul></li>
 <li>Category / <code>cat</code>
 <ul class="org-ul">
-<li>Isomorphism</li>
+<li>Isomorphism / <code>iso</code></li>
+<li>Product / <code>iso</code> (lens)</li>
+<li>Sum / <code>iso</code> (prism)</li>
+</ul></li>
+<li>Orderings / <code>ord</code>
+<ul class="org-ul">
+<li>Partial</li>
+<li>Total</li>
+<li>Lattice</li>
 </ul></li>
 <li>Groups / <code>group</code>
 <ul class="org-ul">
-<li></li>
+<li>Magma / <code>magma</code></li>
+<li>Semigroup / <code>semigroup</code></li>
+<li>Monoid / <code>monoid</code></li>
+<li>Group / <code>group</code></li>
+</ul></li>
+<li>Numerics / <code>num</code>
+<ul class="org-ul">
+<li>Ring / <code>ring</code></li>
+<li>Field / <code>field</code></li>
 </ul></li>
 </ul></li>
 
-<li>Data / <code>data</code>
-<ul class="org-ul">
 <li>Numerics / <code>num</code>
 <ul class="org-ul">
-<li>Integer</li>
-<li>Real</li>
-<li>Complex</li>
+<li>Unit / <code>unit</code></li>
+<li>Bool / <code>bool</code></li>
+<li>Integer / <code>int</code></li>
+<li>Rational / <code>rational</code></li>
+<li>Real / <code>real</code></li>
+<li>Complex / <code>complex</code></li>
+<li>Unsigned / <code>uint</code></li>
+<li>Signed / <code>sint</code></li>
+<li>Word / <code>word</code></li>
 </ul></li>
-<li>Machine
-<ul class="org-ul">
-<li>Unsigned <code>uint</code></li>
-<li>Signed   <code>sint</code></li>
-<li>Word     <code>word</code></li>
-</ul></li>
-<li>Collections / <code>coll</code>
+
+<li>Data Structures / <code>data</code>
 <ul class="org-ul">
 <li><a href="data/array.html">Array</a> / <code>array</code></li>
 <li><a href="data/list.html">List</a> / <code>list</code></li>
 <li>Vector / <code>vector</code></li>
 <li>Tensor / <code>tensor</code></li>
 </ul></li>
-<li></li>
-</ul></li>
 
 <li>Monad / <code>monad</code>
 <ul class="org-ul">
 <li>IO / <code>io</code></li>
 <li>State / <code>state</code></li>
-<li>STM / <code>state</code></li>
+<li>Except / <code>except</code></li>
+<li>Reader / <code>reader</code></li>
+<li>Writer / <code>writer</code></li>
+<li>STM / <code>stm</code></li>
 </ul></li>
+</ul>
 
-<li>System (<code>data</code>)
 <ul class="org-ul">
-<li>Web (<code>web</code>) (wasm only)</li>
-<li>Console (<code>console</code>) (wasm only)</li>
+<li>System (<code>sys</code>)
+<ul class="org-ul">
+<li>Socket (<code>socket</code>)</li>
+<li>Console (<code>console</code>)</li>
 </ul></li>
 </ul>
 </div>

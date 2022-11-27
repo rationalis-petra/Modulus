@@ -1,0 +1,84 @@
+#+html_head: <link rel="stylesheet" href="../../../../modulus-style.css" type="text/css"/>
+#+title: Modulus Libraries: Foldable
+#+options: toc:nil num:nil html-postamble:nil
+
+#+html: <div style="text-align:right">
+[[file:../../../../index.org][Modulus]] / [[file:../../../index.org][Documentation]] / [[../../index.org][Library]] / [[../index.org][Abstractions]] / [[file:index.org][Data]] / Foldable
+#+html: </div>
+
+
+* Overview
+The foldable module contains the =Foldable= signature, which represents values 
+
+* Foldable
+The foldable signature
+
+
+** Core Functions
++ fold {m : Monoid} → T m.T → T m.T ::
+  
+
++ fold' {m : Monoid} → T m.T → T m.T ::
+  Lazy accumulator
+
++ foldl {A B} → (A → B → B) → T A → B ::
+  Foldl is a left-to-right fold 
+  Left to Right fold (Strict accumulator)
+  Expected to be efficient
+
+
++ foldl' {A B} → (A → B → B) → T A → B ::
+  Lazy accumulator
+
++ foldr {A B} → (B → A → B) → B → T A → B ::
+  Right-to-left Fold 
+
++ foldr' {m : Monoid} → T m.T → T m.T ::
+  Lazy accumulator
+
+** Utility Folds
+
++ fold-map {A} → {m : Monoid} → (A → m.T) → T A → m.T ::
+
++ fold-map' {A} → {m : Monoid} → (A → m.T) → T A → m.T ::
+
++ empty? : {A} → T A → Bool ::
+  equivalent to =foldl (λ [_ _] False) True=
+
++ length {A} → T A → Int ::
+  equivalent to =foldl (λ [_ n] (n+1)) 0=
+
++ elem {A} → T A → Int ::
+  
+
++ at/! {A} → ℕ → T A ::
+  equivalent to 
+#+begin_src modulus
+(defn at {A} [idx foldable]
+  (foldl
+    (λ [elem (n, mres)]
+      (match mres
+        [some v → (n, some v)]
+        [none] → (if (n = 0) (n-1, none) (n, some elem))))
+    (idx, none)
+    foldable)._2)
+#+end_src
+
++ any {A} → T A → Int ::
+
++ all {A} → T A → Int ::
+
++ find {A} → T A → Int ::
+
++ max {A} → T A → Int ::
+
++ min {A} → T A → Int ::
+
++ sum {A} → T A → Int ::
+
++ prod {A} → T A → Int ::
+
++ to-list {A} → T A → List A ::
+  ~to-list = foldr cons nil~
+
+* Definition

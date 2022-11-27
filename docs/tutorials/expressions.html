@@ -3,7 +3,7 @@
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 <head>
-<!-- 2022-11-02 Wed 12:48 -->
+<!-- 2022-11-21 Mon 15:39 -->
 <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Tutorial: Modulus Expressions</title>
@@ -204,27 +204,23 @@
 </p>
 </div>
 
-<div id="outline-container-orge8fb6e9" class="outline-2">
-<h2 id="orge8fb6e9">Arithmetic</h2>
-<div class="outline-text-2" id="text-orge8fb6e9">
+<div id="outline-container-org4cc6ee0" class="outline-2">
+<h2 id="org4cc6ee0">Arithmetic</h2>
+<div class="outline-text-2" id="text-org4cc6ee0">
 <p>
 &lt;TODO: brief tooling&gt;
 </p>
 
 <p>
-You can 
+When Programming, we often 
 </p>
 
 <div class="org-src-container">
-<pre class="src src-modulus">&gt; <span style="color: #738FD7;">open</span> num.int num.float
-&gt; <span style="color: #cea2ca;">2</span> + <span style="color: #cea2ca;">3</span>
-&#8484;
+<pre class="src src-modulus">&gt; <span style="color: #cea2ca;">2</span> + <span style="color: #cea2ca;">3</span>
 <span style="color: #cea2ca;">5</span>
 &gt; <span style="color: #cea2ca;">6</span> - <span style="color: #cea2ca;">5</span>
-&#8484;
 <span style="color: #cea2ca;">1</span>
 &gt; <span style="color: #cea2ca;">1.5</span> &#215; <span style="color: #cea2ca;">2.0</span>
-F64
 <span style="color: #cea2ca;">3.0</span>
 </pre>
 </div>
@@ -240,12 +236,25 @@ you use a semicolon. The abbreviated input for `×' is <code>;xx</code>.
 </div>
 </div>
 
-<div id="outline-container-orgbda4a99" class="outline-2">
-<h2 id="orgbda4a99">Booleans, Conditionals</h2>
-<div class="outline-text-2" id="text-orgbda4a99">
+<div id="outline-container-org0217ed7" class="outline-2">
+<h2 id="org0217ed7">Booleans, Conditionals</h2>
+<div class="outline-text-2" id="text-org0217ed7">
 <p>
-Booleans are values are values which can be either true or false. The easiest
-way to get a boolean is with a comparison function, e.g:
+Booleans are values which can be either true or false. The easiest way to get a
+boolean is to just write <code>true</code> or <code>false</code>: 
+</p>
+
+<div class="org-src-container">
+<pre class="src src-modulus">&gt; <span style="color: #cea2ca;">true</span>
+<span style="color: #cea2ca;">true</span>
+&gt; <span style="color: #cea2ca;">false</span>
+<span style="color: #cea2ca;">false</span>
+</pre>
+</div>
+
+<p>
+More practically, booleans can be returned via comparison operations like <code>&lt;</code>
+and <code>&gt;</code>.
 </p>
 
 <div class="org-src-container">
@@ -255,6 +264,8 @@ way to get a boolean is with a comparison function, e.g:
 <span style="color: #cea2ca;">true</span>
 &gt; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">2</span> = <span style="color: #cea2ca;">3</span><span style="color: #807f96;">)</span> <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">equal to</span>
 <span style="color: #cea2ca;">false</span>
+&gt; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">2</span> &#8800; <span style="color: #cea2ca;">3</span><span style="color: #807f96;">)</span> <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">not equal to (;/= :not=)</span>
+<span style="color: #cea2ca;">true</span>
 &gt; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">5</span> &gt; <span style="color: #cea2ca;">3</span><span style="color: #807f96;">)</span> <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">greater than</span>
 <span style="color: #cea2ca;">true</span>
 &gt; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">3</span> &#8805; <span style="color: #cea2ca;">3</span><span style="color: #807f96;">)</span> <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">greater than or equal to ;&gt;= </span>
@@ -264,80 +275,174 @@ way to get a boolean is with a comparison function, e.g:
 
 
 
+<p>
+There are also functions to combine booleans:  
+</p>
 
 <div class="org-src-container">
 <pre class="src src-modulus">&gt; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">true</span> &#8744; <span style="color: #cea2ca;">false</span><span style="color: #807f96;">)</span> <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">or (;v, :or) is true if either argument is true  </span>
 <span style="color: #cea2ca;">true</span>
 &gt; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">true</span> &#8743; <span style="color: #cea2ca;">false</span><span style="color: #807f96;">)</span> <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">and (;^, :and) is true only when both arguments ar etrue</span>
 <span style="color: #cea2ca;">false</span>
-&gt; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">true</span> = <span style="color: #cea2ca;">false</span><span style="color: #807f96;">)</span> <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">equal (=) is true when both arguments are the same</span>
+&gt; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">true</span> = <span style="color: #cea2ca;">false</span><span style="color: #807f96;">)</span>
 <span style="color: #cea2ca;">false</span>
-&gt; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">true</span> &#8800; <span style="color: #cea2ca;">false</span><span style="color: #807f96;">)</span> <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">not equal (;/= :not=) &#8800; is true when both arguments are different</span>
+&gt; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">true</span> &#8800; <span style="color: #cea2ca;">false</span><span style="color: #807f96;">)</span>
 <span style="color: #cea2ca;">true</span>
 </pre>
 </div>
 
 
 <p>
-To use a boolean, we primarily use a conditional expression. The simplest
-conditional is <code>if</code>, which takes three arguments: a boolean, an expression which
-is evaluated when the boolean is true, and an expression is evaluated when the
-boolean is false.
+So that's all about how we <i>produce</i> a boolean, but how to we <i>use</i> them?  The
+simplest way is to use <code>if</code>, which takes three arguments: a boolean, an
+expression which is evaluated when the boolean is true, and an expression is
+evaluated when the boolean is false.
 </p>
 
 <div class="org-src-container">
-<pre class="src src-modulus">&gt; <span style="color: #807f96;">(</span><span style="color: #738FD7;">if</span> <span style="color: #9d81ba;">(</span><span style="color: #cea2ca;">2</span> &lt; <span style="color: #cea2ca;">3</span><span style="color: #9d81ba;">)</span> <span style="color: #7CF083;">"two"</span> <span style="color: #7CF083;">"three"</span><span style="color: #807f96;">)</span>
-<span style="color: #7CF083;">"two"</span>
+<pre class="src src-modulus">&gt; <span style="color: #807f96;">(</span><span style="color: #738FD7;">if</span> <span style="color: #cea2ca;">true</span> <span style="color: #7CF083;">"when-true"</span> <span style="color: #7CF083;">"when-false"</span><span style="color: #807f96;">)</span>
+two
+&gt; <span style="color: #807f96;">(</span><span style="color: #738FD7;">if</span> <span style="color: #9d81ba;">(</span><span style="color: #cea2ca;">3</span> &lt; <span style="color: #cea2ca;">2</span><span style="color: #9d81ba;">)</span> <span style="color: #7CF083;">"when-true"</span> <span style="color: #7CF083;">"when-false"</span><span style="color: #807f96;">)</span>
+when-false
+</pre>
+</div>
+</div>
+</div>
+
+<div id="outline-container-org17f88cd" class="outline-2">
+<h2 id="org17f88cd">Naming Values</h2>
+</div>
+
+
+
+<div id="outline-container-org71de992" class="outline-2">
+<h2 id="org71de992">Arrays</h2>
+<div class="outline-text-2" id="text-org71de992">
+<p>
+Modulus also allows you to group data together into structures called <i>arrays</i>,
+which are like a list of values. You write arrays as a list of values between
+'tortoise' brackets <code>⦗⦘</code>, which you type as <code>;[​[</code> and <code>;]​]</code>. For example, you
+could construct the array <code>⦗1 2 3⦘</code>.
+</p>
+
+<p>
+Arrays must contain elements which all have the same 'type'. A type is like a
+category of things. Two common types are the type of Integers (whole numbers),
+or the type of strings (words). This means that <code>⦗1 2 3⦘</code> and <code>⦗"apple"
+"bannana" "orange"⦘</code> are valid arrays, but <code>⦗2 "apple" 10⦘</code> is not.
+</p>
+
+<p>
+It's cool to be able to make an array, but what can we <i>do</i> with them? For a
+start, we can join them together with <i>append</i>, (also written `⋅' (<code>;**</code>)).
+</p>
+
+<div class="org-src-container">
+<pre class="src src-modulus">&gt; <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span> &#8901; <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">4</span> <span style="color: #cea2ca;">5</span> <span style="color: #cea2ca;">6</span><span style="color: #807f96;">&#10648;</span>
+<span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">4</span> <span style="color: #cea2ca;">5</span> <span style="color: #cea2ca;">6</span><span style="color: #807f96;">&#10648;</span>
+&gt; append <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span> <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">4</span> <span style="color: #cea2ca;">5</span> <span style="color: #cea2ca;">6</span><span style="color: #807f96;">&#10648;</span>
+<span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">4</span> <span style="color: #cea2ca;">5</span> <span style="color: #cea2ca;">6</span><span style="color: #807f96;">&#10648;</span>
+</pre>
+</div>
+
+
+
+<div class="org-src-container">
+<pre class="src src-modulus">&gt; <span style="color: #738FD7;">defn</span> add1 <span style="color: #807f96;">[</span>x<span style="color: #807f96;">]</span> <span style="color: #807f96;">(</span>x + <span style="color: #cea2ca;">1</span><span style="color: #807f96;">)</span>
+&gt; map add1 <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span>
+<span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">4</span><span style="color: #807f96;">&#10648;</span>
+</pre>
+</div>
+
+<pre class="example">
+&gt; map (+ 1) ⦗1 2 3⦘
+⦗2 3 4⦘
+</pre>
+
+<pre class="example">
+&gt; (+ 1) ¨ ⦗1 2 3⦘
+⦗2 3 4⦘
+</pre>
+
+
+<div class="org-src-container">
+<pre class="src src-modulus">&gt; <span style="color: #738FD7;">defn</span> add <span style="color: #807f96;">[</span>x y<span style="color: #807f96;">]</span> <span style="color: #807f96;">(</span>x + y<span style="color: #807f96;">)</span>
+&gt; fold add <span style="color: #cea2ca;">0</span> <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span>
+<span style="color: #cea2ca;">6</span>
+</pre>
+</div>
+
+<div class="org-src-container">
+<pre class="src src-modulus">&gt; fold <span style="color: #807f96;">(</span>+<span style="color: #807f96;">)</span> <span style="color: #cea2ca;">0</span> <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span>
+</pre>
+</div>
+
+<div class="org-src-container">
+<pre class="src src-modulus">&gt; <span style="color: #807f96;">(</span><span style="color: #9d81ba;">(</span>+<span style="color: #9d81ba;">)</span> / <span style="color: #cea2ca;">0</span><span style="color: #807f96;">)</span> <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span>
+</pre>
+</div>
+
+
+<div class="org-src-container">
+<pre class="src src-modulus">&gt; <span style="color: #807f96;">(</span>+ / <span style="color: #cea2ca;">0</span><span style="color: #807f96;">)</span> <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span>
+</pre>
+</div>
+
+<div class="org-src-container">
+<pre class="src src-modulus">&gt; + <span style="color: #807f96;">&#10216;</span>/ <span style="color: #cea2ca;">0</span><span style="color: #807f96;">&#10217;</span> <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span>
+</pre>
+</div>
+</div>
+
+<div id="outline-container-orgc6f9cfc" class="outline-3">
+<h3 id="orgc6f9cfc">Useful Array functions</h3>
+<div class="outline-text-3" id="text-orgc6f9cfc">
+<p>
+filter
+</p>
+
+<div class="org-src-container">
+<pre class="src src-modulus">&gt; <span style="color: #738FD7;">defn</span> even? <span style="color: #807f96;">[</span>n<span style="color: #807f96;">]</span> <span style="color: #807f96;">(</span>n | <span style="color: #cea2ca;">2</span> = <span style="color: #cea2ca;">0</span><span style="color: #807f96;">)</span>
+<span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span> <span style="color: #807f96;">&#10216;</span>&#9673; ,<span style="color: #807f96;">&#10217;</span> <span style="color: #807f96;">&#10647;</span><span style="color: #d24b83;">&#8278;a</span> <span style="color: #d24b83;">&#8278;b</span> <span style="color: #d24b83;">&#8278;c</span><span style="color: #807f96;">&#10648;</span>
+&gt; <span style="color: #807f96;">&#10647;</span><span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #d24b83;">&#8278;a</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #d24b83;">&#8278;b</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #d24b83;">&#8278;c</span><span style="color: #9d81ba;">&#10648;</span>
+   <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #d24b83;">&#8278;a</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #d24b83;">&#8278;b</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #d24b83;">&#8278;c</span><span style="color: #9d81ba;">&#10648;</span>
+   <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">3</span> <span style="color: #d24b83;">&#8278;a</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">3</span> <span style="color: #d24b83;">&#8278;b</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">3</span> <span style="color: #d24b83;">&#8278;c</span><span style="color: #9d81ba;">&#10648;</span><span style="color: #807f96;">&#10648;</span>
 </pre>
 </div>
 
 <p>
-Sometimes, it might be necessary to have multiple 'if' statements inside of each
-other. Suppose for example that we have a calendar system where days are
-represented as numbers: 1 is Monday, 2 is Tuesday, etc. Using an <code>if</code>, this can
-get messy&#x2026;
+filter
 </p>
 
 <div class="org-src-container">
-<pre class="src src-modulus">&gt; <span style="color: #738FD7;">def</span> day <span style="color: #cea2ca;">2</span>
-&gt; <span style="color: #807f96;">(</span><span style="color: #738FD7;">if</span> <span style="color: #9d81ba;">(</span>day = <span style="color: #cea2ca;">0</span><span style="color: #9d81ba;">)</span>
-      <span style="color: #7CF083;">"monday"</span>
-      <span style="color: #9d81ba;">(</span><span style="color: #738FD7;">if</span> <span style="color: #4d9391;">(</span>day = <span style="color: #cea2ca;">1</span><span style="color: #4d9391;">)</span>
-          <span style="color: #7CF083;">"tuesday"</span>
-           ...<span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
+<pre class="src src-modulus"><span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span> <span style="color: #807f96;">&#10216;</span>&#9673; ,<span style="color: #807f96;">&#10217;</span> <span style="color: #807f96;">&#10647;</span><span style="color: #d24b83;">&#8278;a</span> <span style="color: #d24b83;">&#8278;b</span> <span style="color: #d24b83;">&#8278;c</span><span style="color: #807f96;">&#10648;</span>
+&gt; <span style="color: #807f96;">&#10647;</span><span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #d24b83;">&#8278;a</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #d24b83;">&#8278;b</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #d24b83;">&#8278;c</span><span style="color: #9d81ba;">&#10648;</span>
+   <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #d24b83;">&#8278;a</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #d24b83;">&#8278;b</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #d24b83;">&#8278;c</span><span style="color: #9d81ba;">&#10648;</span>
+   <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">3</span> <span style="color: #d24b83;">&#8278;a</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">3</span> <span style="color: #d24b83;">&#8278;b</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">3</span> <span style="color: #d24b83;">&#8278;c</span><span style="color: #9d81ba;">&#10648;</span><span style="color: #807f96;">&#10648;</span>
 </pre>
 </div>
 
 <p>
-Fortunately, we have <code>cond</code>. <code>cond</code> will go through each condition (left of the
-→) until it finds a 'true' condition. The final condition (the <code>else</code>) acts as a
-'fall-through', which is executed when all other conditions fail.
+inner-product
 </p>
 
 <div class="org-src-container">
-<pre class="src src-modulus">&gt; <span style="color: #738FD7;">def</span> day <span style="color: #cea2ca;">4</span>
-&gt; <span style="color: #807f96;">(</span>cond
-    <span style="color: #9d81ba;">(</span><span style="color: #4d9391;">(</span>day = <span style="color: #cea2ca;">1</span><span style="color: #4d9391;">)</span> &#8594; <span style="color: #7CF083;">"Monday"</span><span style="color: #9d81ba;">)</span> 
-    <span style="color: #9d81ba;">(</span><span style="color: #4d9391;">(</span>day = <span style="color: #cea2ca;">2</span><span style="color: #4d9391;">)</span> &#8594; <span style="color: #7CF083;">"Tuesday"</span><span style="color: #9d81ba;">)</span> 
-    <span style="color: #9d81ba;">(</span><span style="color: #4d9391;">(</span>day = <span style="color: #cea2ca;">3</span><span style="color: #4d9391;">)</span> &#8594; <span style="color: #7CF083;">"Wednesday"</span><span style="color: #9d81ba;">)</span> 
-    <span style="color: #9d81ba;">(</span><span style="color: #4d9391;">(</span>day = <span style="color: #cea2ca;">4</span><span style="color: #4d9391;">)</span> &#8594; <span style="color: #7CF083;">"Thursday"</span><span style="color: #9d81ba;">)</span> 
-    <span style="color: #9d81ba;">(</span><span style="color: #4d9391;">(</span>day = <span style="color: #cea2ca;">5</span><span style="color: #4d9391;">)</span> &#8594; <span style="color: #7CF083;">"Friday"</span><span style="color: #9d81ba;">)</span> 
-    <span style="color: #9d81ba;">(</span><span style="color: #4d9391;">(</span>day = <span style="color: #cea2ca;">6</span><span style="color: #4d9391;">)</span> &#8594; <span style="color: #7CF083;">"Saturday"</span><span style="color: #9d81ba;">)</span> 
-    <span style="color: #9d81ba;">(</span><span style="color: #4d9391;">(</span>day = <span style="color: #cea2ca;">7</span><span style="color: #4d9391;">)</span> &#8594; <span style="color: #7CF083;">"Sunday"</span><span style="color: #9d81ba;">)</span> 
-    <span style="color: #9d81ba;">(</span>else      &#8594; <span style="color: #7CF083;">"Invalid Day"</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
-<span style="color: #7CF083;">"Thursday"</span>
+<pre class="src src-modulus">&gt; <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span> <span style="color: #807f96;">&#10216;</span>&#8857; ,<span style="color: #807f96;">&#10217;</span> <span style="color: #807f96;">&#10647;</span><span style="color: #d24b83;">&#8278;a</span> <span style="color: #d24b83;">&#8278;b</span> <span style="color: #d24b83;">&#8278;c</span><span style="color: #807f96;">&#10648;</span>
+<span style="color: #807f96;">&#10647;</span><span style="color: #9d81ba;">(</span><span style="color: #cea2ca;">1</span>, <span style="color: #d24b83;">&#8278;a</span><span style="color: #9d81ba;">)</span> <span style="color: #9d81ba;">(</span><span style="color: #cea2ca;">2</span>, <span style="color: #d24b83;">&#8278;b</span><span style="color: #9d81ba;">)</span> <span style="color: #9d81ba;">(</span><span style="color: #cea2ca;">3</span>, <span style="color: #d24b83;">&#8278;c</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">&#10648;</span>
 </pre>
-</div>
-</div>
 </div>
 
-<div id="outline-container-org543a792" class="outline-2">
-<h2 id="org543a792">Patterns and Matching</h2>
-<div class="outline-text-2" id="text-org543a792">
+<p>
+outer-product
+</p>
+
 <div class="org-src-container">
-<pre class="src src-modulus">&gt; <span style="color: #807f96;">(</span><span style="color: #738FD7;">match</span> 'b' <span style="color: #9d81ba;">(</span>'a' &#8594; <span style="color: #cea2ca;">1</span><span style="color: #9d81ba;">)</span> <span style="color: #9d81ba;">(</span>'b' &#8594; <span style="color: #cea2ca;">2</span><span style="color: #9d81ba;">)</span> <span style="color: #9d81ba;">(</span>'c' &#8594; <span style="color: #cea2ca;">3</span><span style="color: #9d81ba;">)</span> <span style="color: #9d81ba;">(</span>_ &#8594; <span style="color: #cea2ca;">4</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
-<span style="color: #cea2ca;">2</span>
+<pre class="src src-modulus"><span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span> <span style="color: #807f96;">&#10216;</span>&#9673; ,<span style="color: #807f96;">&#10217;</span> <span style="color: #807f96;">&#10647;</span><span style="color: #d24b83;">&#8278;a</span> <span style="color: #d24b83;">&#8278;b</span> <span style="color: #d24b83;">&#8278;c</span><span style="color: #807f96;">&#10648;</span>
+&gt; <span style="color: #807f96;">&#10647;</span><span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #d24b83;">&#8278;a</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #d24b83;">&#8278;b</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #d24b83;">&#8278;c</span><span style="color: #9d81ba;">&#10648;</span>
+   <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #d24b83;">&#8278;a</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #d24b83;">&#8278;b</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #d24b83;">&#8278;c</span><span style="color: #9d81ba;">&#10648;</span>
+   <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">3</span> <span style="color: #d24b83;">&#8278;a</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">3</span> <span style="color: #d24b83;">&#8278;b</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">3</span> <span style="color: #d24b83;">&#8278;c</span><span style="color: #9d81ba;">&#10648;</span><span style="color: #807f96;">&#10648;</span>
 </pre>
+</div>
 </div>
 </div>
 </div>

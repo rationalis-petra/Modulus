@@ -3,64 +3,75 @@
 #+options: toc:nil num:nil html-postamble:nil
 
 #+html: <div style="text-align:right">
-[[file:f:/Home/wiki/mls/io/index.org][Modulus]] / [[file:index.org][Documentation]] / Library
+[[file:../index.org][Modulus]] / [[file:index.org][Documentation]] / Library
 #+html: </div>
 
 * Standard Library
+Most standard libraries 
+
+
 + Prelude
 
-+ Abstractions / =abs=
-  + Numerics / =num=
-  + Functor / =func=
-    + Functor
-    + Applicative
-    + Monad
-    + Collection
-    + Sequence
-    + fold/traverse/...
++ [[file:abs/index.org][Abstractions]] (=abs=)
+  + [[file:abs/index.org][Data Structures]] (=data=)
+    + [[file:abs/data/functor.org][Functor]]
+    + [[file:abs/data/applicative.org][Applicative]]
+    + [[file:abs/data/monad.org][Monad]]
+    + [[file:abs/data/foldable.org][Foldable]]
+    + [[file:abs/data/traversable.org][Traversable]]
   + Category / =cat=
     + Isomorphism / =iso=
     + Product / =iso= (lens)
     + Sum / =iso= (prism)
+  + Orderings / =ord=
+    + Partial
+    + Total
+    + Lattice
   + Groups / =group=
     + Magma / =magma=
     + Semigroup / =semigroup=
     + Monoid / =monoid=
     + Group / =group=
-
-+ Data / =data=
   + Numerics / =num=
-    + Unit / =unit=
-    + Bool / =bool=
-    + Integer / =int=
-    + Rational / =rational=
-    + Real / =real=
-    + Complex / =complex=
-  + Machine / =machine=
-    + Unsigned =uint=
-    + Signed   =sint=
-    + Word     =word=
-  + Collections / =coll=
-    + [[file:data/array.org][Array]] / =array=
-    + [[file:data/list.org][List]] / =list=
-    + Vector / =vector=
-    + Tensor / =tensor=
+    + Ring / =ring=
+    + Field / =field=
+
++ Numerics / =num=
+  + Unit / =unit=
+  + Bool / =bool=
+  + Integer / =int=
+  + Rational / =rational=
+  + Real / =real=
+  + Complex / =complex=
+  + Unsigned / =uint=
+  + Signed / =sint=
+  + Word / =word=
+
++ Data Structures / =data=
+  + [[file:data/array.org][Array]] / =array=
+  + [[file:data/list.org][List]] / =list=
+  + Vector / =vector=
+  + Tensor / =tensor=
 
 + Monad / =monad=
   + IO / =io=
   + State / =state=
-  + STM / =state=
+  + Except / =except=
+  + Reader / =reader=
+  + Writer / =writer=
+    # Software transactional Memory
+  + STM / =stm=
 
 # TODO: linear types?
 # getting resources via sockets
-+ System (=data=)
++ System (=sys=)
   + Socket (=socket=)
   + Console (=console=)
-  + 
 
 # Optics???
 # + Optics
 #   + Isomorphism / =iso= 
-#   + Lens / =lens=
+#   + Lens  / =lens=
 #   + Prism / =prism=
+#   + Fold  / =trav=
 #   + Traversal / =trav=
