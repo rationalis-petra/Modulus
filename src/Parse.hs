@@ -64,19 +64,19 @@ pSymStr = (:) <$> (letterChar <|> char '_') <*> many (alphaNumChar <|> char '_' 
 
 pSpecial :: Parser (Normal m)
 pSpecial = (lexeme $ Symbol <$> pSpecialStr)
-  <|> (try (between (symbol "`") (symbol "`") pSym)) 
+  <|> (try (between (symbol "⧼") (symbol "⧽") pSym)) 
 
 pSpecialStr :: Parser String
 pSpecialStr = ((:) <$> specialChar <*> (many $ specialChar))
   where 
-    specialChar = (lookAhead $ satisfy (\x -> x /= '`' && x /= '\n')) >>
+    specialChar = (lookAhead $ satisfy (\x -> x /= '\n')) >>
       choice [symbolChar, controlChar, oneOf "!<>:*-+/.,"]
     oneOf :: [Char] -> Parser Char
     oneOf x = choice (map char x)
   
 pTightSym :: Parser (Normal m)
 pTightSym = lexeme $ Symbol . unpack
-  <$> (try (choice [symbol ".", symbol "<:"]))
+  <$> (try (choice [symbol "."]))
 
 pRightSym :: Parser (Normal m)
 pRightSym = lexeme $ Symbol . unpack <$> (try (choice [symbol "→", symbol ":"]))
@@ -125,6 +125,7 @@ parens   = between (symbol "(") (symbol ")")
 squarens = between (symbol "[") (symbol "]")
 larens   = between (symbol "⟨") (symbol "⟩")
 curens   = between (symbol "{") (symbol "}")
+dcurens  = between (symbol "⦃") (symbol "⦄")
 torens   = between (symbol "⦗") (symbol "⦘")
 
 toSeq :: [AST m] -> AST m

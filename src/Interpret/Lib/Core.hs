@@ -84,6 +84,16 @@ defFun args =  throwError $ "bad args to macro: defn" <> show args
 mlsDefn :: MonadError String m => Normal m
 mlsDefn = BuiltinMac defFun
 
+defInfix :: MonadError String m => [AST m] -> m (AST m)
+defInfix [Cons (sym:args), def] = 
+  pure $ Cons [Atom (Special Def), sym, Cons (Atom (Special Lambda) : (Cons args) : [def])]
+defInfix [sym, def] = 
+  pure $ Cons [Atom (Special Def), sym, def]
+defInfix args =  throwError $ "bad args to macro: ≜" <> show args
+
+mlsDefInfix :: MonadError String m => Normal m
+mlsDefInfix = BuiltinMac defInfix
+
 
 defMac :: MonadError String m => [AST m] -> m (AST m)
 defMac [sym, symlist, bdy] = 
@@ -192,7 +202,7 @@ coreTerms =
   , ("let-open",    Special LetOpen)
 
   , ("def",           Special Def)
-  , ("≜",             Special Def)
+  , ("≜",             mlsDefInfix)
   , ("defn",          mlsDefn)
   , ("def-syntax",    mlsDefmac)
   , ("def-structure", mlsDefStructure)
