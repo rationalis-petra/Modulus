@@ -6,7 +6,7 @@ import Control.Monad.Reader (MonadReader)
 import Control.Monad.State  (MonadState)
 import Control.Monad.Except (MonadError, throwError)
 
-import Data
+import Syntax.Normal
 import Syntax.Core
 import Interpret.Eval (eval, liftFun, liftFun2, liftFun3, liftFun4, liftFun5, liftFun6)
 import Syntax.Utils (mkVar)

@@ -14,8 +14,7 @@ import Control.Monad.State (MonadState, put, modify)
 import Control.Monad.Except (MonadError, throwError)
 import Control.Monad.Reader (MonadReader)
 
-import Data
-  
+import Syntax.Normal
 import Syntax.Utils
 
 

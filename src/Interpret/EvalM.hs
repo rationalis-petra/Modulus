@@ -3,17 +3,22 @@ module Interpret.EvalM where
 
 import qualified Control.Applicative
 
-import Control.Monad.State (MonadState, runState)
-import Control.Monad.Except (MonadError, runExceptT)
-import Control.Monad.Reader (MonadReader, runReaderT)
+import Control.Monad.Identity (Identity)
+import Control.Monad.State (MonadState, StateT, runState)
+import Control.Monad.Except (MonadError, ExceptT, runExceptT)
+import Control.Monad.Reader (MonadReader, ReaderT, runReaderT)
+
 import qualified Control.Monad.Except as Except
 import qualified Control.Monad.Reader as Reader
 import qualified Control.Monad.State as State
 
-import Data(EvalT(..), Neutral(..), Normal(..))
+import Syntax.Normal
 import Control.Lens (use, (+=))
-import Data(Eval, EvalT, Environment, ProgState, uid_counter, var_counter)
 
+newtype EvalT m a = EvalT { unEvalT :: ReaderT (Environment (EvalT m)) (ExceptT String (StateT (ProgState (EvalT m)) m)) a }
+type Eval = EvalT Identity
+
+  
 type Environment' = Environment Eval
 type ProgState' = ProgState Eval
 

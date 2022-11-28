@@ -6,12 +6,12 @@ import Data.Text (unpack)
 import Control.Monad.Except (Except, runExcept, throwError) 
 import qualified Data.Set as Set
 import qualified Interpret.Environment as Env
-import Data (AST(..),
-             Environment,
-             Special(..),
-             Normal(Symbol, Special, Keyword, NormIVal, NormCoDtor, PrimVal),
-             PrimVal(String),
-             Neutral)
+import Syntax.Normal (AST(..),
+                      Environment,
+                      Special(..),
+                      Normal(Symbol, Special, Keyword, NormIVal, NormCoDtor, PrimVal),
+                      PrimVal(String),
+                      Neutral)
 
 import Syntax.Intermediate
 

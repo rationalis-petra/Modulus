@@ -11,11 +11,11 @@ import qualified Data.Set as Set
 import Bindings.Libtdl (CModule)
   
 import qualified Interpret.Environment as Env
-import Data (AST(..),
-             Environment,
-             Special(..),
-             Normal(Symbol, Special, Keyword, NormIVal),
-             Neutral)
+import Syntax.Normal (AST(..),
+                      Environment,
+                      Special(..),
+                      Normal(Symbol, Special, Keyword, NormIVal),
+                      Neutral)
 
 
 -- arguments to functions may have optional type annotations

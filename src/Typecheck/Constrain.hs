@@ -22,14 +22,14 @@ import Control.Monad.State  (MonadState)
 import Control.Monad.Except (MonadError, throwError)
 
 
-import Data (PrimType(..),
-             Normal(..),
-             Neutral(..),
-             CollTy(..),
-             CollVal(..),
-             var_counter,
-             Environment,
-             ProgState)
+import Syntax.Normal (PrimType(..),
+                      Normal(..),
+                      Neutral(..),
+                      CollTy(..),
+                      CollVal(..),
+                      var_counter,
+                      Environment,
+                      ProgState)
 import Syntax.Core(Core(..))
 
 import qualified Interpret.Environment as Env

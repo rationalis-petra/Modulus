@@ -8,12 +8,12 @@ import Control.Monad.Except (MonadError, throwError)
 import Control.Monad.State (MonadState)
 import Control.Monad.Reader (MonadReader, local)
 
-import Data (PrimType(..),
-             Normal(..),
-             Neutral(..),
-             Environment,
-             ProgState,
-             var_counter)
+import Syntax.Normal (PrimType(..),
+                      Normal(..),
+                      Neutral(..),
+                      Environment,
+                      ProgState,
+                      var_counter)
 import Syntax.Core(Core(..))
 import Syntax.TIntermediate
 

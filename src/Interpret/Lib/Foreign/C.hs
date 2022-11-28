@@ -11,7 +11,7 @@ import Foreign.C.Types (CDouble, CInt)
 import Foreign.C.String (CString, peekCString, newCString)  
 import Foreign.Marshal.Alloc
 
-import Data
+import Syntax.Normal
 import Data.Text (pack, unpack)
 import Interpret.Eval (eval, liftFun, liftFun2, liftFun3, liftFun4, liftFun5, liftFun6)
 import Syntax.Utils (mkVar)

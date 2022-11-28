@@ -2,10 +2,12 @@
 module Interpret.Lib where
 
 
+import qualified Data.Map as Map
 import Control.Monad.Reader (MonadReader)
 import Control.Monad.State  (MonadState)
 import Control.Monad.Except (MonadError)
 
+import Syntax.Normal (Normal(NormSct, NormSig), toEmpty, Environment, ProgState)
 import Syntax.Utils  
 
 import Interpret.Lib.Core 
@@ -22,8 +24,6 @@ import qualified Interpret.Lib.Algebra.Ring as Ring
 import qualified Interpret.Lib.Algebra.Field as Field
 import qualified Interpret.Lib.Data.String as String
 
-import Data (Normal(NormSct, NormSig), toEmpty, Environment, ProgState)
-import qualified Data.Map as Map
 
 
 implTerms =

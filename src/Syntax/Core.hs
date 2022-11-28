@@ -3,7 +3,7 @@ module Syntax.Core (Core(..),
                     Definition(..),
                    ) where
 
-import Data (Normal(..), CoPattern(..), Pattern(..), Eval)
+import Syntax.Normal (Normal(..), CoPattern(..), Pattern(..))
 
 
 data Core m

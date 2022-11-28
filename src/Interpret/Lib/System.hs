@@ -7,7 +7,7 @@ import Control.Monad.Except (MonadError)
 import Control.Monad.Reader (MonadReader)
 
 import System.IO
-import Data
+import Syntax.Normal
 import Interpret.Eval (liftFun)
   
 import Data.Text(pack, unpack)

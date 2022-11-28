@@ -1,6 +1,6 @@
 module Interpret.Lib.Algebra.Semigroup where
 
-import Data  
+import Syntax.Normal  
 
 import Interpret.Eval
 import Interpret.Lib.LibUtils

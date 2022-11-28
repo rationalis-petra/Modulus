@@ -1,19 +1,21 @@
 module Main where
 
+import Data.Text (pack)
+import qualified Data.Map as Map
 import Control.Monad.Except (runExcept)
 
 import Bindings.Libtdl  
 
 import Parse (parseScript, parseRepl, parsePreRepl, ReplMessage(..))
-import Data
-import Interpret.Eval (evalTop, Result(..), runIO)
-import Interpret.EvalM (runEval)
+import Syntax.Normal
 import Syntax.Core
 import Syntax.Macroexpand 
 import Syntax.Conversions (toIntermediate,
                            toTIntermediateTop,
                            toCore,
                            toTopCore)
+import Interpret.Eval (evalTop, Result(..), runIO)
+import Interpret.EvalM (runEval, Eval)
 import Typecheck.Typecheck
 import Server (startServer)
 
@@ -21,8 +23,6 @@ import System.IO
 import Interpret.Lib (defaultStructure)
 import qualified Interpret.Environment as Env
 
-import Data.Text (pack)
-import qualified Data.Map as Map
 
 -- Parsing Command Line Args
 import Options.Applicative

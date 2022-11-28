@@ -7,7 +7,7 @@ import Control.Monad.Except (MonadError, throwError)
 
 import qualified Data.Map as Map
 
-import Data
+import Syntax.Normal
 import Syntax.Utils
 import Interpret.Eval (liftFun, liftFun2, liftFun3, liftFun4)
 import Interpret.EvalM

@@ -2,11 +2,11 @@
 
 module Syntax.Conversions.TIntermediate where
 
-import Data(Pattern(..),
-            InbuiltCtor(..),
-            Normal(..),
-            Neutral(..),
-            ProgState)
+import Syntax.Normal (Pattern(..),
+                      InbuiltCtor(..),
+                      Normal(..),
+                      Neutral(..),
+                      ProgState)
 import Syntax.Core(Core (..), TopCore(..), Definition(..))
 import Syntax.Intermediate(Intermediate(..),
                            IDefinition(..),

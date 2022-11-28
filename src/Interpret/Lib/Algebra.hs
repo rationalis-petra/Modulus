@@ -1,6 +1,6 @@
 module Interpret.Lib.Algebra where
 
-import Data  
+import Syntax.Normal  
 
 import Interpret.Lib.Algebra.Semigroup
 import Interpret.Lib.Algebra.Ring

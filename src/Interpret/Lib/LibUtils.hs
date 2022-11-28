@@ -1,6 +1,6 @@
 module Interpret.Lib.LibUtils where
 
-import Data
+import Syntax.Normal
 
 tyTail :: (Normal m) -> (Normal m)
 tyTail (NormArr l r) = r

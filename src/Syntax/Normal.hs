@@ -1,31 +1,29 @@
 {-# LANGUAGE TemplateHaskell, TypeSynonymInstances, FlexibleInstances#-}
 {-# LANGUAGE FlexibleContexts, RankNTypes, GADTs #-}
 
-module Data (Pattern(..),
-             CoPattern(..),
-             Modifier(..),
-             Normal(..),
-             Neutral(..),
-             EvalT(..),
-             Eval,
-             Environment(..),
-             ProgState(..),
-             uid_counter,
-             var_counter,
-             thunk_map,
-             dropMod,
-             peelMod,
-             addMod,
-             toEmpty,
-             IEThread(..),
-             AST(..),
-             PrimVal(..),
-             PrimType(..),
-             CollVal(..),
-             CollTy(..),
-             InbuiltCtor(..),
-             Special(..),
-             Thunk(..)) where
+module Syntax.Normal (Pattern(..),
+                      CoPattern(..),
+                      Modifier(..),
+                      Normal(..),
+                      Neutral(..),
+                      Environment(..),
+                      ProgState(..),
+                      uid_counter,
+                      var_counter,
+                      thunk_map,
+                      dropMod,
+                      peelMod,
+                      addMod,
+                      toEmpty,
+                      IEThread(..),
+                      AST(..),
+                      PrimVal(..),
+                      PrimType(..),
+                      CollVal(..),
+                      CollTy(..),
+                      InbuiltCtor(..),
+                      Special(..),
+                      Thunk(..)) where
 
 import Data.Text (Text, pack, unpack)
 import Data.Vector (Vector)
@@ -322,8 +320,6 @@ data PrimType
   deriving (Eq, Ord)
   
 
-newtype EvalT m a = EvalT { unEvalT :: ReaderT (Environment (EvalT m)) (ExceptT String (StateT (ProgState (EvalT m)) m)) a }
-type Eval = EvalT Identity
 
 
 data ProgState m = ProgState

@@ -1,10 +1,10 @@
 {-# LANGUAGE PolyKinds, FlexibleContexts #-}
 module Syntax.Conversions.Core where
 
-import Data(Pattern(..),
-            CoPattern(..),
-            Normal(..),
-            Neutral(..))
+import Syntax.Normal(Pattern(..),
+                     CoPattern(..),
+                     Normal(..),
+                     Neutral(..))
 import Syntax.Core
 import Syntax.Intermediate(Intermediate(..),
                            IDefinition(..),

@@ -3,8 +3,7 @@ module Syntax.TIntermediate where
 -- After the intermediate representation
 -- we have... the 
 
-import Data(Normal(..),
-            Pattern)
+import Syntax.Normal(Normal(..), Pattern)
 import Syntax.Core (Definition(..), Core (..))
 
 import Syntax.Intermediate(Intermediate(..),

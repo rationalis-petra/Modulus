@@ -40,12 +40,12 @@ import Control.Monad.Reader (ReaderT, MonadReader, local, ask, runReaderT)
 import qualified Interpret.Environment as Env
 
 import Syntax.Utils  
-import Interpret.EvalM (runEval)
+import Interpret.EvalM (Eval, runEval)
 
 import Bindings.Libtdl (CModule, lookupForeignFun, mkFun)
 import Foreign.C.Types (CDouble)
   
-import Data
+import Syntax.Normal
 import Syntax.Core
 import qualified Data.Map as Map
 import qualified Data.Set as Set

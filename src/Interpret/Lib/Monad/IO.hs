@@ -5,7 +5,7 @@ import Control.Monad.Reader (MonadReader, local, ask)
 import Control.Monad.State  (MonadState)
 import Control.Monad.Except (MonadError, throwError)
 
-import Data
+import Syntax.Normal
 import Interpret.Eval (eval, liftFun, liftFun2, liftFun4, liftFunL4)
 
 mkVar s = (Neu (NeuVar s (NormUniv 0)) (NormUniv 0))

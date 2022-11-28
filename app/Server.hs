@@ -10,29 +10,28 @@ module Server where
 import Data.Text (Text, pack, unpack)
 import Data.Text.Encoding (decodeUtf8')
 import qualified Data.Map as Map
+import qualified Data.ByteString as Bs
+import Data.ByteString (empty, ByteString)
 import Control.Concurrent
 import Control.Concurrent.STM
-
+import Control.Monad (when, unless, forever, void)
+import qualified Control.Exception as Ex
 
 import Bindings.Libtdl
-import Data (Eval,
-             Normal(NormSct, NormSig),
-             CollVal(..),
-             Environment,
-             ProgState)
+import Syntax.Normal (Normal(NormSct, NormSig),
+                      CollVal(..),
+                      Environment,
+                      ProgState)
+import Interpret.Eval(Eval)
+
 
 import qualified Server.Message as Message
 import Server.Message hiding (parse)
 import Server.Data  
 import Server.Interpret
 
-
-import Control.Monad (when, unless, forever, void)
-import Data.ByteString (empty, ByteString)
-import qualified Data.ByteString as Bs
 import Network.Socket
 import Network.Socket.ByteString (recv, sendAll)
-import qualified Control.Exception as Ex
 
 
 -- TODO: start server on host: localhost  

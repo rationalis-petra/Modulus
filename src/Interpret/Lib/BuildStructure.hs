@@ -6,10 +6,10 @@ import Control.Monad.State (MonadState)
 import Control.Monad.Except (MonadError)
 import Control.Monad.Reader (MonadReader)
 
-import Data(Environment(..),
-            ProgState,
-            Normal(NormSct, NormSig),
-            toEmpty)
+import Syntax.Normal(Environment(..),
+                     ProgState,
+                     Normal(NormSct, NormSig),
+                     toEmpty)
 import Interpret.Lib.Core (coreTerms) 
 
 

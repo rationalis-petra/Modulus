@@ -13,17 +13,16 @@ import Control.Monad.Reader (ReaderT, MonadReader, local, ask)
 
 import Bindings.Libtdl  
 
-import Data(Normal(NormSct, NormSig, NormCModule, PrimType),
-            PrimType(CModuleT),
-            ProgState,
-            Environment,
-            Eval,
-            AST,
-            toEmpty)
+import Syntax.Normal(Normal(NormSct, NormSig, NormCModule, PrimType),
+                     PrimType(CModuleT),
+                     ProgState,
+                     Environment,
+                     AST,
+                     toEmpty)
 import Syntax.Core(Core, TopCore(..), Definition)
 import Parse (parseModule)
 import Interpret.Eval (eval, evalDef, runIO)
-import Interpret.EvalM (runEval)
+import Interpret.EvalM (runEval, Eval)
 import Syntax.Utils (typeVal, getField)
 import Syntax.Macroexpand (macroExpand)
 import Syntax.Conversions (toIntermediate, toTIntermediateTop, toTopCore)

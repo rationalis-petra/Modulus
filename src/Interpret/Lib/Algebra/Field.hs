@@ -1,6 +1,6 @@
 module Interpret.Lib.Algebra.Field where
 
-import Data  
+import Syntax.Normal  
 
 import Interpret.Lib.Algebra.Ring
   ( implAddTy, implAdd

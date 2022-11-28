@@ -11,7 +11,7 @@ import Interpret.Lib.Data.Maybe
 import Interpret.Lib.Data.Array
 
 import qualified Data.Map as Map
-import Data
+import Syntax.Normal
 
 dataSignature :: Normal m
 dataSignature = NormSig

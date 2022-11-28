@@ -2,7 +2,7 @@
 
 module Syntax.Utils where
 
-import Data
+import Syntax.Normal
 import Control.Monad.Except (MonadError, throwError, catchError)
 
 import qualified Data.Map as Map

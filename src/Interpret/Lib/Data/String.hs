@@ -8,7 +8,7 @@ import Control.Monad.Except (MonadError, throwError)
 import qualified Data.Map as Map
 import Data.Text as Text
 
-import Data
+import Syntax.Normal
 import Interpret.Lib.LibUtils
 import Syntax.Utils (mkVar)
 import Interpret.Eval (liftFun, liftFun2)

@@ -3,7 +3,7 @@ module Interpret.Lib.Relation where
 
 import Interpret.Lib.LibUtils
 import Syntax.Utils (mkVar)
-import Data
+import Syntax.Normal
 
 equalitySig :: Normal m
 equalitySig = NormSig

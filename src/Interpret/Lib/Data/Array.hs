@@ -8,7 +8,7 @@ import Control.Monad.Reader (MonadReader)
 import Control.Monad.State  (MonadState)
 import Control.Monad.Except (MonadError, throwError)
 
-import Data
+import Syntax.Normal
 import Syntax.Core
 import Interpret.Eval (eval)
 import Syntax.Utils (mkVar)

@@ -13,7 +13,7 @@ import Data.Text (Text, pack, unpack)
 import Data.Void
 import qualified Data.Map as Map
 
-import Data
+import Syntax.Normal
 import Interpret.Lib.Data.String (mlsConcat, implShow)
 
 type Parser = Parsec Void Text
