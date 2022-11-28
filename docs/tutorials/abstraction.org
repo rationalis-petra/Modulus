@@ -1,9 +1,9 @@
 #+html_head: <link rel="stylesheet" href="../modulus-style.css" type="text/css"/>
-#+title: Tutorial: Modulus Abstractions
+#+title: Tutorial: Abstractions
 #+options: toc:nil num:nil html-postamble:nil
 
 #+html: <div style="text-align:right">
-[[file:../index.org][Modulus]] / [[file:index.org][Tutorials]] / Abstraction
+[[file:../index.org][Modulus]] / [[file:index.org][Tutorials]] / Abstractions
 #+html: </div>
 
 * Motivation
@@ -12,8 +12,6 @@ about something, generally for the purpose of writing code which is more
 flexible and useful in a wider variety of scenarios.
 
 To start, let's consider a sorting algorithm for a list of integers:
-
-
 #+begin_src modulus
 (merge : List ℤ → List ℤ → List ℤ)
 (merge [l1 l2]
@@ -74,7 +72,6 @@ give you a sorted list"
 ;; outputs (list 1 2 3 4 5)
 #+end_src
 
-
 An actual implementation of this is
 
 #+begin_src modulus
@@ -117,38 +114,90 @@ order:
 (sort : {A : 𝒰} → (A → A → Bool) → List A → List A)
 
 (sort (data.string.less) (list "a" "c" "d" "b"))
+;; returns (list "a" "b" "c" "d")
 
-(sort {String} (data.string.less) (list "a" "c" "d" "b"))
+(sort {String} (data.string.greater) (list "a" "c" "d" "b"))
+;; returns (list "d" "c" "b" "a")
 #+end_src
 
 * Structures and Signatures
 
 #+begin_src modulus
-(defsignature Order
-  (T : 𝒰)
-  (compare : T → T → Bool))
+(defsignature Point
+  (x : ℤ)
+  (y : ℤ)
+  (z : ℤ))
 
-(defstructure Str-Order 
-  (T : String)
-  (compare : data.string.(<)))
+(point-zero : Point)
+(defstructure point-zero
+  (x ≜ 0)
+  (y ≜ 0)
+  (z ≜ 0))
+ 
+(my-point : Point)
+(defstructure my-point
+  (x ≜ 2)
+  (y ≜ 4)
+  (z ≜ 2))
 
-(defstructure Int-Order 
-  (T : ℤ)
-  (compare : data.int.(<)))
+(point-add : Point → Point → Point)
+(defn point-add [point-1 point-2]
+  (structure
+    (x ≜ point1.x + point-2.x)
+    (y ≜ point1.y + point-2.y)
+    (z ≜ point1.z + point-2.z)))
+
+(point-add point-zero my-point)
 #+end_src
 
 #+begin_src modulus
-(sort : (o : Order) → List o.T → List o.T)
+(defsignature Int-Ordering
+  (compare : ℤ → ℤ → Bool))
 
-(sort Str-Order (list "a" "b" "c"))
+(defsignature Str-Ordering 
+  (compare : String → String → Bool))
 #+end_src
 
 #+begin_src modulus
-(sort : {o : Order} → List o.T → List o.T)
+(defn Order [A]
+  (compare : A → A → Bool))
+#+end_src
 
+#+begin_src modulus
+(Str-Ord : Order String)
+(defstructure Str-Ord
+  (compare ≜ data.string.(<)))
+
+(Int-Ord : Order ℤ)
+(defstructure Int-Ord
+  (compare ≜ num.int.(<)))
+#+end_src
+
+#+begin_src modulus
+(sort : {A} → Order A → List A → List A)
+
+(sort Str-Ord (list "b" "a" "c"))
+#+end_src
+
+#+begin_src modulus
+(sort : {A} → Order A → List A → List A)
+
+(sort Int-Ord (list 3 1 2))
+#+end_src
+
+** Typeclasses 
+
+#+begin_src modulus
+(sort : {A} → ⦃Order A⦄ → List A → List A)
+
+(instance Str-Ord (Order String))
+(instance Int-Ord (Order Int))
+
+(sort (list 1 2 3))
 (sort (list "a" "b" "c"))
-;; 
 #+end_src
+
+
 
 ** Summary, Common Functions 
 

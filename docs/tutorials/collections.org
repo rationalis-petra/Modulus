@@ -1,0 +1,128 @@
+#+html_head: <link rel="stylesheet" href="../modulus-style.css" type="text/css"/>
+#+title: Tutorial: Collections
+#+options: toc:nil num:nil html-postamble:nil
+
+#+html: <div style="text-align:right">
+[[file:../index.org][Modulus]] / [[file:index.org][Tutorials]] / Projects
+#+html: </div>
+
+
+
+* Arrays & Types
+Modulus also allows you to group data together into structures called /arrays/,
+which you can thing of as a collection of values. Arrays are written as a list
+of values between 'tortoise' brackets =⦗⦘=, (these have codes =;[​[= and =;]​]=,
+or =:left-tortoise= and =:right-tortoise=). For example, the array containing the
+numbers 1, 2 and 3 is written =⦗1 2 3⦘=.
+
+Important when discussing Arrays is the concept of a *type*. A type is like a
+category of values in your program. A common type is =Integer=, which is the
+type of values which are whole numbers. An equally common type is =String=,
+which is a sequence of Characters. Some example strings are "hello" and "my name
+is chris". Types serve two purposes: first, Modulus can use them to catch
+errors. Imagine that you write =pi + 2=, thinking that =pi= holds the value
+=3.14159...=. However, someone decided to set it to the string "pi". In this
+case, Modulus will report a /type error/, because + expects its' inputs to be of
+the type Integer, but you gave it a string. The second use of types is as a form
+of communication: through types, the language can give you information about a
+thing. As an example, imagine you have a function called =f=. This is not a
+particularly descriptive name, and we don't really have any way of knowing what
+it does. Now, imagine you know it is a function which takes an Array of Strings
+as its' input and outputs a String. That is, you know its' *type* is =Array
+String → String=. You might then reasonably guess that the output is just all of
+the strings in the array joined together, so =join ⦗"my" "name" "is" "kevin"⦘=
+is equal to ="mynameiskevin"=, based on the type information alone. Obviously
+this is not /guaranteed/, but there aren't too many other things a function
+might (reasonably) do with an Array of strings.
+
+The reason for all this discussion of types is that Arrays must contain elements
+which all have the same type.
+
+It's cool to be able to make an array, but what can we /do/ with them? For a
+start, we can join them together with /append/, (also written `⋅' (=;**=)).
+
+#+begin_src modulus
+> ⦗1 2 3⦘ ⋅ ⦗4 5 6⦘
+⦗1 2 3 4 5 6⦘
+> append ⦗1 2 3⦘ ⦗4 5 6⦘
+⦗1 2 3 4 5 6⦘
+#+end_src
+
+
+* Higher-Order Functions
+
+#+begin_src modulus
+> defn add1 [x] (x + 1)
+> map add1 ⦗1 2 3⦘
+⦗2 3 4⦘
+#+end_src
+
+#+begin_src 
+> map (+ 1) ⦗1 2 3⦘
+⦗2 3 4⦘
+#+end_src
+
+#+begin_src 
+> (+ 1) ¨ ⦗1 2 3⦘
+⦗2 3 4⦘
+#+end_src
+
+#+begin_src modulus
+> defn add [x y] (x + y)
+> fold add 0 ⦗1 2 3⦘
+6
+#+end_src
+
+#+begin_src modulus
+> foldl (+) 0 ⦗1 2 3⦘
+#+end_src
+
+#+begin_src modulus
+> ((+) / 0) ⦗1 2 3⦘
+#+end_src
+
+#+begin_src modulus
+> (+ / 0) ⦗1 2 3⦘
+#+end_src
+
+#+begin_src modulus
+> + ⟨/ 0⟩ ⦗1 2 3⦘
+#+end_src
+
+* Useful Array functions
+
+filter
+
+#+begin_src modulus
+> even? n ≜ (n | 2 = 0)
+⦗1 2 3⦘ ⟨◉ ,⟩ ⦗⁖a ⁖b ⁖c⦘
+> ⦗⦗1 ⁖a⦘ ⦗1 ⁖b⦘ ⦗1 ⁖c⦘
+   ⦗2 ⁖a⦘ ⦗2 ⁖b⦘ ⦗2 ⁖c⦘
+   ⦗3 ⁖a⦘ ⦗3 ⁖b⦘ ⦗3 ⁖c⦘⦘
+#+end_src
+
+filter
+
+#+begin_src modulus
+⦗1 2 3⦘ ⟨◉ ,⟩ ⦗⁖a ⁖b ⁖c⦘
+> ⦗⦗1 ⁖a⦘ ⦗1 ⁖b⦘ ⦗1 ⁖c⦘
+   ⦗2 ⁖a⦘ ⦗2 ⁖b⦘ ⦗2 ⁖c⦘
+   ⦗3 ⁖a⦘ ⦗3 ⁖b⦘ ⦗3 ⁖c⦘⦘
+#+end_src
+
+inner-product
+
+#+begin_src modulus
+> ⦗1 2 3⦘ ⟨⊙ ,⟩ ⦗⁖a ⁖b ⁖c⦘
+⦗(1, ⁖a) (2, ⁖b) (3, ⁖c)⦘
+#+end_src
+
+outer-product
+
+#+begin_src modulus
+⦗1 2 3⦘ ⟨◉ ,⟩ ⦗⁖a ⁖b ⁖c⦘
+> ⦗⦗1 ⁖a⦘ ⦗1 ⁖b⦘ ⦗1 ⁖c⦘
+   ⦗2 ⁖a⦘ ⦗2 ⁖b⦘ ⦗2 ⁖c⦘
+   ⦗3 ⁖a⦘ ⦗3 ⁖b⦘ ⦗3 ⁖c⦘⦘
+#+end_src
+

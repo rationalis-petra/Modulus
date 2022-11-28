@@ -3,19 +3,23 @@
 #+options: toc:nil num:nil html-postamble:nil
 
 #+html: <div style="text-align:right">
-[[file:~/Projects/Programming/Modulus/modulus/docs/index.org][Modulus]] / Tutorials
+[[file:../index.org][Modulus]] / Tutorials
 #+html: </div>
 
 
 | Tutorial          | Concepts                             |
 |-------------------+--------------------------------------|
-| [[file:expressions.org][Expressions]]       | REPL, Arithmetic, Definitions, Types |
+| [[file:expressions.org][Expressions]]       | REPL, Arithmetic, Definitions        |
+| [[file:collections.org][Collections]]       | Arrays, Types                        |
 | [[file:building-programs.org][Building Programs]] | Data, Pattern-Matching, Monads       |
 | [[file:data.org][Custom Data]]       | Inductive & Coinductive Data         |
 | [[file:abstraction.org][Abstraction]]       | Structures & Signatures              |
-| Projects          | Modules, build-system                |
+| [[file:projects.org][Projects]]          | Modules, build-system                |
+
+Each tutorial has an accompanying set of [[file:exercises/index.org][exercises]].
 
 + [[file:quickstart.org][Quickstart Guide]]
 + [[file:tooling.org][Introduction to Tooling]]
 
 + Book of Modulus
+

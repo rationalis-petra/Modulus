@@ -3,7 +3,7 @@
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 <head>
-<!-- 2022-10-31 Mon 16:09 -->
+<!-- 2022-11-28 Mon 16:30 -->
 <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>The Modulus Server</title>
@@ -198,10 +198,15 @@
 <body>
 <div id="content" class="content">
 <h1 class="title">The Modulus Server</h1>
+<div style="text-align:right">
+<p>
+<a href="../index.html">Modulus</a> / <a href="index.html">Tooling</a> / The Modulus Server
+</p>
+</div>
 
-<div id="outline-container-org0069ebf" class="outline-2">
-<h2 id="org0069ebf">Who this is For</h2>
-<div class="outline-text-2" id="text-org0069ebf">
+<div id="outline-container-org4cc90c9" class="outline-2">
+<h2 id="org4cc90c9">Who this is For</h2>
+<div class="outline-text-2" id="text-org4cc90c9">
 <p>
 This section details the Modulus Server, with the intent it is used to implement
 clients in various text-editors.  
@@ -209,9 +214,9 @@ clients in various text-editors.
 </div>
 </div>
 
-<div id="outline-container-org13b8bbd" class="outline-2">
-<h2 id="org13b8bbd">Why the Modulus Server isn't a LSP/DAP server</h2>
-<div class="outline-text-2" id="text-org13b8bbd">
+<div id="outline-container-org17727e5" class="outline-2">
+<h2 id="org17727e5">Why the Modulus Server isn't a LSP/DAP server</h2>
+<div class="outline-text-2" id="text-org17727e5">
 <p>
 The idea of a language sever is nothing new: The idea is to decouple common
 language tasks like syntax highlighting, autocomplete etc. into two parts: 
@@ -245,13 +250,13 @@ is running), add variable watch/breakpoints and much more.
 </div>
 </div>
 
-<div id="outline-container-org49a29b1" class="outline-2">
-<h2 id="org49a29b1">The Protocol</h2>
-<div class="outline-text-2" id="text-org49a29b1">
+<div id="outline-container-orgcd52fbd" class="outline-2">
+<h2 id="orgcd52fbd">The Protocol</h2>
+<div class="outline-text-2" id="text-orgcd52fbd">
 </div>
-<div id="outline-container-org5f96649" class="outline-3">
-<h3 id="org5f96649">Header</h3>
-<div class="outline-text-3" id="text-org5f96649">
+<div id="outline-container-orged6f9e7" class="outline-3">
+<h3 id="orged6f9e7">Header</h3>
+<div class="outline-text-3" id="text-orged6f9e7">
 <ul class="org-ul">
 <li>length</li>
 <li>text encoding</li>
@@ -259,9 +264,9 @@ is running), add variable watch/breakpoints and much more.
 </div>
 </div>
 
-<div id="outline-container-org5707299" class="outline-3">
-<h3 id="org5707299">Body</h3>
-<div class="outline-text-3" id="text-org5707299">
+<div id="outline-container-orgfe9c480" class="outline-3">
+<h3 id="orgfe9c480">Body</h3>
+<div class="outline-text-3" id="text-orgfe9c480">
 <div class="org-src-container">
 <pre class="src src-modulus"><span style="color: #807f96;">&#10647;</span><span style="color: #d24b83;">&#8278;id</span> &lt;num&gt;
  <span style="color: #d24b83;">&#8278;type</span> &lt;tag&gt;
@@ -274,7 +279,7 @@ is running), add variable watch/breakpoints and much more.
 </div>
 <div id="postamble" class="status">
 <p class="author">Author: Connor Redfern</p>
-<p class="date">Created: 2022-10-31 Mon 16:09</p>
+<p class="date">Created: 2022-11-28 Mon 16:30</p>
 <p class="validation"><a href="https://validator.w3.org/check?uri=referer">Validate</a></p>
 </div>
 </body>

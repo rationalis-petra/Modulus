@@ -1,15 +1,18 @@
 #+html_head: <link rel="stylesheet" href="../modulus-style.css" type="text/css"/>
-#+title: Tutorial: Modulus Expressions
+#+title: Tutorial: Expressions
 #+options: toc:nil num:nil html-postamble:nil
 
 #+html: <div style="text-align:right">
 [[file:../index.org][Modulus]] / [[file:index.org][Tutorials]] / Expressions
 #+html: </div>
 
-* Arithmetic
+* Arithmetic, Unicode
+** Introduction
 <TODO: brief tooling>
 
-When Programming, we often 
+Arguably the simplest thing we can do when programming is arithmetic: addition,
+multiplication etc. In Modulus, we can write all the common operations (add,
+multiply, etc.). Here are some examples:
 
 #+begin_src modulus
 > 2 + 3
@@ -18,18 +21,118 @@ When Programming, we often
 1
 > 1.5 × 2.0
 3.0
+> 5.0 ÷ 2.5
+2.0
 #+end_src
 
-Shown above are a few arithmetic operations. Modulus for the most part looks
-like other programming languages, except for the `×' symbol, used for
-multiplication. Modulus offers two options for entering characters like
-this. The first is to preceed the name of the operation with a colon, in this
-case typing =:times= will output `×'. The other is abbreviated input, where
-you use a semicolon. The abbreviated input for `×' is =;xx=.
+You'll notice some symbols that (probably) aren't available on your keyboard -
+for example, × and ÷. Modulus offers two options for entering characters like
+this. In Modulus, you can type these characters in with special 'keycodes'. For
+the multiplication (×) sign, there are two keycodes: ';x' and ':times'. For
+division, you can type in ':divide' or ';:-'. Most characters have two different keycodes:
++ long-form e.g. :times for ×, :divide for ÷, :less-or-equal for ≤, etc. These
+  are easy to remember but take a while to type in. Useful for symbols you don't
+  use much. These are preceded by a colon `:` character
++ short-form e.g. ;x, ;:-, ;<= (≤), ;^= (≜). These can be harder to remember,
+  but useful if you use a symbol very often.
+ 
+There is a [table] documenting keycodes for particular symbols. These tutorials
+will also provide the keycodes for symbols as they are introduced.
+
+
+** Order of Operations
+Depending on where you grew up, you likely had to memorize one of the acronyms
+for the order of operations: BODMAS/BIMDAS/PEMDAS/etc. Modulus attempts to
+simplify things by making the vast majority of binary operations
+left-associative with equal precedence. In plain English, read from
+left-to-right, so the expression =1 + 3 × 4 ÷ 6 - 2= is read as =((((1 + 3) × 4)
+÷ 6) - 2)= instead of =(1 + ((3 × 4) ÷ 6) - 2)=.
+
+This can trip up newcomers to the language, but it was introduced for good
+reason: Modulus has a very large number of operators, and forcing a programmer
+to remember a huge precedence list would likely be a source of errors and
+headaches. There are a *VERY* small number of specific exceptions which were
+carefully chosen only when it would be very inconvenient for them to adhere to
+the above rule. These exceptions are '≜', '.', and '→'.
+
+* Naming Values, Functions
+If we use some value repeatedly, it can be useful to give it a name. For
+example, suppose we want to calculate the area of a circle with radius =2.5=. We can
+use the formula $\pi \times r ^ 2$, using '^' for exponentiation, this is written:
+
+#+begin_src modulus
+> 3.14159 × (2.5 ^ 2)
+19.6349375
+#+end_src
+
+So we know the area is about =19.63=.  Suppose now we want to calculate the
+circumference: $2 \times \pi \times r$. This is
+
+#+begin_src modulus
+> 2 × 3.14159 × 2.5
+15.70795
+#+end_src
+
+So we know the circumference is about =15.71=. It can be slightly tedious to
+write out the value of $\pi$ each time, so we can give it a name with the ≜
+symbol (;^= or :def-equal).
+
+#+begin_src modulus
+> pi ≜ 3.14159
+#+end_src
+
+Now, we can re-write the previous calculations using =pi=:
+
+#+begin_src modulus
+> pi × (2.5 ^ 2)
+19.6349375
+> 2 × pi × 2.5
+15.70795
+#+end_src
+
+This is pretty handy, but what if we want to change the radius? For example, the
+circumference and area of a circle with radius 3.2
+
+#+begin_src modulus
+> pi × (3.2 ^ 2)
+32.2722816
+> 2 × pi × 3.2
+20.106176
+#+end_src
+
+To stop us from having to write out the calculations each time, we're going to
+use *functions*. A function describes a way to go from some input value to an
+output value. In this case, the input value is the radius (which we'll call =r=),
+and the output value is either the area or circumference. We can define the
+functions for area and circumference as follows:  
+
+#+begin_src 
+> area r ≜ pi × (r ^ 2)
+> circumference r ≜ 2 × pi × r
+#+end_src
+
+It is worth noting that ≜ is considered a binary operator, and is one of the
+very few exceptions mentioned in the 'order of operations'. The key difference
+is that '≜' always has the "loosest" binding, so you read =x ≜ 2 + 3= as
+=x ≜ (2 + 3)= and not =(x ≜ 2) + 3=, as the latter doesn't really make any sense.
+
+We can now calculate the area and circumference of a circle with radius 1.4.
+
+#+begin_src 
+> area 1.4
+6.1771164
+> circumference 1.4
+8.824452
+#+end_src
+
+We say that in the expression =area 1.4= we are /applying/ the function =area=
+to the value 1.4. It is worth noting that function application has a higher
+precedence than binary operations. What this means is that you should read
+=area 1.4 × 2= as =(area 1.4) × 2=, *not* as =area (1.4 × 2)=.
 
 * Booleans, Conditionals
-Booleans are values which can be either true or false. The easiest way to get a
-boolean is to just write =true= or =false=: 
+'Boolean' is the computer science term for something which can be either true or
+false. The easiest way to get a boolean is to just write =true= or =false=:
 
 #+begin_src modulus
 > true
@@ -44,7 +147,7 @@ and =>=.
 #+begin_src modulus
 > (2 < 3) ;; less than
 true
-> (2 ≤ 3) ;; less than or equal to ;<= 
+> (2 ≤ 3) ;; less than or equal to (;<= :less-or-equal)
 true
 > (2 = 3) ;; equal to
 false
@@ -52,169 +155,54 @@ false
 true
 > (5 > 3) ;; greater than
 true
-> (3 ≥ 3) ;; greater than or equal to ;>= 
+> (3 ≥ 3) ;; greater than or equal to ;>= :greater-or-equal
 true
 #+end_src
 
-There are also functions to combine booleans: 
+There are also several ways of combining booleans, but the most useful are 'or'
+(written ∨) and 'and' (written ∧).
 
 #+begin_src modulus
 > (true ∨ false) ;; or (;v, :or) is true if either argument is true  
 true
 > (true ∧ false) ;; and (;^, :and) is true only when both arguments ar etrue
 false
-> (true = false)
-false
-> (true ≠ false)
-true
 #+end_src
 
-
 So that's all about how we /produce/ a boolean, but how to we /use/ them?  The
-simplest way is to use =if=, which takes three arguments: a boolean, an
-expression which is evaluated when the boolean is true, and an expression is
-evaluated when the boolean is false.
+simplest way is to use =if=, has three parts: a condition (boolean), something
+to return when the condition is true, and something to return when the condition
+is false.
 
 #+begin_src modulus
 > (if true "when-true" "when-false")
-two
+when-true
 > (if (3 < 2) "when-true" "when-false")
 when-false
 #+end_src
 
-# Sometimes, it might be necessary to have multiple 'if' statements inside of each
-# other. Suppose for example that we have a calendar system where days are
-# represented as numbers: 1 is Monday, 2 is Tuesday, etc. Using an =if=, this can
-# get messy...
-
-# #+begin_src modulus
-# > def day 2
-# > (if (day = 0)
-#       "monday"
-#       (if (day = 1)
-#           "tuesday"
-#            ...))
-# #+end_src
-
-# Fortunately, we have =cond=. =cond= will go through each condition (left of the
-# →) until it finds a 'true' condition. The final condition (the =else=) acts as a
-# 'fall-through', which is executed when all other conditions fail.
-
-# #+begin_src modulus
-# > def day 4
-# > (cond
-#     ((day = 1) → "Monday") 
-#     ((day = 2) → "Tuesday") 
-#     ((day = 3) → "Wednesday") 
-#     ((day = 4) → "Thursday") 
-#     ((day = 5) → "Friday") 
-#     ((day = 6) → "Saturday") 
-#     ((day = 7) → "Sunday") 
-#     (else      → "Invalid Day"))
-# "Thursday"
-# #+end_src
-
-* Naming Values
-
-
-
-* Arrays
-Modulus also allows you to group data together into structures called /arrays/,
-which are like a list of values. You write arrays as a list of values between
-'tortoise' brackets =⦗⦘=, which you type as =;[​[= and =;]​]=. For example, you
-could construct the array =⦗1 2 3⦘=.
-
-Arrays must contain elements which all have the same 'type'. A type is like a
-category of things. Two common types are the type of Integers (whole numbers),
-or the type of strings (words). This means that =⦗1 2 3⦘= and =⦗"apple"
-"bannana" "orange"⦘= are valid arrays, but =⦗2 "apple" 10⦘= is not.
-
-It's cool to be able to make an array, but what can we /do/ with them? For a
-start, we can join them together with /append/, (also written `⋅' (=;**=)).
+Using this, we could, for example, write a function which tells us whether a
+number is positive or negative (keep in mind that 0 is neither positive or negative).
 
 #+begin_src modulus
-> ⦗1 2 3⦘ ⋅ ⦗4 5 6⦘
-⦗1 2 3 4 5 6⦘
-> append ⦗1 2 3⦘ ⦗4 5 6⦘
-⦗1 2 3 4 5 6⦘
+(sign n ≜ if (n = 0) "neither" (if (n < 0) "negative" "positive"))
 #+end_src
 
+* Recursion
+When programming, a common technique that we can exploit is /recursion/. This is
+when we can break down a problem into 'smaller' parts. As an example, suppose we
+want to write a function to implement the factorial function. Recall that
+factorial is defined:
 
+$$
+fact\: n = n \times (n - 1) \times (n - 2) \times \ldots \times 1
+$$
+
+So, for example $fact\: 5 = 5 \times 4 \times 3 \times 2 \times 1 = 120$.
+
+What we notice is a pattern if n > 1, then: $fact\: n = n \times fact (n - 1)$. 
 
 #+begin_src modulus
-> defn add1 [x] (x + 1)
-> map add1 ⦗1 2 3⦘
-⦗2 3 4⦘
+(fact n ≜ if (n > 1) (n × fact (n - 1)) 1)  
 #+end_src
-
-#+begin_src 
-> map (+ 1) ⦗1 2 3⦘
-⦗2 3 4⦘
-#+end_src
-
-#+begin_src 
-> (+ 1) ¨ ⦗1 2 3⦘
-⦗2 3 4⦘
-#+end_src
-
-
-#+begin_src modulus
-> defn add [x y] (x + y)
-> fold add 0 ⦗1 2 3⦘
-6
-#+end_src
-
-#+begin_src modulus
-> foldr (+) 0 ⦗1 2 3⦘
-#+end_src
-
-#+begin_src modulus
-> ((+) / 0) ⦗1 2 3⦘
-#+end_src
-
-#+begin_src modulus
-> (+ / 0) ⦗1 2 3⦘
-#+end_src
-
-#+begin_src modulus
-> + ⟨/ 0⟩ ⦗1 2 3⦘
-#+end_src
-
-** Useful Array functions
-
-filter
-
-#+begin_src modulus
-> defn even? [n] (n | 2 = 0)
-⦗1 2 3⦘ ⟨◉ ,⟩ ⦗⁖a ⁖b ⁖c⦘
-> ⦗⦗1 ⁖a⦘ ⦗1 ⁖b⦘ ⦗1 ⁖c⦘
-   ⦗2 ⁖a⦘ ⦗2 ⁖b⦘ ⦗2 ⁖c⦘
-   ⦗3 ⁖a⦘ ⦗3 ⁖b⦘ ⦗3 ⁖c⦘⦘
-#+end_src
-
-filter
-
-#+begin_src modulus
-⦗1 2 3⦘ ⟨◉ ,⟩ ⦗⁖a ⁖b ⁖c⦘
-> ⦗⦗1 ⁖a⦘ ⦗1 ⁖b⦘ ⦗1 ⁖c⦘
-   ⦗2 ⁖a⦘ ⦗2 ⁖b⦘ ⦗2 ⁖c⦘
-   ⦗3 ⁖a⦘ ⦗3 ⁖b⦘ ⦗3 ⁖c⦘⦘
-#+end_src
-
-inner-product
-
-#+begin_src modulus
-> ⦗1 2 3⦘ ⟨⊙ ,⟩ ⦗⁖a ⁖b ⁖c⦘
-⦗(1, ⁖a) (2, ⁖b) (3, ⁖c)⦘
-#+end_src
-
-outer-product
-
-#+begin_src modulus
-⦗1 2 3⦘ ⟨◉ ,⟩ ⦗⁖a ⁖b ⁖c⦘
-> ⦗⦗1 ⁖a⦘ ⦗1 ⁖b⦘ ⦗1 ⁖c⦘
-   ⦗2 ⁖a⦘ ⦗2 ⁖b⦘ ⦗2 ⁖c⦘
-   ⦗3 ⁖a⦘ ⦗3 ⁖b⦘ ⦗3 ⁖c⦘⦘
-#+end_src
-
 

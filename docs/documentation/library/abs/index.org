@@ -3,7 +3,7 @@
 #+options: toc:nil num:nil html-postamble:nil
 
 #+html: <div style="text-align:right">
-[[file:../../index.org][Modulus]] /  [[file:../..//index.org][Documentation]] / [[file:../index.org][Library]] / Abstractions
+[[file:../../../index.org][Modulus]] / [[file:../../index.org][Documentation]] / [[file:../index.org][Library]] / Abstractions
 #+html: </div>
 
 
@@ -14,8 +14,8 @@
   + [[file:data/foldable.org][Foldable]]
   + [[file:data/traversable.org][Traversable]]
 
-+ Numerics
+* Numerics
 
-+ Category
+* Category
 
-+ Group
+* Group

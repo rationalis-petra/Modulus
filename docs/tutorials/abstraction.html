@@ -3,7 +3,7 @@
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 <head>
-<!-- 2022-11-23 Wed 14:25 -->
+<!-- 2022-11-28 Mon 10:42 -->
 <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Tutorial: Modulus Abstractions</title>
@@ -200,13 +200,13 @@
 <h1 class="title">Tutorial: Modulus Abstractions</h1>
 <div style="text-align:right">
 <p>
-<a href="file:///f:/Home/wiki/mlsio/index.html">Modulus</a> / <a href="index.html">Tutorials</a> / Abstractions
+<a href="../index.html">Modulus</a> / <a href="index.html">Tutorials</a> / Abstractions
 </p>
 </div>
 
-<div id="outline-container-org4ce9090" class="outline-2">
-<h2 id="org4ce9090">Motivation</h2>
-<div class="outline-text-2" id="text-org4ce9090">
+<div id="outline-container-org20a0508" class="outline-2">
+<h2 id="org20a0508">Motivation</h2>
+<div class="outline-text-2" id="text-org20a0508">
 <p>
 In Programming, abstraction refers to the process of hiding information
 about something, generally for the purpose of writing code which is more
@@ -285,7 +285,6 @@ give you a sorted list"
 </pre>
 </div>
 
-
 <p>
 An actual implementation of this is
 </p>
@@ -326,15 +325,15 @@ order:
 </div>
 </div>
 
-<div id="outline-container-org14bc734" class="outline-3">
-<h3 id="org14bc734">Summary</h3>
+<div id="outline-container-orgd4393eb" class="outline-3">
+<h3 id="orgd4393eb">Summary</h3>
 </div>
 </div>
 
 
-<div id="outline-container-org5e9e0dc" class="outline-2">
-<h2 id="org5e9e0dc">Implicit Types</h2>
-<div class="outline-text-2" id="text-org5e9e0dc">
+<div id="outline-container-org3f28b22" class="outline-2">
+<h2 id="org3f28b22">Implicit Types</h2>
+<div class="outline-text-2" id="text-org3f28b22">
 <div class="org-src-container">
 <pre class="src src-modulus"><span style="color: #807f96;">(</span>sort : <span style="color: #9d81ba;">{</span>A : &#119984;<span style="color: #9d81ba;">}</span> &#8594; <span style="color: #9d81ba;">(</span>A &#8594; A &#8594; Bool<span style="color: #9d81ba;">)</span> &#8594; List A &#8594; List A<span style="color: #807f96;">)</span>
 
@@ -346,48 +345,116 @@ order:
 </div>
 </div>
 
-<div id="outline-container-org12346cd" class="outline-2">
-<h2 id="org12346cd">Structures and Signatures</h2>
-<div class="outline-text-2" id="text-org12346cd">
+<div id="outline-container-org5c847e5" class="outline-2">
+<h2 id="org5c847e5">Structures and Signatures</h2>
+<div class="outline-text-2" id="text-org5c847e5">
 <div class="org-src-container">
-<pre class="src src-modulus"><span style="color: #807f96;">(</span><span style="color: #738FD7;">defsignature</span> Order
-  <span style="color: #9d81ba;">(</span>T : &#119984;<span style="color: #9d81ba;">)</span>
-  <span style="color: #9d81ba;">(</span>compare : T &#8594; T &#8594; Bool<span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
+<pre class="src src-modulus"><span style="color: #807f96;">(</span><span style="color: #738FD7;">defsignature</span> Point
+  <span style="color: #9d81ba;">(</span>x : &#8484;<span style="color: #9d81ba;">)</span>
+  <span style="color: #9d81ba;">(</span>y : &#8484;<span style="color: #9d81ba;">)</span>
+  <span style="color: #9d81ba;">(</span>z : &#8484;<span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
 
-<span style="color: #807f96;">(</span><span style="color: #738FD7;">defstructure</span> Str-Order 
-  <span style="color: #9d81ba;">(</span>T : String<span style="color: #9d81ba;">)</span>
-  <span style="color: #9d81ba;">(</span>compare : data.string.<span style="color: #4d9391;">(</span>&lt;<span style="color: #4d9391;">)</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
+<span style="color: #807f96;">(</span>point-zero : Point<span style="color: #807f96;">)</span>
+<span style="color: #807f96;">(</span><span style="color: #738FD7;">defstructure</span> point-zero
+  <span style="color: #9d81ba;">(</span>x &#8796; <span style="color: #cea2ca;">0</span><span style="color: #9d81ba;">)</span>
+  <span style="color: #9d81ba;">(</span>y &#8796; <span style="color: #cea2ca;">0</span><span style="color: #9d81ba;">)</span>
+  <span style="color: #9d81ba;">(</span>z &#8796; <span style="color: #cea2ca;">0</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
+ 
+<span style="color: #807f96;">(</span>my-point : Point<span style="color: #807f96;">)</span>
+<span style="color: #807f96;">(</span><span style="color: #738FD7;">defstructure</span> my-point
+  <span style="color: #9d81ba;">(</span>x &#8796; <span style="color: #cea2ca;">2</span><span style="color: #9d81ba;">)</span>
+  <span style="color: #9d81ba;">(</span>y &#8796; <span style="color: #cea2ca;">4</span><span style="color: #9d81ba;">)</span>
+  <span style="color: #9d81ba;">(</span>z &#8796; <span style="color: #cea2ca;">2</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
 
-<span style="color: #807f96;">(</span><span style="color: #738FD7;">defstructure</span> Int-Order 
-  <span style="color: #9d81ba;">(</span>T : &#8484;<span style="color: #9d81ba;">)</span>
-  <span style="color: #9d81ba;">(</span>compare : data.int.<span style="color: #4d9391;">(</span>&lt;<span style="color: #4d9391;">)</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
+<span style="color: #807f96;">(</span>point-add : Point &#8594; Point &#8594; Point<span style="color: #807f96;">)</span>
+<span style="color: #807f96;">(</span><span style="color: #738FD7;">defn</span> point-add <span style="color: #9d81ba;">[</span>point-1 point-2<span style="color: #9d81ba;">]</span>
+  <span style="color: #9d81ba;">(</span><span style="color: #738FD7;">structure</span>
+    <span style="color: #4d9391;">(</span>x &#8796; point1.x + point-2.x<span style="color: #4d9391;">)</span>
+    <span style="color: #4d9391;">(</span>y &#8796; point1.y + point-2.y<span style="color: #4d9391;">)</span>
+    <span style="color: #4d9391;">(</span>z &#8796; point1.z + point-2.z<span style="color: #4d9391;">)</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
+
+<span style="color: #807f96;">(</span>point-add point-zero my-point<span style="color: #807f96;">)</span>
 </pre>
 </div>
 
 <div class="org-src-container">
-<pre class="src src-modulus"><span style="color: #807f96;">(</span>sort : <span style="color: #9d81ba;">(</span>o : Order<span style="color: #9d81ba;">)</span> &#8594; List o.T &#8594; List o.T<span style="color: #807f96;">)</span>
+<pre class="src src-modulus"><span style="color: #807f96;">(</span><span style="color: #738FD7;">defsignature</span> Int-Ordering
+  <span style="color: #9d81ba;">(</span>compare : &#8484; &#8594; &#8484; &#8594; Bool<span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
 
-<span style="color: #807f96;">(</span>sort Str-Order <span style="color: #9d81ba;">(</span>list <span style="color: #7CF083;">"a"</span> <span style="color: #7CF083;">"b"</span> <span style="color: #7CF083;">"c"</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
+<span style="color: #807f96;">(</span><span style="color: #738FD7;">defsignature</span> Str-Ordering 
+  <span style="color: #9d81ba;">(</span>compare : String &#8594; String &#8594; Bool<span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
 </pre>
 </div>
 
 <div class="org-src-container">
-<pre class="src src-modulus"><span style="color: #807f96;">(</span>sort : <span style="color: #9d81ba;">{</span>o : Order<span style="color: #9d81ba;">}</span> &#8594; List o.T &#8594; List o.T<span style="color: #807f96;">)</span>
+<pre class="src src-modulus"><span style="color: #807f96;">(</span><span style="color: #738FD7;">defn</span> Order <span style="color: #9d81ba;">[</span>A<span style="color: #9d81ba;">]</span>
+  <span style="color: #9d81ba;">(</span>compare : A &#8594; A &#8594; Bool<span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
+</pre>
+</div>
 
+<div class="org-src-container">
+<pre class="src src-modulus"><span style="color: #807f96;">(</span>Str-Ord : Order String<span style="color: #807f96;">)</span>
+<span style="color: #807f96;">(</span><span style="color: #738FD7;">defstructure</span> Str-Ord
+  <span style="color: #9d81ba;">(</span>compare &#8796; data.string.<span style="color: #4d9391;">(</span>&lt;<span style="color: #4d9391;">)</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
+
+<span style="color: #807f96;">(</span>Int-Ord : Order &#8484;<span style="color: #807f96;">)</span>
+<span style="color: #807f96;">(</span><span style="color: #738FD7;">defstructure</span> Int-Ord
+  <span style="color: #9d81ba;">(</span>compare &#8796; num.int.<span style="color: #4d9391;">(</span>&lt;<span style="color: #4d9391;">)</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
+</pre>
+</div>
+
+<div class="org-src-container">
+<pre class="src src-modulus"><span style="color: #807f96;">(</span>sort : <span style="color: #9d81ba;">{</span>A<span style="color: #9d81ba;">}</span> &#8594; Order A &#8594; List A &#8594; List A<span style="color: #807f96;">)</span>
+
+<span style="color: #807f96;">(</span>sort Str-Ord <span style="color: #9d81ba;">(</span>list <span style="color: #7CF083;">"b"</span> <span style="color: #7CF083;">"a"</span> <span style="color: #7CF083;">"c"</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
+</pre>
+</div>
+
+<div class="org-src-container">
+<pre class="src src-modulus"><span style="color: #807f96;">(</span>sort : <span style="color: #9d81ba;">{</span>A<span style="color: #9d81ba;">}</span> &#8594; Order A &#8594; List A &#8594; List A<span style="color: #807f96;">)</span>
+
+<span style="color: #807f96;">(</span>sort Int-Ord <span style="color: #9d81ba;">(</span>list <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
+</pre>
+</div>
+</div>
+
+<div id="outline-container-orga1598c7" class="outline-3">
+<h3 id="orga1598c7">Typeclasses</h3>
+<div class="outline-text-3" id="text-orga1598c7">
+<div class="org-src-container">
+<pre class="src src-modulus"><span style="color: #807f96;">(</span>sort : <span style="color: #9d81ba;">{</span>A<span style="color: #9d81ba;">}</span> &#8594; <span style="color: #9d81ba;">&#10627;</span>Order A<span style="color: #9d81ba;">&#10628;</span> &#8594; List A &#8594; List A<span style="color: #807f96;">)</span>
+
+<span style="color: #807f96;">(</span>instance Str-Ord <span style="color: #9d81ba;">(</span>Order String<span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
+<span style="color: #807f96;">(</span>instance Int-Ord <span style="color: #9d81ba;">(</span>Order Int<span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
+
+<span style="color: #807f96;">(</span>sort <span style="color: #9d81ba;">(</span>list <span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
 <span style="color: #807f96;">(</span>sort <span style="color: #9d81ba;">(</span>list <span style="color: #7CF083;">"a"</span> <span style="color: #7CF083;">"b"</span> <span style="color: #7CF083;">"c"</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
-<span style="color: #545c5e;">;; </span>
-</pre>
-</div>
-
-<pre class="example">
-()
 </pre>
 </div>
 </div>
+</div>
 
 
-<div id="outline-container-org4f71cb8" class="outline-2">
-<h2 id="org4f71cb8">Implicit Structures</h2>
+
+<div id="outline-container-org806e46a" class="outline-3">
+<h3 id="org806e46a">Summary, Common Functions</h3>
+<div class="outline-text-3" id="text-org806e46a">
+<div class="org-src-container">
+<pre class="src src-modulus"><span style="color: #807f96;">(</span>&lt; : <span style="color: #9d81ba;">{</span>WkOrd<span style="color: #9d81ba;">}</span> &#8594; <span style="color: #807f96;">)</span>
+
+</pre>
+</div>
+</div>
+</div>
+</div>
+
+<div id="outline-container-orgdf6cfb6" class="outline-2">
+<h2 id="orgdf6cfb6">Implicit Structures</h2>
+<div class="outline-text-2" id="text-orgdf6cfb6">
+</div>
+<div id="outline-container-org558034f" class="outline-3">
+<h3 id="org558034f"><span class="todo TODO">TODO</span> Describe Implicit Structure Lookup Process</h3>
+</div>
 </div>
 </div>
 </body>

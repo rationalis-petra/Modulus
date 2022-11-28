@@ -3,7 +3,7 @@
 #+options: toc:nil num:nil html-postamble:nil
 
 #+html: <div style="text-align:right">
-[[file:~/Projects/Programming/Modulus/modulus/docs/index.org][Modulus]] / Documentation
+[[file:../index.org][Modulus]] / Documentation
 #+html: </div>
 
 

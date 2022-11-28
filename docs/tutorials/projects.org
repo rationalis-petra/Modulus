@@ -1,7 +1,7 @@
 #+html_head: <link rel="stylesheet" href="../modulus-style.css" type="text/css"/>
-#+title: Modulus Tooling Introduction
+#+title: Tutorial: Projects
 #+options: toc:nil num:nil html-postamble:nil
 
 #+html: <div style="text-align:right">
-[[file:../index.org][Modulus]] / [[file:index.org][Tutorials]] / Tooling-Introudction
+[[file:../index.org][Modulus]] / [[file:index.org][Tutorials]] / Projects
 #+html: </div>

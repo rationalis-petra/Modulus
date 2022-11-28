@@ -1,10 +1,9 @@
 #+html_head: <link rel="stylesheet" href="../modulus-style.css" type="text/css"/>
 #+title: The Modulus Server
-
 #+options: toc:nil num:nil
 
 #+html: <div style="text-align:right">
-[[file:../index.org][Modulus]] / [[file:index.org][Tooling]] / Emacs
+[[file:../index.org][Modulus]] / [[file:index.org][Tooling]] / The Modulus Server
 #+html: </div>
 
 * Who this is For

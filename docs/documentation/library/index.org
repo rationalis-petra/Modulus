@@ -3,7 +3,7 @@
 #+options: toc:nil num:nil html-postamble:nil
 
 #+html: <div style="text-align:right">
-[[file:../index.org][Modulus]] / [[file:index.org][Documentation]] / Library
+[[file:../../index.org][Modulus]] / [[file:../index.org][Documentation]] / Library
 #+html: </div>
 
 * Standard Library
@@ -13,7 +13,7 @@ Most standard libraries
 + Prelude
 
 + [[file:abs/index.org][Abstractions]] (=abs=)
-  + [[file:abs/index.org][Data Structures]] (=data=)
+  + [[file:abs/data/index.org][Data Structures]] (=data=)
     + [[file:abs/data/functor.org][Functor]]
     + [[file:abs/data/applicative.org][Applicative]]
     + [[file:abs/data/monad.org][Monad]]

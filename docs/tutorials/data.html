@@ -3,7 +3,7 @@
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 <head>
-<!-- 2022-11-21 Mon 10:21 -->
+<!-- 2022-11-28 Mon 10:43 -->
 <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Tutorial: Custom Data</title>
@@ -200,13 +200,13 @@
 <h1 class="title">Tutorial: Custom Data</h1>
 <div style="text-align:right">
 <p>
-<a href="file:///f:/Home/wiki/mls/io/index.html">Modulus</a> / <a href="index.html">Tutorials</a> / Custom Data
+<a href="../index.html">Modulus</a> / <a href="index.html">Tutorials</a> / Custom Data
 </p>
 </div>
 
-<div id="outline-container-orgbdd66b9" class="outline-2">
-<h2 id="orgbdd66b9">Build Data</h2>
-<div class="outline-text-2" id="text-orgbdd66b9">
+<div id="outline-container-orgf270624" class="outline-2">
+<h2 id="orgf270624">Build Data</h2>
+<div class="outline-text-2" id="text-orgf270624">
 <div class="org-src-container">
 <pre class="src src-modulus"><span style="color: #807f96;">(</span><span style="color: #738FD7;">induct</span> <span style="color: #9d81ba;">(</span>MyBool : &#119984;<span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>my-true : MyBool<span style="color: #9d81ba;">)</span>
@@ -232,13 +232,13 @@
 </div>
 </div>
 
-<div id="outline-container-orga556aa5" class="outline-2">
-<h2 id="orga556aa5">Coinduction</h2>
-<div class="outline-text-2" id="text-orga556aa5">
+<div id="outline-container-org5a1e080" class="outline-2">
+<h2 id="org5a1e080">Coinduction</h2>
+<div class="outline-text-2" id="text-org5a1e080">
 </div>
-<div id="outline-container-orge6cb99f" class="outline-3">
-<h3 id="orge6cb99f">Basic Codata</h3>
-<div class="outline-text-3" id="text-orge6cb99f">
+<div id="outline-container-org71ebc3d" class="outline-3">
+<h3 id="org71ebc3d">Basic Codata</h3>
+<div class="outline-text-3" id="text-org71ebc3d">
 <div class="org-src-container">
 <pre class="src src-modulus"><span style="color: #807f96;">(</span><span style="color: #738FD7;">coinduct</span> <span style="color: #9d81ba;">(</span>CoBool : &#119984;<span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>my-if : CoBool &#8594; <span style="color: #4d9391;">{</span>A : &#119984;<span style="color: #4d9391;">}</span> &#8594; A &#8594; A &#8594; A<span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
@@ -254,9 +254,9 @@
 </div>
 
 
-<div id="outline-container-org22928d2" class="outline-3">
-<h3 id="org22928d2">Recursive &amp; Infinite Codata</h3>
-<div class="outline-text-3" id="text-org22928d2">
+<div id="outline-container-orgeef5374" class="outline-3">
+<h3 id="orgeef5374">Recursive &amp; Infinite Codata</h3>
+<div class="outline-text-3" id="text-orgeef5374">
 <p>
 Natural Numbers 
 </p>
@@ -274,15 +274,15 @@ Natural Numbers
 </div>
 </div>
 
-<div id="outline-container-org9c78f54" class="outline-4">
-<h4 id="org9c78f54">Infinite Codata</h4>
+<div id="outline-container-orge711192" class="outline-4">
+<h4 id="orge711192">Infinite Codata</h4>
 </div>
 </div>
 
 
-<div id="outline-container-org0a3751d" class="outline-3">
-<h3 id="org0a3751d">Parametrized Codata: Streams</h3>
-<div class="outline-text-3" id="text-org0a3751d">
+<div id="outline-container-org10b89b2" class="outline-3">
+<h3 id="org10b89b2">Parametrized Codata: Streams</h3>
+<div class="outline-text-3" id="text-org10b89b2">
 <div class="org-src-container">
 <pre class="src src-modulus"><span style="color: #807f96;">(</span><span style="color: #738FD7;">coinduct</span> <span style="color: #9d81ba;">(</span>CoList <span style="color: #4d9391;">[</span>A<span style="color: #4d9391;">]</span> : &#119984;<span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>head : CoList A &#8594; Maybe A<span style="color: #9d81ba;">)</span>
@@ -317,9 +317,9 @@ Natural Numbers
 </div>
 </div>
 
-<div id="outline-container-org692a9a8" class="outline-2">
-<h2 id="org692a9a8">When to Use Data &amp; Codata</h2>
-<div class="outline-text-2" id="text-org692a9a8">
+<div id="outline-container-org7837bbd" class="outline-2">
+<h2 id="org7837bbd">When to Use Data &amp; Codata</h2>
+<div class="outline-text-2" id="text-org7837bbd">
 <p>
 For the most part, regular inductive data types are easier to work with than
 their co-inductive counterparts. However, there are scenarios in which codata is

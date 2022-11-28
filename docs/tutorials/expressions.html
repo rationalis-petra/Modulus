@@ -3,10 +3,10 @@
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 <head>
-<!-- 2022-11-21 Mon 15:39 -->
+<!-- 2022-11-28 Mon 16:38 -->
 <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Tutorial: Modulus Expressions</title>
+<title>Tutorial: Expressions</title>
 <meta name="author" content="Connor Redfern" />
 <meta name="generator" content="Org Mode" />
 <style>
@@ -194,25 +194,52 @@
   .org-svg { width: 90%; }
 </style>
 <link rel="stylesheet" href="../modulus-style.css" type="text/css"/>
+<script type="text/x-mathjax-config">
+    MathJax.Hub.Config({
+        displayAlign: "center",
+        displayIndent: "0em",
+
+        "HTML-CSS": { scale: 100,
+                        linebreaks: { automatic: "false" },
+                        webFont: "TeX"
+                       },
+        SVG: {scale: 100,
+              linebreaks: { automatic: "false" },
+              font: "TeX"},
+        NativeMML: {scale: 100},
+        TeX: { equationNumbers: {autoNumber: "AMS"},
+               MultLineWidth: "85%",
+               TagSide: "right",
+               TagIndent: ".8em"
+             }
+});
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js?config=TeX-AMS_HTML"></script>
 </head>
 <body>
 <div id="content" class="content">
-<h1 class="title">Tutorial: Modulus Expressions</h1>
+<h1 class="title">Tutorial: Expressions</h1>
 <div style="text-align:right">
 <p>
-<a href="file:///f:/Home/wiki/mlsio/index.html">Modulus</a> / <a href="index.html">Tutorials</a> / Expressions
+<a href="../index.html">Modulus</a> / <a href="index.html">Tutorials</a> / Expressions
 </p>
 </div>
 
-<div id="outline-container-org4cc6ee0" class="outline-2">
-<h2 id="org4cc6ee0">Arithmetic</h2>
-<div class="outline-text-2" id="text-org4cc6ee0">
+<div id="outline-container-org703ca66" class="outline-2">
+<h2 id="org703ca66">Arithmetic, Unicode</h2>
+<div class="outline-text-2" id="text-org703ca66">
+</div>
+<div id="outline-container-org32d26a6" class="outline-3">
+<h3 id="org32d26a6">Introduction</h3>
+<div class="outline-text-3" id="text-org32d26a6">
 <p>
 &lt;TODO: brief tooling&gt;
 </p>
 
 <p>
-When Programming, we often 
+Arguably the simplest thing we can do when programming is arithmetic: addition,
+multiplication etc. In Modulus, we can write all the common operations (add,
+multiply, etc.). Here are some examples:
 </p>
 
 <div class="org-src-container">
@@ -222,26 +249,166 @@ When Programming, we often
 <span style="color: #cea2ca;">1</span>
 &gt; <span style="color: #cea2ca;">1.5</span> &#215; <span style="color: #cea2ca;">2.0</span>
 <span style="color: #cea2ca;">3.0</span>
+&gt; <span style="color: #cea2ca;">5.0</span> &#247; <span style="color: #cea2ca;">2.5</span>
+<span style="color: #cea2ca;">2.0</span>
 </pre>
 </div>
 
 <p>
-Shown above are a few arithmetic operations. Modulus for the most part looks
-like other programming languages, except for the `×' symbol, used for
-multiplication. Modulus offers two options for entering characters like
-this. The first is to preceed the name of the operation with a colon, in this
-case typing <code>:times</code> will output `×'. The other is abbreviated input, where
-you use a semicolon. The abbreviated input for `×' is <code>;xx</code>.
+You'll notice some symbols that (probably) aren't available on your keyboard -
+for example, × and ÷. Modulus offers two options for entering characters like
+this. In Modulus, you can type these characters in with special 'keycodes'. For
+the multiplication (×) sign, there are two keycodes: ';x' and ':times'. For
+division, you can type in ':divide' or ';:-'. Most characters have two different keycodes:
+</p>
+<ul class="org-ul">
+<li>long-form e.g. :times for ×, :divide for ÷, :less-or-equal for ≤, etc. These
+are easy to remember but take a while to type in. Useful for symbols you don't
+use much. These are preceded by a colon `:` character</li>
+<li>short-form e.g. ;x, ;:-, ;&lt;= (≤), ;^= (≜). These can be harder to remember,
+but useful if you use a symbol very often.</li>
+</ul>
+
+<p>
+There is a [table] documenting keycodes for particular symbols. These tutorials
+will also provide the keycodes for symbols as they are introduced.
 </p>
 </div>
 </div>
 
-<div id="outline-container-org0217ed7" class="outline-2">
-<h2 id="org0217ed7">Booleans, Conditionals</h2>
-<div class="outline-text-2" id="text-org0217ed7">
+
+<div id="outline-container-org4d0c6cb" class="outline-3">
+<h3 id="org4d0c6cb">Order of Operations</h3>
+<div class="outline-text-3" id="text-org4d0c6cb">
 <p>
-Booleans are values which can be either true or false. The easiest way to get a
-boolean is to just write <code>true</code> or <code>false</code>: 
+Depending on where you grew up, you likely had to memorize one of the acronyms
+for the order of operations: BODMAS/BIMDAS/PEMDAS/etc. Modulus attempts to
+simplify things by making the vast majority of binary operations
+left-associative with equal precedence. In plain English, read from
+left-to-right, so the expression <code>1 + 3 × 4 ÷ 6 - 2</code> is read as <code>((((1 + 3) × 4)
+÷ 6) - 2)</code> instead of <code>(1 + ((3 × 4) ÷ 6) - 2)</code>.
+</p>
+
+<p>
+This can trip up newcomers to the language, but it was introduced for good
+reason: Modulus has a very large number of operators, and forcing a programmer
+to remember a huge precedence list would likely be a source of errors and
+headaches. There are a <b>VERY</b> small number of specific exceptions which were
+carefully chosen only when it would be very inconvenient for them to adhere to
+the above rule. These exceptions are '≜', '.', and '→'.
+</p>
+</div>
+</div>
+</div>
+
+<div id="outline-container-orgcb56b5a" class="outline-2">
+<h2 id="orgcb56b5a">Naming Values, Functions</h2>
+<div class="outline-text-2" id="text-orgcb56b5a">
+<p>
+If we use some value repeatedly, it can be useful to give it a name. For
+example, suppose we want to calculate the area of a circle with radius <code>2.5</code>. We can
+use the formula \(\pi \times r ^ 2\), using '^' for exponentiation, this is written:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-modulus">&gt; <span style="color: #cea2ca;">3.14159</span> &#215; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">2.5</span> ^ <span style="color: #cea2ca;">2</span><span style="color: #807f96;">)</span>
+<span style="color: #cea2ca;">19.6349375</span>
+</pre>
+</div>
+
+<p>
+So we know the area is about <code>19.63</code>.  Suppose now we want to calculate the
+circumference: \(2 \times \pi \times r\). This is
+</p>
+
+<div class="org-src-container">
+<pre class="src src-modulus">&gt; <span style="color: #cea2ca;">2</span> &#215; <span style="color: #cea2ca;">3.14159</span> &#215; <span style="color: #cea2ca;">2.5</span>
+<span style="color: #cea2ca;">15.70795</span>
+</pre>
+</div>
+
+<p>
+So we know the circumference is about <code>15.71</code>. It can be slightly tedious to
+write out the value of \(\pi\) each time, so we can give it a name with the ≜
+symbol (;^= or :def-equal).
+</p>
+
+<div class="org-src-container">
+<pre class="src src-modulus">&gt; pi &#8796; <span style="color: #cea2ca;">3.14159</span>
+</pre>
+</div>
+
+<p>
+Now, we can re-write the previous calculations using <code>pi</code>:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-modulus">&gt; pi &#215; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">2.5</span> ^ <span style="color: #cea2ca;">2</span><span style="color: #807f96;">)</span>
+<span style="color: #cea2ca;">19.6349375</span>
+&gt; <span style="color: #cea2ca;">2</span> &#215; pi &#215; <span style="color: #cea2ca;">2.5</span>
+<span style="color: #cea2ca;">15.70795</span>
+</pre>
+</div>
+
+<p>
+This is pretty handy, but what if we want to change the radius? For example, the
+circumference and area of a circle with radius 3.2
+</p>
+
+<div class="org-src-container">
+<pre class="src src-modulus">&gt; pi &#215; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">3.2</span> ^ <span style="color: #cea2ca;">2</span><span style="color: #807f96;">)</span>
+<span style="color: #cea2ca;">32.2722816</span>
+&gt; <span style="color: #cea2ca;">2</span> &#215; pi &#215; <span style="color: #cea2ca;">3.2</span>
+<span style="color: #cea2ca;">20.106176</span>
+</pre>
+</div>
+
+<p>
+To stop us from having to write out the calculations each time, we're going to
+use <b>functions</b>. A function describes a way to go from some input value to an
+output value. In this case, the input value is the radius (which we'll call <code>r</code>),
+and the output value is either the area or circumference. We can define the
+functions for area and circumference as follows:  
+</p>
+
+<pre class="example">
+&gt; area r ≜ pi × (r ^ 2)
+&gt; circumference r ≜ 2 × pi × r
+</pre>
+
+<p>
+It is worth noting that ≜ is considered a binary operator, and is one of the
+very few exceptions mentioned in the 'order of operations'. The key difference
+is that '≜' always has the "loosest" binding, so you read <code>x ≜ 2 + 3</code> as
+<code>x ≜ (2 + 3)</code> and not <code>(x ≜ 2) + 3</code>, as the latter doesn't really make any sense.
+</p>
+
+<p>
+We can now calculate the area and circumference of a circle with radius 1.4.
+</p>
+
+<pre class="example">
+&gt; area 1.4
+6.1771164
+&gt; circumference 1.4
+8.824452
+</pre>
+
+<p>
+We say that in the expression <code>area 1.4</code> we are <i>applying</i> the function <code>area</code>
+to the value 1.4. It is worth noting that function application has a higher
+precedence than binary operations. What this means is that you should read
+<code>area 1.4 × 2</code> as <code>(area 1.4) × 2</code>, <b>not</b> as <code>area (1.4 × 2)</code>.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org882696e" class="outline-2">
+<h2 id="org882696e">Booleans, Conditionals</h2>
+<div class="outline-text-2" id="text-org882696e">
+<p>
+'Boolean' is the computer science term for something which can be either true or
+false. The easiest way to get a boolean is to just write <code>true</code> or <code>false</code>:
 </p>
 
 <div class="org-src-container">
@@ -260,7 +427,7 @@ and <code>&gt;</code>.
 <div class="org-src-container">
 <pre class="src src-modulus">&gt; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">2</span> &lt; <span style="color: #cea2ca;">3</span><span style="color: #807f96;">)</span> <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">less than</span>
 <span style="color: #cea2ca;">true</span>
-&gt; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">2</span> &#8804; <span style="color: #cea2ca;">3</span><span style="color: #807f96;">)</span> <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">less than or equal to ;&lt;= </span>
+&gt; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">2</span> &#8804; <span style="color: #cea2ca;">3</span><span style="color: #807f96;">)</span> <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">less than or equal to (;&lt;= :less-or-equal)</span>
 <span style="color: #cea2ca;">true</span>
 &gt; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">2</span> = <span style="color: #cea2ca;">3</span><span style="color: #807f96;">)</span> <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">equal to</span>
 <span style="color: #cea2ca;">false</span>
@@ -268,15 +435,14 @@ and <code>&gt;</code>.
 <span style="color: #cea2ca;">true</span>
 &gt; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">5</span> &gt; <span style="color: #cea2ca;">3</span><span style="color: #807f96;">)</span> <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">greater than</span>
 <span style="color: #cea2ca;">true</span>
-&gt; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">3</span> &#8805; <span style="color: #cea2ca;">3</span><span style="color: #807f96;">)</span> <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">greater than or equal to ;&gt;= </span>
+&gt; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">3</span> &#8805; <span style="color: #cea2ca;">3</span><span style="color: #807f96;">)</span> <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">greater than or equal to ;&gt;= :greater-or-equal</span>
 <span style="color: #cea2ca;">true</span>
 </pre>
 </div>
 
-
-
 <p>
-There are also functions to combine booleans:  
+There are also several ways of combining booleans, but the most useful are 'or'
+(written ∨) and 'and' (written ∧).
 </p>
 
 <div class="org-src-container">
@@ -284,165 +450,63 @@ There are also functions to combine booleans:
 <span style="color: #cea2ca;">true</span>
 &gt; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">true</span> &#8743; <span style="color: #cea2ca;">false</span><span style="color: #807f96;">)</span> <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">and (;^, :and) is true only when both arguments ar etrue</span>
 <span style="color: #cea2ca;">false</span>
-&gt; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">true</span> = <span style="color: #cea2ca;">false</span><span style="color: #807f96;">)</span>
-<span style="color: #cea2ca;">false</span>
-&gt; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">true</span> &#8800; <span style="color: #cea2ca;">false</span><span style="color: #807f96;">)</span>
-<span style="color: #cea2ca;">true</span>
 </pre>
 </div>
 
-
 <p>
 So that's all about how we <i>produce</i> a boolean, but how to we <i>use</i> them?  The
-simplest way is to use <code>if</code>, which takes three arguments: a boolean, an
-expression which is evaluated when the boolean is true, and an expression is
-evaluated when the boolean is false.
+simplest way is to use <code>if</code>, has three parts: a condition (boolean), something
+to return when the condition is true, and something to return when the condition
+is false.
 </p>
 
 <div class="org-src-container">
 <pre class="src src-modulus">&gt; <span style="color: #807f96;">(</span><span style="color: #738FD7;">if</span> <span style="color: #cea2ca;">true</span> <span style="color: #7CF083;">"when-true"</span> <span style="color: #7CF083;">"when-false"</span><span style="color: #807f96;">)</span>
-two
+when-true
 &gt; <span style="color: #807f96;">(</span><span style="color: #738FD7;">if</span> <span style="color: #9d81ba;">(</span><span style="color: #cea2ca;">3</span> &lt; <span style="color: #cea2ca;">2</span><span style="color: #9d81ba;">)</span> <span style="color: #7CF083;">"when-true"</span> <span style="color: #7CF083;">"when-false"</span><span style="color: #807f96;">)</span>
 when-false
 </pre>
 </div>
-</div>
-</div>
-
-<div id="outline-container-org17f88cd" class="outline-2">
-<h2 id="org17f88cd">Naming Values</h2>
-</div>
-
-
-
-<div id="outline-container-org71de992" class="outline-2">
-<h2 id="org71de992">Arrays</h2>
-<div class="outline-text-2" id="text-org71de992">
-<p>
-Modulus also allows you to group data together into structures called <i>arrays</i>,
-which are like a list of values. You write arrays as a list of values between
-'tortoise' brackets <code>⦗⦘</code>, which you type as <code>;[​[</code> and <code>;]​]</code>. For example, you
-could construct the array <code>⦗1 2 3⦘</code>.
-</p>
 
 <p>
-Arrays must contain elements which all have the same 'type'. A type is like a
-category of things. Two common types are the type of Integers (whole numbers),
-or the type of strings (words). This means that <code>⦗1 2 3⦘</code> and <code>⦗"apple"
-"bannana" "orange"⦘</code> are valid arrays, but <code>⦗2 "apple" 10⦘</code> is not.
-</p>
-
-<p>
-It's cool to be able to make an array, but what can we <i>do</i> with them? For a
-start, we can join them together with <i>append</i>, (also written `⋅' (<code>;**</code>)).
+Using this, we could, for example, write a function which tells us whether a
+number is positive or negative (keep in mind that 0 is neither positive or negative).
 </p>
 
 <div class="org-src-container">
-<pre class="src src-modulus">&gt; <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span> &#8901; <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">4</span> <span style="color: #cea2ca;">5</span> <span style="color: #cea2ca;">6</span><span style="color: #807f96;">&#10648;</span>
-<span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">4</span> <span style="color: #cea2ca;">5</span> <span style="color: #cea2ca;">6</span><span style="color: #807f96;">&#10648;</span>
-&gt; append <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span> <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">4</span> <span style="color: #cea2ca;">5</span> <span style="color: #cea2ca;">6</span><span style="color: #807f96;">&#10648;</span>
-<span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">4</span> <span style="color: #cea2ca;">5</span> <span style="color: #cea2ca;">6</span><span style="color: #807f96;">&#10648;</span>
-</pre>
-</div>
-
-
-
-<div class="org-src-container">
-<pre class="src src-modulus">&gt; <span style="color: #738FD7;">defn</span> add1 <span style="color: #807f96;">[</span>x<span style="color: #807f96;">]</span> <span style="color: #807f96;">(</span>x + <span style="color: #cea2ca;">1</span><span style="color: #807f96;">)</span>
-&gt; map add1 <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span>
-<span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">4</span><span style="color: #807f96;">&#10648;</span>
-</pre>
-</div>
-
-<pre class="example">
-&gt; map (+ 1) ⦗1 2 3⦘
-⦗2 3 4⦘
-</pre>
-
-<pre class="example">
-&gt; (+ 1) ¨ ⦗1 2 3⦘
-⦗2 3 4⦘
-</pre>
-
-
-<div class="org-src-container">
-<pre class="src src-modulus">&gt; <span style="color: #738FD7;">defn</span> add <span style="color: #807f96;">[</span>x y<span style="color: #807f96;">]</span> <span style="color: #807f96;">(</span>x + y<span style="color: #807f96;">)</span>
-&gt; fold add <span style="color: #cea2ca;">0</span> <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span>
-<span style="color: #cea2ca;">6</span>
-</pre>
-</div>
-
-<div class="org-src-container">
-<pre class="src src-modulus">&gt; fold <span style="color: #807f96;">(</span>+<span style="color: #807f96;">)</span> <span style="color: #cea2ca;">0</span> <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span>
-</pre>
-</div>
-
-<div class="org-src-container">
-<pre class="src src-modulus">&gt; <span style="color: #807f96;">(</span><span style="color: #9d81ba;">(</span>+<span style="color: #9d81ba;">)</span> / <span style="color: #cea2ca;">0</span><span style="color: #807f96;">)</span> <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span>
-</pre>
-</div>
-
-
-<div class="org-src-container">
-<pre class="src src-modulus">&gt; <span style="color: #807f96;">(</span>+ / <span style="color: #cea2ca;">0</span><span style="color: #807f96;">)</span> <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span>
-</pre>
-</div>
-
-<div class="org-src-container">
-<pre class="src src-modulus">&gt; + <span style="color: #807f96;">&#10216;</span>/ <span style="color: #cea2ca;">0</span><span style="color: #807f96;">&#10217;</span> <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span>
+<pre class="src src-modulus"><span style="color: #807f96;">(</span>sign n &#8796; <span style="color: #738FD7;">if</span> <span style="color: #9d81ba;">(</span>n = <span style="color: #cea2ca;">0</span><span style="color: #9d81ba;">)</span> <span style="color: #7CF083;">"neither"</span> <span style="color: #9d81ba;">(</span><span style="color: #738FD7;">if</span> <span style="color: #4d9391;">(</span>n &lt; <span style="color: #cea2ca;">0</span><span style="color: #4d9391;">)</span> <span style="color: #7CF083;">"negative"</span> <span style="color: #7CF083;">"positive"</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
 </pre>
 </div>
 </div>
+</div>
 
-<div id="outline-container-orgc6f9cfc" class="outline-3">
-<h3 id="orgc6f9cfc">Useful Array functions</h3>
-<div class="outline-text-3" id="text-orgc6f9cfc">
+<div id="outline-container-orgc859806" class="outline-2">
+<h2 id="orgc859806">Recursion</h2>
+<div class="outline-text-2" id="text-orgc859806">
 <p>
-filter
+When programming, a common technique that we can exploit is <i>recursion</i>. This is
+when we can break down a problem into 'smaller' parts. As an example, suppose we
+want to write a function to implement the factorial function. Recall that
+factorial is defined:
+</p>
+
+<p>
+\[
+fact\: n = n \times (n - 1) \times (n - 2) \times \ldots \times 1
+\]
+</p>
+
+<p>
+So, for example \(fact\: 5 = 5 \times 4 \times 3 \times 2 \times 1 = 120\).
+</p>
+
+<p>
+What we notice is a pattern if n &gt; 1, then: \(fact\: n = n \times fact (n - 1)\). 
 </p>
 
 <div class="org-src-container">
-<pre class="src src-modulus">&gt; <span style="color: #738FD7;">defn</span> even? <span style="color: #807f96;">[</span>n<span style="color: #807f96;">]</span> <span style="color: #807f96;">(</span>n | <span style="color: #cea2ca;">2</span> = <span style="color: #cea2ca;">0</span><span style="color: #807f96;">)</span>
-<span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span> <span style="color: #807f96;">&#10216;</span>&#9673; ,<span style="color: #807f96;">&#10217;</span> <span style="color: #807f96;">&#10647;</span><span style="color: #d24b83;">&#8278;a</span> <span style="color: #d24b83;">&#8278;b</span> <span style="color: #d24b83;">&#8278;c</span><span style="color: #807f96;">&#10648;</span>
-&gt; <span style="color: #807f96;">&#10647;</span><span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #d24b83;">&#8278;a</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #d24b83;">&#8278;b</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #d24b83;">&#8278;c</span><span style="color: #9d81ba;">&#10648;</span>
-   <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #d24b83;">&#8278;a</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #d24b83;">&#8278;b</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #d24b83;">&#8278;c</span><span style="color: #9d81ba;">&#10648;</span>
-   <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">3</span> <span style="color: #d24b83;">&#8278;a</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">3</span> <span style="color: #d24b83;">&#8278;b</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">3</span> <span style="color: #d24b83;">&#8278;c</span><span style="color: #9d81ba;">&#10648;</span><span style="color: #807f96;">&#10648;</span>
+<pre class="src src-modulus"><span style="color: #807f96;">(</span>fact n &#8796; <span style="color: #738FD7;">if</span> <span style="color: #9d81ba;">(</span>n &gt; <span style="color: #cea2ca;">1</span><span style="color: #9d81ba;">)</span> <span style="color: #9d81ba;">(</span>n &#215; fact <span style="color: #4d9391;">(</span>n - <span style="color: #cea2ca;">1</span><span style="color: #4d9391;">)</span><span style="color: #9d81ba;">)</span> <span style="color: #cea2ca;">1</span><span style="color: #807f96;">)</span>  
 </pre>
-</div>
-
-<p>
-filter
-</p>
-
-<div class="org-src-container">
-<pre class="src src-modulus"><span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span> <span style="color: #807f96;">&#10216;</span>&#9673; ,<span style="color: #807f96;">&#10217;</span> <span style="color: #807f96;">&#10647;</span><span style="color: #d24b83;">&#8278;a</span> <span style="color: #d24b83;">&#8278;b</span> <span style="color: #d24b83;">&#8278;c</span><span style="color: #807f96;">&#10648;</span>
-&gt; <span style="color: #807f96;">&#10647;</span><span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #d24b83;">&#8278;a</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #d24b83;">&#8278;b</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #d24b83;">&#8278;c</span><span style="color: #9d81ba;">&#10648;</span>
-   <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #d24b83;">&#8278;a</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #d24b83;">&#8278;b</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #d24b83;">&#8278;c</span><span style="color: #9d81ba;">&#10648;</span>
-   <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">3</span> <span style="color: #d24b83;">&#8278;a</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">3</span> <span style="color: #d24b83;">&#8278;b</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">3</span> <span style="color: #d24b83;">&#8278;c</span><span style="color: #9d81ba;">&#10648;</span><span style="color: #807f96;">&#10648;</span>
-</pre>
-</div>
-
-<p>
-inner-product
-</p>
-
-<div class="org-src-container">
-<pre class="src src-modulus">&gt; <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span> <span style="color: #807f96;">&#10216;</span>&#8857; ,<span style="color: #807f96;">&#10217;</span> <span style="color: #807f96;">&#10647;</span><span style="color: #d24b83;">&#8278;a</span> <span style="color: #d24b83;">&#8278;b</span> <span style="color: #d24b83;">&#8278;c</span><span style="color: #807f96;">&#10648;</span>
-<span style="color: #807f96;">&#10647;</span><span style="color: #9d81ba;">(</span><span style="color: #cea2ca;">1</span>, <span style="color: #d24b83;">&#8278;a</span><span style="color: #9d81ba;">)</span> <span style="color: #9d81ba;">(</span><span style="color: #cea2ca;">2</span>, <span style="color: #d24b83;">&#8278;b</span><span style="color: #9d81ba;">)</span> <span style="color: #9d81ba;">(</span><span style="color: #cea2ca;">3</span>, <span style="color: #d24b83;">&#8278;c</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">&#10648;</span>
-</pre>
-</div>
-
-<p>
-outer-product
-</p>
-
-<div class="org-src-container">
-<pre class="src src-modulus"><span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span> <span style="color: #807f96;">&#10216;</span>&#9673; ,<span style="color: #807f96;">&#10217;</span> <span style="color: #807f96;">&#10647;</span><span style="color: #d24b83;">&#8278;a</span> <span style="color: #d24b83;">&#8278;b</span> <span style="color: #d24b83;">&#8278;c</span><span style="color: #807f96;">&#10648;</span>
-&gt; <span style="color: #807f96;">&#10647;</span><span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #d24b83;">&#8278;a</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #d24b83;">&#8278;b</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #d24b83;">&#8278;c</span><span style="color: #9d81ba;">&#10648;</span>
-   <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #d24b83;">&#8278;a</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #d24b83;">&#8278;b</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #d24b83;">&#8278;c</span><span style="color: #9d81ba;">&#10648;</span>
-   <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">3</span> <span style="color: #d24b83;">&#8278;a</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">3</span> <span style="color: #d24b83;">&#8278;b</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">3</span> <span style="color: #d24b83;">&#8278;c</span><span style="color: #9d81ba;">&#10648;</span><span style="color: #807f96;">&#10648;</span>
-</pre>
-</div>
 </div>
 </div>
 </div>

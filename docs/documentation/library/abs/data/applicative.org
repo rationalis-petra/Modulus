@@ -3,5 +3,5 @@
 #+options: toc:nil num:nil html-postamble:nil
 
 #+html: <div style="text-align:right">
-[[file:../../../../index.org][Modulus]] / [[file:../../../index.org][Documentation]] / [[../../index.org][Library]] / [[../index.org][Abstractions]] / [[file:index.org][Data]] / Applicative
+[[file:../../../../index.org][Modulus]] / [[file:../../../index.org][Documentation]] / [[../../index.org][Library]] / [[file:../index.org][Abstractions]] / [[file:f:/Home/wiki/mls/io/documentation/library/abs/index.org][Data]] / Applicative
 #+html: </div>
