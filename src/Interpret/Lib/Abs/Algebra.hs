@@ -1,10 +1,10 @@
-module Interpret.Lib.Algebra where
+module Interpret.Lib.Abs.Algebra where
 
 import Syntax.Normal  
 
-import Interpret.Lib.Algebra.Semigroup
-import Interpret.Lib.Algebra.Ring
-import Interpret.Lib.Algebra.Field
+import Interpret.Lib.Abs.Algebra.Semigroup
+import Interpret.Lib.Abs.Algebra.Ring
+import Interpret.Lib.Abs.Algebra.Field
 
 
 algebraSignature :: Normal m

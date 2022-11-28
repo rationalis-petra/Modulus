@@ -1,8 +1,8 @@
-module Interpret.Lib.Algebra.Field where
+module Interpret.Lib.Abs.Algebra.Field where
 
 import Syntax.Normal  
 
-import Interpret.Lib.Algebra.Ring
+import Interpret.Lib.Abs.Algebra.Ring
   ( implAddTy, implAdd
   , implSubTy, implSub
   , implMulTy, implMul ) 

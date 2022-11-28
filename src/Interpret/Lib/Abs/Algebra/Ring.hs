@@ -1,4 +1,4 @@
-module Interpret.Lib.Algebra.Ring where
+module Interpret.Lib.Abs.Algebra.Ring where
 
 import Syntax.Normal  
 

@@ -1,4 +1,4 @@
-module Interpret.Lib.Algebra.Semigroup where
+module Interpret.Lib.Abs.Algebra.Semigroup where
 
 import Syntax.Normal  
 

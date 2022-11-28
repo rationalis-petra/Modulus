@@ -16,12 +16,12 @@ import Interpret.Lib.System
 import Interpret.Lib.Data
 import Interpret.Lib.Monad 
 import Interpret.Lib.Common 
-import Interpret.Lib.Algebra 
+import Interpret.Lib.Abs 
 import Interpret.Lib.Foreign 
 
-import qualified Interpret.Lib.Algebra.Semigroup as Semigroup
-import qualified Interpret.Lib.Algebra.Ring as Ring
-import qualified Interpret.Lib.Algebra.Field as Field
+import qualified Interpret.Lib.Abs.Algebra.Semigroup as Semigroup
+import qualified Interpret.Lib.Abs.Algebra.Ring as Ring
+import qualified Interpret.Lib.Abs.Algebra.Field as Field
 import qualified Interpret.Lib.Data.String as String
 
 
@@ -47,6 +47,6 @@ defaultStructure =
            , ("sys",     systemStructure)
            , ("data",    dataStructure)
            , ("monad",   monadStructure)
-           , ("algebra", algebraStructure)
+           , ("abs",     absStructure)
            , ("foreign", foreignStructure)
            ]
