@@ -3,7 +3,7 @@ module Syntax.TIntermediate where
 -- After the intermediate representation
 -- we have... the 
 
-import Syntax.Normal(Normal(..), Pattern)
+import Syntax.Normal(Normal(..), Pattern, ArgType)
 import Syntax.Core (Definition(..), Core (..))
 
 import Syntax.Intermediate(Intermediate(..),
@@ -66,10 +66,11 @@ data TIntermediate m ty
   | TSymbol String
   | TApply (TIntermediate m ty) (TIntermediate m ty)
   | TImplApply (TIntermediate m ty) (TIntermediate m ty)
+  | TInstanceApply (TIntermediate m ty) (TIntermediate m ty)
   | TStructure [TDefinition m ty] (Maybe (ty m))
   | TSignature [TDefinition m ty]
-  | TLambda [(TArg m ty, Bool)] (TIntermediate m ty) (Maybe (ty m))
-  | TProd (TArg m ty, Bool) (TIntermediate m ty)
+  | TLambda [(TArg m ty, ArgType)] (TIntermediate m ty) (Maybe (ty m))
+  | TProd (TArg m ty, ArgType) (TIntermediate m ty)
   | TIF (TIntermediate m ty) (TIntermediate m ty) (TIntermediate m ty) (Maybe (ty m))
   | TAccess (TIntermediate m ty) String
   | TMatch (TIntermediate m ty) [(TPattern m ty, TIntermediate m ty)] (Maybe (ty m))

@@ -139,6 +139,7 @@ pTerm = choice [pLiteral,
                 (parens pNormal),
                 (toSeq <$> torens (many pNormalNoFun)),
                 ((\x -> Cons [(Atom $ Keyword "implicit"), x]) <$> curens pNormal),
+                ((\x -> Cons [(Atom $ Keyword "instance"), x]) <$> dcurens pNormal),
                 squarens (mkCall <$> pNormalNoFun <*> (many pNormalNoFun))]
   where mkCall op args =
           Cons (op : args)

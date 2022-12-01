@@ -138,8 +138,8 @@ mkTuple t1 t2 e1 e2 =
 
   
 mlsMkTuple :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
-mlsMkTuple = liftFun4 mkTuple (NormImplProd "A" (NormUniv 0)
-                                 (NormImplProd "B" (NormUniv 0)
+mlsMkTuple = liftFun4 mkTuple (NormProd "A" Hidden (NormUniv 0)
+                                 (NormProd "B" Hidden (NormUniv 0)
                                   (NormArr (mkVar "A")
                                    (NormArr (mkVar "B")
                                     (NormSig [("_1", mkVar "A"), ("_2", mkVar "B")])))))
@@ -148,7 +148,7 @@ mlsMkTuple = liftFun4 mkTuple (NormImplProd "A" (NormUniv 0)
 -- CONSTRAINTS
 
 mkPropEqType :: Normal m
-mkPropEqType = NormImplProd "A" (NormUniv 0) (NormArr (mkVar "A") (NormArr (mkVar "A") (NormUniv 0)))
+mkPropEqType = NormProd "A" Hidden (NormUniv 0) (NormArr (mkVar "A") (NormArr (mkVar "A") (NormUniv 0)))
 
 mkPropEq :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mkPropEq = liftFun3 f mkPropEqType
@@ -156,8 +156,9 @@ mkPropEq = liftFun3 f mkPropEqType
     f _ l r = pure $ PropEq l r
 
 mkReflType :: Normal m
-mkReflType = NormImplProd "A" (NormUniv 0) (NormProd "a" (mkVar "A")
-                                             (PropEq (Neu (NeuVar "a" (mkVar "A")) (mkVar "A")) (Neu (NeuVar "a" (mkVar "A")) (mkVar "A"))))
+mkReflType = NormProd "A" Hidden (NormUniv 0)
+               (NormProd "a" Visible (mkVar "A")
+                 (PropEq (Neu (NeuVar "a" (mkVar "A")) (mkVar "A")) (Neu (NeuVar "a" (mkVar "A")) (mkVar "A"))))
 
 mkRefl :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mkRefl = liftFun2 f mkReflType 

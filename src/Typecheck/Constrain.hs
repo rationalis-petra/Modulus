@@ -27,9 +27,10 @@ import Syntax.Normal (PrimType(..),
                       Neutral(..),
                       CollTy(..),
                       CollVal(..),
-                      var_counter,
+                      ArgType(..),
                       Environment,
-                      ProgState)
+                      ProgState,
+                      var_counter)
 import Syntax.Core(Core(..))
 
 import qualified Interpret.Environment as Env
@@ -71,37 +72,37 @@ constrain n1 n2 env = do
 -- TODO: perform α-renaming on implicit products!  
 constrainLRApp :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m -> Normal m -> Environment m -> m ([Normal m], [Normal m], LRSubst m)
 
-constrainLRApp (NormImplProd s1 a1 b1) (NormImplProd s2 a2 b2) ctx = do
+constrainLRApp (NormProd s1 Hidden a1 b1) (NormProd s2 Hidden a2 b2) ctx = do
   subst <- constrain' b1 b2
   pure ([], [], subst)
 
-constrainLRApp (NormImplProd s a b) (Neu (NeuVar v _) _) ctx = do
-  if occurs v (NormImplProd s a b) then  
+constrainLRApp (NormProd s Hidden a b) (Neu (NeuVar v _) _) ctx = do
+  if occurs v (NormProd s Hidden a b) then  
     throwError "occurs check failed"
   else 
-    pure ([], [], rightsubst (NormImplProd s a b) v)
+    pure ([], [], rightsubst (NormProd s Hidden a b) v)
 
-constrainLRApp (NormImplProd s a b)    r ctx = do
+constrainLRApp (NormProd s Hidden a b)    r ctx = do
   let s' = freshen (Set.union (free b) (free r)) s
   b' <- normSubst ((Neu (NeuVar s' a) a), s) b
   (a1, a2, subst) <- constrainLRApp b' r ctx
   appval <- case findLStrSubst s' subst of  
     Just v -> inferVar v a ctx
     Nothing -> throwError ("cannot find implicit substitution for var " <> s' <> " constraining terms: " 
-                    <> show (NormImplProd s' a b') <> " and "
+                    <> show (NormProd s' Hidden a b') <> " and "
                     <> show r
                     <> " in substitution: " <> show subst)
   let subst' = rmLSubst s' subst
       fnlSubst = renameLSubst s' s subst'
   pure ((appval:a1), a2, fnlSubst)
 
-constrainLRApp (Neu (NeuVar v _) _) (NormImplProd s' a' b') ctx = do
-  if occurs v (NormImplProd s' a' b') then  
+constrainLRApp (Neu (NeuVar v _) _) (NormProd s' Hidden a' b') ctx = do
+  if occurs v (NormProd s' Hidden a' b') then  
     throwError "occurs check failed"
   else 
-    pure ([], [], leftsubst (NormImplProd s' a' b') v)
+    pure ([], [], leftsubst (NormProd s' Hidden a' b') v)
 
-constrainLRApp l (NormImplProd s a b) ctx = do
+constrainLRApp l (NormProd s Hidden a b) ctx = do
   let s' = freshen (Set.union (free b) (free l)) s
   b' <- normSubst ((Neu (NeuVar s' a) a), s) b
   (a1, a2, subst) <- constrainLRApp l b' ctx
@@ -109,7 +110,7 @@ constrainLRApp l (NormImplProd s a b) ctx = do
     Just v -> inferVar v a ctx
     Nothing -> throwError ("cannot find implicit substitution for var " <> s' <> " constraining terms: " 
                     <> show l <> " and "
-                    <> show (NormImplProd s' a b')
+                    <> show (NormProd s' Hidden a b')
                     <> " in substitution: " <> show subst)
   let subst' = rmLSubst s' subst
       fnlSubst = renameLSubst s' s subst'
@@ -150,24 +151,15 @@ constrain' (NormArr l1 r1) (NormArr l2 r2) = do
   s2 <- constrain' r1 r2
   composelr (swap s1) s2
 
-constrain' (NormProd str l1 r1) (NormProd str' l2 r2) =
+constrain' (NormProd str aty l1 r1) (NormProd str' aty' l2 r2) =
   -- TODO: perform adequate α-renaming
-  if str == str' then do
+  if str == str' && aty == aty' then do
     s1 <- constrain' l2 l1
     checkSubst "error: constrain attempting substitution for dependently bound type" str s1
     s2 <- constrain' r1 r2 
     composelr (swap s1) s2
   else
-    throwError "cannot constrain dependent types with unequal arg"
-
-constrain' (NormImplProd str l1 r1) (NormImplProd str' l2 r2) =
-  if str == str' then do
-    s1 <- constrain' l2 l1
-    checkSubst "error: constrain attempting substitution for implicit dependently bound type" str s1
-    s2 <- constrain' r1 r2 
-    composelr (swap s1) s2
-  else
-    throwError "cannot constrain dependent types with unequal arg"
+    throwError "cannot constrain dependent types with unequal arg/visibility"
 
 constrain' (NormSig m1) (NormSig m2) = 
   -- TODO: look out for binding of field-names to strings!!
@@ -438,14 +430,11 @@ occurs' s (CollTy ty) = case ty of
 occurs' _ (NormUniv _) = False
 
 occurs' v (NormArr t1 t2) = occurs' v t1 || occurs' v t2
-occurs' v (NormProd str t1 t2) = -- remember: dependent type binding can shadow!
+occurs' v (NormProd str aty t1 t2) = -- remember: dependent type binding can shadow!
   if v == str then
     occurs' v t1
   else
     occurs' v t1 || occurs' v t2
-occurs' v (NormImplProd str t1 t2) = -- remember: dependent type binding can
-  -- shadow!
-  if v == str then occurs' v t1 else occurs' v t1 || occurs' v t2
 occurs' v (NormAbs var a b) =
   if v == var then occurs' v a else occurs' v a || occurs' v b
 

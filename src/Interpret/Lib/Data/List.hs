@@ -21,7 +21,7 @@ mlsListCtor = liftFun f mlsListCtorTy
 
 
 consType :: Normal m
-consType = NormImplProd "A" (NormUniv 0) (NormArr (mkVar "A")
+consType = NormProd "A" Hidden (NormUniv 0) (NormArr (mkVar "A")
                                           (NormArr (CollTy (ListTy (mkVar "A")))
                                            (CollTy (ListTy (mkVar "A")))))
 
@@ -47,7 +47,7 @@ mlsCons = InbuiltCtor $ IndPat "cons" consMatch 1 (liftFun3 consCtor consType) c
     
 
 nilType :: Normal m
-nilType = NormImplProd "A" (NormUniv 0) (CollTy (ListTy (mkVar "A")))
+nilType = NormProd "A" Hidden (NormUniv 0) (CollTy (ListTy (mkVar "A")))
 
 
 mlsNil :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
@@ -76,8 +76,8 @@ mlsIndicesOf = liftFun f mlsIndicesOfTy
 
 
 mlsEachTy :: Normal m
-mlsEachTy = NormImplProd "A" (NormUniv 0)
-              (NormImplProd "B" (NormUniv 0)
+mlsEachTy = NormProd "A" Hidden (NormUniv 0)
+              (NormProd "B" Hidden (NormUniv 0)
                 (NormArr (NormArr (mkVar "A") (mkVar "B"))
                   (NormArr (CollTy (ListTy (mkVar "A")))
                     (CollTy (ListTy (mkVar "B"))))))
@@ -92,8 +92,8 @@ mlsEach = liftFun4 f mlsEachTy
 
   
 mlsFoldTy :: Normal m
-mlsFoldTy = NormImplProd "A" (NormUniv 0)
-              (NormImplProd "B" (NormUniv 0)
+mlsFoldTy = NormProd "A" Hidden (NormUniv 0)
+              (NormProd "B" Hidden (NormUniv 0)
                 (NormArr (NormArr (mkVar "A") (NormArr (mkVar "B") (mkVar "B")))
                   (NormArr (mkVar "B")
                    (NormArr (CollTy (ListTy (mkVar "A"))) (mkVar "B")))))
@@ -113,8 +113,8 @@ mlsFold = liftFun5 f mlsFoldTy
            
 
 mlsReduceTy :: Normal m
-mlsReduceTy = NormImplProd "A" (NormUniv 0)
-              (NormImplProd "B" (NormUniv 0)
+mlsReduceTy = NormProd "A" Hidden (NormUniv 0)
+              (NormProd "B" Hidden (NormUniv 0)
                 (NormArr (NormArr (mkVar "A") (NormArr (mkVar "B") (mkVar "B")))
                   (NormArr (mkVar "B")
                    (NormArr (CollTy (ListTy (mkVar "A"))) (mkVar "B")))))
@@ -133,8 +133,8 @@ mlsReduce = liftFun5 f mlsFoldTy
           evalFold func res xs
   
 mlsScanTy :: Normal m
-mlsScanTy = NormImplProd "A" (NormUniv 0)
-             (NormImplProd "B" (NormUniv 0)
+mlsScanTy = NormProd "A" Hidden (NormUniv 0)
+             (NormProd "B" Hidden (NormUniv 0)
                (NormArr (NormArr (mkVar "A") (NormArr (mkVar "B") (mkVar "B")))
                  (NormArr (mkVar "B")
                    (NormArr (CollTy (ListTy (mkVar "A"))) (CollTy (ListTy (mkVar "B")))))))
@@ -154,7 +154,7 @@ mlsScan = liftFun5 f mlsFoldTy
 
 
 mlsJoinTy :: Normal m
-mlsJoinTy = NormImplProd "A" (NormUniv 0)
+mlsJoinTy = NormProd "A" Hidden (NormUniv 0)
              (NormArr (CollTy (ListTy (CollTy (ListTy (mkVar "A")))))
                (CollTy (ListTy (mkVar "A"))))
 
@@ -171,9 +171,9 @@ mlsJoin = liftFun2 f mlsJoinTy
 
 
 mlsZipTy :: Normal m
-mlsZipTy = NormImplProd "A" (NormUniv 0)
-              (NormImplProd "B" (NormUniv 0)
-               (NormImplProd "C" (NormUniv 0)
+mlsZipTy = NormProd "A" Hidden (NormUniv 0)
+              (NormProd "B" Hidden (NormUniv 0)
+               (NormProd "C" Hidden (NormUniv 0)
                 (NormArr (NormArr (mkVar "A")
                           (NormArr (mkVar "B")
                            (mkVar "C")))
@@ -198,7 +198,7 @@ mlsZip =  liftFun6 f mlsZipTy
 
 
 mlsCatTy :: Normal m
-mlsCatTy = NormImplProd "A" (NormUniv 0)
+mlsCatTy = NormProd "A" Hidden (NormUniv 0)
              (NormArr (CollTy (ListTy (mkVar "A")))
                (NormArr (CollTy (ListTy (mkVar "A")))
                  (CollTy (ListTy (mkVar "A")))))
@@ -212,7 +212,7 @@ mlsCat = liftFun3 f mlsCatTy
 
 
 mlsTakeTy :: Normal m
-mlsTakeTy = NormImplProd "A" (NormUniv 0)
+mlsTakeTy = NormProd "A" Hidden (NormUniv 0)
              (NormArr (PrimType IntT)
                (NormArr (CollTy (ListTy (mkVar "A")))
                  (CollTy (ListTy (mkVar "A")))))
@@ -226,7 +226,7 @@ mlsTake = liftFun3 f mlsTakeTy
   
 
 mlsDropTy :: Normal m
-mlsDropTy = NormImplProd "A" (NormUniv 0)
+mlsDropTy = NormProd "A" Hidden (NormUniv 0)
              (NormArr (PrimType IntT)
                (NormArr (CollTy (ListTy (mkVar "A")))
                  (CollTy (ListTy (mkVar "A")))))
@@ -240,7 +240,7 @@ mlsDrop = liftFun3 f mlsDropTy
 
 
 mlsReverseTy :: Normal m
-mlsReverseTy = NormImplProd "A" (NormUniv 0)
+mlsReverseTy = NormProd "A" Hidden (NormUniv 0)
                 (NormArr (CollTy (ListTy (mkVar "A")))
                   (CollTy (ListTy (mkVar "A"))))
 
@@ -252,7 +252,7 @@ mlsReverse = liftFun2 f mlsReverseTy
 
 
 mlsLenTy :: Normal m
-mlsLenTy = NormImplProd "A" (NormUniv 0)
+mlsLenTy = NormProd "A" Hidden (NormUniv 0)
                 (NormArr (CollTy (ListTy (mkVar "A")))
                   (PrimType IntT))
 

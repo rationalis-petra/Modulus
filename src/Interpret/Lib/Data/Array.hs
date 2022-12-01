@@ -43,7 +43,7 @@ mlsIndicesOf = liftFun f mlsIndicesOfTy
 
 
 mlsNilTy :: Normal m
-mlsNilTy = NormImplProd "A" (NormUniv 0)
+mlsNilTy = NormProd "A" Hidden (NormUniv 0)
             (CollTy . ArrayTy $ mkVar "A")
 
 
@@ -54,7 +54,7 @@ mlsNil = liftFun f mlsNilTy
   
 
 mlsConsTy :: Normal m
-mlsConsTy = NormImplProd "A" (NormUniv 0)
+mlsConsTy = NormProd "A" Hidden (NormUniv 0)
              (NormArr (mkVar "A")
                (NormArr (CollTy . ArrayTy $ mkVar "A")
                  (CollTy . ArrayTy $ mkVar "A")))
@@ -67,7 +67,7 @@ mlsCons = liftFun3 f mlsConsTy
           pure $ CollVal $ ArrayVal (Vec.cons val xs) a
 
 mlsSnocTy :: Normal m
-mlsSnocTy = NormImplProd "A" (NormUniv 0)
+mlsSnocTy = NormProd "A" Hidden (NormUniv 0)
              (NormArr (mkVar "A")
                (NormArr (CollTy . ArrayTy $ mkVar "A")
                  (CollTy . ArrayTy $ mkVar "A")))
@@ -82,8 +82,8 @@ mlsSnoc = liftFun3 f mlsSnocTy
 
 -- Array Operations  
 mlsEachTy :: Normal m
-mlsEachTy = NormImplProd "A" (NormUniv 0)
-              (NormImplProd "B" (NormUniv 0)
+mlsEachTy = NormProd "A" Hidden (NormUniv 0)
+              (NormProd "B" Hidden (NormUniv 0)
                 (NormArr (NormArr (mkVar "A") (mkVar "B"))
                   (NormArr (CollTy (ArrayTy (mkVar "A")))
                     (CollTy (ArrayTy (mkVar "B"))))))
@@ -98,8 +98,8 @@ mlsEach = liftFun4 f mlsEachTy
 
   
 mlsFoldTy :: Normal m
-mlsFoldTy = NormImplProd "A" (NormUniv 0)
-              (NormImplProd "B" (NormUniv 0)
+mlsFoldTy = NormProd "A" Hidden (NormUniv 0)
+              (NormProd "B" Hidden (NormUniv 0)
                 (NormArr (NormArr (mkVar "A") (NormArr (mkVar "B") (mkVar "B")))
                   (NormArr (mkVar "B")
                    (NormArr (CollTy (ArrayTy (mkVar "A"))) (mkVar "B")))))
@@ -118,8 +118,8 @@ mlsFold = liftFun5 f mlsFoldTy
 
   
 mlsReduceTy :: Normal m
-mlsReduceTy = NormImplProd "A" (NormUniv 0)
-              (NormImplProd "B" (NormUniv 0)
+mlsReduceTy = NormProd "A" Hidden (NormUniv 0)
+              (NormProd "B" Hidden (NormUniv 0)
                 (NormArr (NormArr (mkVar "A") (NormArr (mkVar "B") (mkVar "B")))
                   (NormArr (mkVar "B")
                    (NormArr (CollTy (ArrayTy (mkVar "A"))) (mkVar "B")))))
@@ -137,8 +137,8 @@ mlsReduce = liftFun5 f mlsReduceTy
 
   
 mlsScanTy :: Normal m
-mlsScanTy = NormImplProd "A" (NormUniv 0)
-             (NormImplProd "B" (NormUniv 0)
+mlsScanTy = NormProd "A" Hidden (NormUniv 0)
+             (NormProd "B" Hidden (NormUniv 0)
                (NormArr (NormArr (mkVar "A") (NormArr (mkVar "B") (mkVar "B")))
                  (NormArr (mkVar "B")
                    (NormArr (CollTy (ArrayTy (mkVar "A"))) (CollTy (ArrayTy (mkVar "B")))))))
@@ -164,7 +164,7 @@ mlsScan = liftFun5 f mlsFoldTy
 
    
 mlsCatTy :: Normal m
-mlsCatTy = NormImplProd "A" (NormUniv 0)
+mlsCatTy = NormProd "A" Hidden (NormUniv 0)
              (NormArr (CollTy (ArrayTy (mkVar "A")))
                (NormArr (CollTy (ArrayTy (mkVar "A")))
                  (CollTy (ArrayTy (mkVar "A")))))

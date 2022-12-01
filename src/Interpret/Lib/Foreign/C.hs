@@ -65,7 +65,7 @@ strRefTy = (NormArr (PrimType CStringT)
              (CollTy . IOMonadTy $ CollTy . CPtrTy $ (PrimType CStringT)))
 
 nullPtrTy :: Normal m
-nullPtrTy = (NormImplProd "A" (NormUniv 0) (CollTy . CPtrTy $ (mkVar "A")))
+nullPtrTy = (NormProd "A" Hidden (NormUniv 0) (CollTy . CPtrTy $ (mkVar "A")))
 
 mnullPtr :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mnullPtr = liftFun f nullPtrTy 

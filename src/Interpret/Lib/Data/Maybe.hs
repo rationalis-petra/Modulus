@@ -23,7 +23,7 @@ mlsMaybeCtor = liftFun f mlsMaybeCtorTy
 
 
 mlsSomeTy :: Normal m
-mlsSomeTy = NormImplProd "A" (NormUniv 0)
+mlsSomeTy = NormProd "A" Hidden (NormUniv 0)
              (NormArr (mkVar "A")
                (CollTy (MaybeTy (mkVar "A"))))
 
@@ -46,7 +46,7 @@ mlsSome = InbuiltCtor $ IndPat "some" someMatch 1 (liftFun2 someCtor mlsSomeTy) 
 
 
 mlsNoneTy :: Normal m
-mlsNoneTy = NormImplProd "A" (NormUniv 0) (CollTy (MaybeTy (mkVar "A")))
+mlsNoneTy = NormProd "A" Hidden (NormUniv 0) (CollTy (MaybeTy (mkVar "A")))
 
 
 mlsNone :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
@@ -64,8 +64,8 @@ mlsNone = InbuiltCtor $ IndPat "none" noneMatch 1 (liftFun noneCtor mlsNoneTy) m
 
 
 mlsMapTy :: Normal m
-mlsMapTy = NormImplProd "A" (NormUniv 0)
-            (NormImplProd "B" (NormUniv 0)
+mlsMapTy = NormProd "A" Hidden (NormUniv 0)
+            (NormProd "B" Hidden (NormUniv 0)
               (NormArr (NormArr (mkVar "A") (mkVar "B"))
                 (NormArr (CollTy . MaybeTy . mkVar $ "A")
                   (CollTy . MaybeTy . mkVar $ "B"))))

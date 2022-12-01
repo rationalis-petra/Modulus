@@ -79,8 +79,7 @@ typeVal (NormCoDtor _ _ _ _ _ _ ty) = pure ty
 typeVal (NormUniv k) = pure (NormUniv (k + 1))
 typeVal (NormIType _ _ _) = pure (NormUniv 0)
 typeVal (NormArr _ _) = pure (NormUniv 0)
-typeVal (NormProd _ _ _) = pure (NormUniv 0)
-typeVal (NormImplProd _ _ _) = pure (NormUniv 0)
+typeVal (NormProd _ _ _ _) = pure (NormUniv 0)
 typeVal (NormSig _) = pure $ NormUniv 0
 
 -- Functions
@@ -129,9 +128,7 @@ instance Expression (Normal m) where
     IOAction _ ty -> free ty
 
   free (Neu neutral ty) = Set.union (free neutral) (free ty)
-  free (NormProd var a b) =
-    Set.union (free a) (Set.delete var (free b))
-  free (NormImplProd var a b) =
+  free (NormProd var _ a b) =
     Set.union (free a) (Set.delete var (free b))
   free (NormArr a b) =
     Set.union (free a) (free b)
@@ -154,16 +151,11 @@ instance Expression (Normal m) where
       ListVal lst ty -> ListVal (map (rename s1 s2) lst) (rename s1 s2 ty) 
       IOAction action ty -> IOAction action (rename s1 s2 ty)
 
-    (NormProd var a b) ->
+    (NormProd var aty a b) ->
       if var == s1 then
-        NormProd var (rename s1 s2 a) b
+        NormProd var aty (rename s1 s2 a) b
       else 
-        NormProd var (rename s1 s2 a) (rename s1 s2 b)
-    (NormImplProd var a b) ->
-      if var == s1 then
-        NormImplProd var (rename s1 s2 a) b
-      else 
-        NormImplProd var (rename s1 s2 a) (rename s1 s2 b)
+        NormProd var aty (rename s1 s2 a) (rename s1 s2 b)
     (NormArr a b) -> NormArr (rename s1 s2 a) (rename s1 s2 b)
     -- (NormIVal _ _ _ _ norms ty) = foldr (Set.union . rename) Set.empty norms
     -- (NormIType _ _ norms) = foldr (Set.union . rename) Set.empty norms
@@ -211,20 +203,23 @@ freshen set str =
   else
     str
 
-tyHead :: (MonadError String m) => Normal m -> m (Normal m)
+tyHead :: (MonadError String m) => Normal n -> m (Normal n)
 tyHead (NormArr l r) = pure l
-tyHead (NormProd sym a b) = pure a
-tyHead (NormImplProd sym a b) = pure a
+tyHead (NormProd sym _ a b) = pure a
 tyHead hd = throwError ("can't get type tail of " <> show hd)
 
-tyTail :: (MonadError String m) => Normal m -> m (Normal m)
+tyTail :: (MonadError String m) => Normal n -> m (Normal n)
 tyTail (NormArr l r) = pure r
-tyTail (NormProd sym a b) = pure b
-tyTail (NormImplProd sym a b) = pure b
+tyTail (NormProd sym aty a b) = pure b
 tyTail hd = throwError ("can't get type tail of " <> show hd)
+
+tySize :: Normal n -> Int
+tySize (NormArr _ r) = 1 + tySize r
+tySize (NormProd _ _ _ r) = 1 + tySize r
+tySize _ = 0
+  
 
 isFncType :: Normal m -> Bool
 isFncType (NormArr _ _) = True
-isFncType (NormProd _ _ _) = True
-isFncType (NormImplProd _ _ _) = True
+isFncType (NormProd _ _ _ _) = True
 isFncType _ = False

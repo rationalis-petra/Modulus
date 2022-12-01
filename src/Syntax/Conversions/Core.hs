@@ -4,7 +4,8 @@ module Syntax.Conversions.Core where
 import Syntax.Normal(Pattern(..),
                      CoPattern(..),
                      Normal(..),
-                     Neutral(..))
+                     Neutral(..),
+                     ArgType(..))
 import Syntax.Core
 import Syntax.Intermediate(Intermediate(..),
                            IDefinition(..),
@@ -63,55 +64,42 @@ toCore (TLambda args body lty) = do
   mkLambdaTyVal args body ty
 
   where
-    mkLambdaTyVal :: MonadError String m => [(TArg n Normal, Bool)] -> TIntermediate n Normal -> Normal n -> m (Core n)
+    mkLambdaTyVal :: MonadError String m => [(TArg n Normal, ArgType)] -> TIntermediate n Normal -> Normal n -> m (Core n)
     mkLambdaTyVal [] body _ = toCore body
     mkLambdaTyVal (arg : args) body (NormArr l r) = do
       let arg' = getVar arg
       body' <- mkLambdaTyVal args body r
       pure $ CAbs arg' body' (NormArr l r)
-    mkLambdaTyVal (arg : args) body (NormProd var l r) = do
+    mkLambdaTyVal (arg : args) body (NormProd var aty l r) = do
       let arg' = getVar arg
       body' <- mkLambdaTyExpr args body r
-      pure $ CAbs arg' body' (NormProd var l r)
-    mkLambdaTyVal (arg : args) body (NormImplProd var l r) = do
-      let arg' = getVar arg
-      body' <- mkLambdaTyExpr args body r
-      pure $ CAbs arg' body' (NormImplProd var l r)
+      pure $ CAbs arg' body' (NormProd var aty l r)
     mkLambdaTyVal _ _ ty = throwError ("mkLambdaTyVal failed: " <> show ty) 
 
 
-    mkLambdaTyExpr :: MonadError String m => [(TArg n Normal, Bool)] -> TIntermediate n Normal -> Normal n -> m (Core n)
+    mkLambdaTyExpr :: MonadError String m => [(TArg n Normal, ArgType)] -> TIntermediate n Normal -> Normal n -> m (Core n)
     mkLambdaTyExpr [] body _ = toCore body
     mkLambdaTyExpr (arg : args) body (NormArr l r) = do
       let arg' = getVar arg
       body' <- mkLambdaTyExpr args body r
       pure $ CAbs arg' body' (NormArr l r)
-    mkLambdaTyExpr (arg : args) body (NormProd var l r) = do
+    mkLambdaTyExpr (arg : args) body (NormProd var aty l r) = do
       let arg' = getVar arg
       body' <- mkLambdaTyExpr args body r
-      pure $ CAbs arg' body' (NormProd var l r)
-    mkLambdaTyExpr (arg : args) body (NormImplProd var l r) = do
-      let arg' = getVar arg
-      body' <- mkLambdaTyExpr args body r
-      pure $ CAbs arg' body' (NormImplProd var l r)
+      pure $ CAbs arg' body' (NormProd var aty l r)
 
-    getVar :: (TArg m ty, Bool) -> String
+    getVar :: (TArg m ty, ArgType) -> String
     getVar (BoundArg var _, _)  = var
     getVar (InfArg var _  , _)  = var
 
-toCore (TProd (arg, bl) body) = do
+toCore (TProd (arg, aty) body) = do
   body' <- toCore body 
   case arg of 
-    BoundArg var ty ->
-      if bl then 
-        pure $ CImplProd var (CNorm ty) body'
-      else
-        pure $ CProd var (CNorm ty) body'
-    TWildCard ty ->
-      if bl then
-        throwError "cannot have implicit arrow!"
-      else
-        pure $ CArr (CNorm ty) body'
+    BoundArg var ty -> pure $ CProd var aty (CNorm ty) body'
+    TWildCard ty -> case aty of  
+      Visible -> pure $ CArr (CNorm ty) body'
+      Hidden -> throwError "cannot have hidden arrow!"
+      Instance -> throwError "cannot have instance arrow!"
   
   
 

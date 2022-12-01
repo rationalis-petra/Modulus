@@ -12,6 +12,7 @@ import Bindings.Libtdl (CModule)
   
 import qualified Interpret.Environment as Env
 import Syntax.Normal (AST(..),
+                      ArgType,
                       Environment,
                       Special(..),
                       Normal(Symbol, Special, Keyword, NormIVal),
@@ -46,8 +47,8 @@ data Intermediate m
   | ISymbol String
   | ILet [(String, Intermediate m)] (Intermediate m)
   | ILetOpen [Intermediate m] (Intermediate m)
-  | ILambda [(IArg m, Bool)] (Intermediate m)
-  | IProd (IArg m, Bool) (Intermediate m)
+  | ILambda [(IArg m, ArgType)] (Intermediate m)
+  | IProd (IArg m, ArgType) (Intermediate m)
   | IMacro [IArg m] (Intermediate m)
   | IStructure [IDefinition m] 
   | ISignature [IDefinition m] 

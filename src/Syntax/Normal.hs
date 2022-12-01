@@ -8,13 +8,7 @@ module Syntax.Normal (Pattern(..),
                       Neutral(..),
                       Environment(..),
                       ProgState(..),
-                      uid_counter,
-                      var_counter,
-                      thunk_map,
-                      dropMod,
-                      peelMod,
-                      addMod,
-                      toEmpty,
+                      ArgType(..),
                       IEThread(..),
                       AST(..),
                       PrimVal(..),
@@ -23,7 +17,14 @@ module Syntax.Normal (Pattern(..),
                       CollTy(..),
                       InbuiltCtor(..),
                       Special(..),
-                      Thunk(..)) where
+                      Thunk(..),
+                      uid_counter,
+                      var_counter,
+                      thunk_map,
+                      dropMod,
+                      peelMod,
+                      addMod,
+                      toEmpty) where
 
 import Data.Text (Text, pack, unpack)
 import Data.Vector (Vector)
@@ -163,6 +164,9 @@ data Modifier = Implicit
 
 -- m is the type of monad inside the object
 
+data ArgType = Visible | Hidden | Instance
+  deriving (Show, Eq, Ord)
+
 data Normal m
   -- Neutral term
   = Neu (Neutral m) (Normal m)
@@ -179,8 +183,7 @@ data Normal m
   | NormUniv Int 
 
   -- Dependent Products & Functions
-  | NormProd String (Normal m) (Normal m)
-  | NormImplProd String (Normal m) (Normal m)
+  | NormProd String ArgType (Normal m) (Normal m)
   | NormArr (Normal m) (Normal m)
   | NormAbs String (Normal m) (Normal m)
 
@@ -241,8 +244,13 @@ instance Show (Normal m) where
   show (PropEq v1 v2)   = (show v1) <> "≡" <> (show v2)
   show (InbuiltCtor pat) = show pat
   show (NormUniv n) = if n == 0 then "𝒰" else "𝒰" <> show n
-  show (NormProd var a b) = "(" <> var <> ":" <> show a <> ")" <> " → " <> show b
-  show (NormImplProd var a b) = "{" <> var <> ":" <> show a <> "}" <> " → " <> show b
+  show (NormProd var argType a b) =
+    let (l, r) = case argType of 
+          Visible -> ("(", ")")
+          Hidden -> ("{", "}")
+          Instance -> ("⦃", "⦄")
+    in
+      l <> var <> ":" <> show a <> r <> " → " <> show b
   show (NormArr l r) =
     let l' = if fncLike l then "(" <> show l <> ")" else show l
         in l' <> " → " <> show r
@@ -417,8 +425,7 @@ getField f [] = Nothing
 
 fncLike :: (Normal m) -> Bool
 fncLike (NormArr _ _)        = True
-fncLike (NormImplProd _ _ _) = True
-fncLike (NormProd _ _ _)     = True
+fncLike (NormProd _ _ _ _)     = True
 fncLike _ = False
 
 $(makeLenses ''ProgState)

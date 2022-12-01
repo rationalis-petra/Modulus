@@ -16,8 +16,8 @@ import Syntax.Utils (mkVar)
 
 
 mlsLeftType :: Normal m
-mlsLeftType = NormImplProd "A" (NormUniv 0) 
-               (NormImplProd "B" (NormUniv 0)
+mlsLeftType = NormProd "A" Hidden (NormUniv 0) 
+               (NormProd "B" Hidden (NormUniv 0)
                 (NormArr (mkVar "A") (NormArr (mkVar "B") (mkVar "A"))))
   
 mlsLeft :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
@@ -25,8 +25,8 @@ mlsLeft = liftFun4 f mlsLeftType
   where f _ _ l _ = pure l
 
 mlsRightType :: Normal m
-mlsRightType = NormImplProd "A" (NormUniv 0) 
-               (NormImplProd "B" (NormUniv 0)
+mlsRightType = NormProd "A" Hidden (NormUniv 0) 
+               (NormProd "B" Hidden (NormUniv 0)
                 (NormArr (mkVar "A") (NormArr (mkVar "B") (mkVar "B"))))
 
 mlsRight :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
@@ -34,9 +34,9 @@ mlsRight = liftFun4 f mlsRightType
   where f _ _ _ r = pure r
   
 mlsComposeType :: Normal m
-mlsComposeType = NormImplProd "A" (NormUniv 0) 
-                 (NormImplProd "B" (NormUniv 0)
-                  (NormImplProd "C" (NormUniv 0)
+mlsComposeType = NormProd "A" Hidden (NormUniv 0) 
+                 (NormProd "B" Hidden (NormUniv 0)
+                  (NormProd "C" Hidden (NormUniv 0)
                    (NormArr (NormArr (mkVar "A") (mkVar "B"))
                     (NormArr (NormArr (mkVar "B") (mkVar "C"))
                      (NormArr (mkVar "A") (mkVar "C"))))))
@@ -47,9 +47,9 @@ mlsCompose = liftFun5 f mlsComposeType
         cmp f1 f2 arg = eval (CApp (CNorm f1) (CApp (CNorm f2) (CNorm arg)))
 
 mlsOverType :: Normal m 
-mlsOverType = NormImplProd "A" (NormUniv 0) 
-                 (NormImplProd "B" (NormUniv 0)
-                  (NormImplProd "C" (NormUniv 0)
+mlsOverType = NormProd "A" Hidden (NormUniv 0) 
+                 (NormProd "B" Hidden (NormUniv 0)
+                  (NormProd "C" Hidden (NormUniv 0)
                    (NormArr (NormArr (mkVar "B") (NormArr (mkVar "B") (mkVar "C")))
                     (NormArr (NormArr (mkVar "A") (mkVar "B"))
                      (NormArr (mkVar "A") (NormArr (mkVar "A") (mkVar "C")))))))
@@ -60,9 +60,9 @@ mlsOver = liftFun5 f mlsOverType
         over f g x y = eval (CApp (CApp (CNorm f) (CApp (CNorm g) (CNorm x))) (CApp (CNorm g) (CNorm y)))
 
 mlsFlipType :: Normal m  
-mlsFlipType = NormImplProd "A" (NormUniv 0) 
-               (NormImplProd "B" (NormUniv 0)
-                (NormImplProd "C" (NormUniv 0)
+mlsFlipType = NormProd "A" Hidden (NormUniv 0) 
+               (NormProd "B" Hidden (NormUniv 0)
+                (NormProd "C" Hidden (NormUniv 0)
                  (NormArr (NormArr (mkVar "A") (NormArr (mkVar "B") (mkVar "C")))
                   (NormArr (mkVar "B") (NormArr (mkVar "A") (mkVar "C"))))))
 
@@ -77,9 +77,9 @@ mlsFlip = liftFun4 f mlsFlipType
 -- g : b → a → c
 -- x : a
 mlsBeforeType :: Normal m
-mlsBeforeType = NormImplProd "A" (NormUniv 0)
-                (NormImplProd "B" (NormUniv 0)
-                 (NormImplProd "C" (NormUniv 0)
+mlsBeforeType = NormProd "A" Hidden (NormUniv 0)
+                (NormProd "B" Hidden (NormUniv 0)
+                 (NormProd "C" Hidden (NormUniv 0)
                   (NormArr (NormArr (mkVar "A") (mkVar "B"))
                    (NormArr (NormArr (mkVar "B") (NormArr (mkVar "A") (mkVar "C")))
                     (NormArr (mkVar "A") (mkVar "C"))))))
@@ -97,9 +97,9 @@ mlsBefore = liftFun5 f mlsBeforeType
 -- x : a
 
 mlsAfterType :: Normal m
-mlsAfterType = NormImplProd "A" (NormUniv 0)
-                (NormImplProd "B" (NormUniv 0)
-                 (NormImplProd "C" (NormUniv 0)
+mlsAfterType = NormProd "A" Hidden (NormUniv 0)
+                (NormProd "B" Hidden (NormUniv 0)
+                 (NormProd "C" Hidden (NormUniv 0)
                   (NormArr (NormArr (mkVar "A") (NormArr (mkVar "B") (mkVar "C")))
                    (NormArr (NormArr (mkVar "A") (mkVar "C"))
                     (NormArr (mkVar "A") (mkVar "C"))))))

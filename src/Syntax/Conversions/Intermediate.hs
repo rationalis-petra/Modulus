@@ -8,6 +8,7 @@ import qualified Data.Set as Set
 import qualified Interpret.Environment as Env
 import Syntax.Normal (AST(..),
                       Environment,
+                      ArgType(..),
                       Special(..),
                       Normal(Symbol, Special, Keyword, NormIVal, NormCoDtor, PrimVal),
                       PrimVal(String),
@@ -95,7 +96,7 @@ mkLambda [syms, body] ctx = do
       shadowbnd (Annotation s _) = shadow s
       shadowbnd (Sym s) = shadow s
   body <- toIntermediateM body new_ctx
-  pure $ ILambda (map (\x -> (x, False)) symList) body
+  pure $ ILambda (map (\x -> (x, Visible)) symList) body
 mkLambda [Cons (Atom (Keyword "implicit") : isyms), syms, body] ctx = do
   implList <- getAnnSymList (Cons isyms) ctx
   symList <- getAnnSymList syms ctx
@@ -106,14 +107,15 @@ mkLambda [Cons (Atom (Keyword "implicit") : isyms), syms, body] ctx = do
       shadowbnd (Annotation s _) = shadow s
       shadowbnd (Sym s) = shadow s
   body <- toIntermediateM body new_ctx
-  pure $ ILambda (map (\x -> (x, True)) implList <> map (\x -> (x, False)) symList) body
+  pure $ ILambda (map (\x -> (x, Hidden)) implList <> map (\x -> (x, Visible)) symList) body
 mkLambda ast _ = throwError ("bad syntax in lambda: " ++ show ast)
 
 mkProd :: [AST m] -> GlobCtx m -> Except String (Intermediate m)
 mkProd [arg, body] ctx = 
   let (impl, arg') = case arg of
-        Cons [Atom (Keyword "implicit"), arg'] -> (True, arg')
-        _ -> (False, arg)
+        Cons [Atom (Keyword "implicit"), arg'] -> (Hidden, arg')
+        Cons [Atom (Keyword "instance"), arg'] -> (Instance, arg')
+        _ -> (Visible, arg)
   in do
     (arg'', var) <- case arg' of
           Cons [hd, Atom (Symbol s), ty] -> do
@@ -411,7 +413,7 @@ mkDo es globctx = do
       Cons [Atom (Symbol "←"), Atom (Symbol s), expr] -> do
         rest <- foldDo xs ctx
         expr' <- toIntermediateM expr ctx
-        pure $ IApply (IApply (ISymbol ">>=") expr') (ILambda [(Sym s, False)] rest)
+        pure $ IApply (IApply (ISymbol ">>=") expr') (ILambda [(Sym s, Visible)] rest)
       expr -> do
         expr' <- toIntermediateM expr ctx
         rest <- foldDo xs ctx

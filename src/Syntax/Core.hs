@@ -3,7 +3,7 @@ module Syntax.Core (Core(..),
                     Definition(..),
                    ) where
 
-import Syntax.Normal (Normal(..), CoPattern(..), Pattern(..))
+import Syntax.Normal (Normal(..), CoPattern(..), Pattern(..), ArgType(..))
 
 
 data Core m
@@ -11,8 +11,7 @@ data Core m
   | CVar String                                      -- Variable
   | CDot (Core m) String                             -- Access a field from a struct/signature
   | CArr (Core m) (Core m)                           -- Arrow Type (degenerate product)
-  | CProd String (Core m) (Core m)                   -- Dependent Product 
-  | CImplProd String (Core m) (Core m)               -- Dependent Product 
+  | CProd String ArgType (Core m) (Core m)           -- Dependent Product 
   | CAbs String (Core m) (Normal m)                  -- Function abtraction
   | CApp (Core m) (Core m)                           -- Function application 
   | CMAbs String (Normal m) (Core m)                 -- Macro abstraction

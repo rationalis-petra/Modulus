@@ -17,7 +17,7 @@ semigroup = NormSig
   ]
 
 implStarTy :: Normal m
-implStarTy = NormImplProd "g" semigroup 
+implStarTy = NormProd "g" Hidden semigroup 
              (NormArr gt (NormArr gt gt))
   where gt = Neu (NeuDot (NeuVar "g" semigroup) "T") semigroup
 

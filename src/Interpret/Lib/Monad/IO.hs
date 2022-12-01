@@ -18,7 +18,7 @@ getAction n = n >>= f
 
         
 ioPureTy :: Normal m
-ioPureTy = NormImplProd "A" (NormUniv 0)
+ioPureTy = NormProd "A" Hidden (NormUniv 0)
              (NormArr (mkVar "A")
                (CollTy (IOMonadTy (mkVar "A"))))
 
@@ -30,8 +30,8 @@ ioPure = liftFun2 f ioPureTy
 
 -- Bind :: {A B} → M A → (A → M B) → M B
 ioBindTy :: Normal m
-ioBindTy = NormImplProd "A" (NormUniv 0)
-            (NormImplProd "B" (NormUniv 0)
+ioBindTy = NormProd "A" Hidden (NormUniv 0)
+            (NormProd "B" Hidden (NormUniv 0)
               (NormArr (CollTy (IOMonadTy (mkVar "A")))
                 (NormArr (NormArr (mkVar "A") (CollTy (IOMonadTy (mkVar "B"))))
                  (CollTy (IOMonadTy (mkVar "B"))))))
@@ -50,8 +50,8 @@ ioBind = liftFunL4 f ioBindTy
 
 -- Seq :: {A B} → M A → M B → M B
 ioSeqTy :: Normal m
-ioSeqTy = NormImplProd "A" (NormUniv 0)
-            (NormImplProd "B" (NormUniv 0)
+ioSeqTy = NormProd "A" Hidden (NormUniv 0)
+            (NormProd "B" Hidden (NormUniv 0)
               (NormArr (CollTy (IOMonadTy (mkVar "A")))
                 (NormArr (CollTy (IOMonadTy (mkVar "B")))
                   (CollTy (IOMonadTy (mkVar "B"))))))

@@ -21,7 +21,7 @@ ring = NormSig
   ]
 
 implAddTy :: Normal m
-implAddTy = NormImplProd "r" ring 
+implAddTy = NormProd "r" Hidden ring 
              (NormArr gt (NormArr gt gt))
   where gt = Neu (NeuDot (NeuVar "r" ring) "T") ring
 

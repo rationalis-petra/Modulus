@@ -6,6 +6,7 @@ import Syntax.Normal (Pattern(..),
                       InbuiltCtor(..),
                       Normal(..),
                       Neutral(..),
+                      ArgType(Visible, Hidden, Instance),
                       ProgState)
 import Syntax.Core(Core (..), TopCore(..), Definition(..))
 import Syntax.Intermediate(Intermediate(..),
@@ -50,20 +51,21 @@ toTIntermediate (ILambda args bdy) = do
   bdy' <- toTIntermediate bdy
   pure $ TLambda args' bdy' Nothing
   where
-    processArgs :: (MonadState (ProgState m) m, MonadError String m) => [(IArg m, Bool)] -> m [(TArg m TIntermediate', Bool)]
+    processArgs :: (MonadState (ProgState m) m, MonadError String m) => [(IArg m, ArgType)] -> m [(TArg m TIntermediate', ArgType)]
     processArgs [] = pure []
-    processArgs ((Sym s, b) : xs) =
-      if b then  do
+    processArgs ((Sym s, aty) : xs) = case aty of 
+      Visible -> do
         tl <- processArgs xs
-        pure $ ((BoundArg s (TIntermediate' $ TValue $ NormUniv 0), b) : tl)
-      else do
+        pure $ ((BoundArg s (TIntermediate' $ TValue $ NormUniv 0), aty) : tl)
+      Hidden -> do
         tl <- processArgs xs
         var <- freshIVar
-        pure $ (InfArg s var, b) : tl
-    processArgs ((Annotation s i, b) : xs) = do
+        pure $ (InfArg s var, aty) : tl
+      Instance -> throwError "instance args must be annotated"
+    processArgs ((Annotation s i, aty) : xs) = do
       ty <- toTIntermediate i
       tl <- processArgs xs
-      pure ((BoundArg s (TIntermediate' ty), b) : tl)
+      pure ((BoundArg s (TIntermediate' ty), aty) : tl)
 
   
 

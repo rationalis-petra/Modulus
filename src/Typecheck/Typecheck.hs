@@ -11,6 +11,7 @@ import Control.Monad.Reader (MonadReader, local)
 import Syntax.Normal (PrimType(..),
                       Normal(..),
                       Neutral(..),
+                      ArgType(..),
                       Environment,
                       ProgState,
                       var_counter)
@@ -91,7 +92,7 @@ typeCheckTop (TDefinition def) ctx =
           pure $ (sym, id, (captureParams ps ty')) : alts'
           where
             captureParams [] ty = ty
-            captureParams ((sym, ty) : ps) tl = NormImplProd sym ty (captureParams ps tl)
+            captureParams ((sym, ty) : ps) tl = NormProd sym Hidden ty (captureParams ps tl)
 
         updateFromParams :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => [(String, TIntermediate' m)] -> Environment m -> m (Environment m, [(String, Normal m)])
         updateFromParams [] ctx = pure (ctx, [])
@@ -103,7 +104,7 @@ typeCheckTop (TDefinition def) ctx =
 
         readIndex :: (MonadState (ProgState m) m, MonadError String m) => Normal m -> m [(String, Normal m)]
         readIndex (NormUniv n) = pure []
-        readIndex (NormProd sym a b) = do 
+        readIndex (NormProd sym Visible a b) = do 
           tl  <- readIndex b
           pure ((sym, a) : tl)
         readIndex (NormArr a b) = do
@@ -123,7 +124,7 @@ typeCheckTop (TDefinition def) ctx =
 
         mkIndexTy' ((sym, ty) : params) index body args = do
           (ctor, ctorty) <- mkIndexTy' params index body ((sym, ty) : args)
-          let fty = NormProd sym ty ctorty
+          let fty = NormProd sym Visible ty ctorty
           pure $ (NormAbs sym ctor fty, fty)
 
         mkIndexTy' [] ((sym, ty) : ids) index args = do
@@ -154,7 +155,7 @@ typeCheckTop (TDefinition def) ctx =
           pure $ (sym, id, (captureParams ps ty')) : alts'
           where
             captureParams [] ty = ty
-            captureParams ((sym, ty) : ps) tl = NormImplProd sym ty (captureParams ps tl)
+            captureParams ((sym, ty) : ps) tl = NormProd sym Hidden ty (captureParams ps tl)
 
         updateFromParams :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => [(String, TIntermediate' m)] -> Environment m -> m (Environment m, [(String, Normal m)])
         updateFromParams [] ctx = pure (ctx, [])
@@ -166,7 +167,7 @@ typeCheckTop (TDefinition def) ctx =
 
         readIndex :: (MonadState (ProgState m) m, MonadError String m) => Normal m -> m [(String, Normal m)]
         readIndex (NormUniv n) = pure []
-        readIndex (NormProd sym a b) = do 
+        readIndex (NormProd sym Visible a b) = do 
           tl  <- readIndex b
           pure ((sym, a) : tl)
         readIndex (NormArr a b) = do
@@ -185,7 +186,7 @@ typeCheckTop (TDefinition def) ctx =
           pure (NormIType sym id (reverse (map (\(var, ty) -> Neu (NeuVar var ty) ty) args)), ty)
         mkIndexTy' ((sym, ty) : params) index body args = do
           (ctor, ctorty) <- mkIndexTy' params index body ((sym, ty) : args)
-          let fty = NormProd sym ty ctorty
+          let fty = NormProd sym Visible ty ctorty
           pure $ (NormAbs sym ctor fty, fty)
         mkIndexTy' [] ((sym, ty) : ids) index args = do
           (ctor, ctorty) <- mkIndexTy' [] ids index ((sym, ty) : args)
@@ -207,7 +208,7 @@ typeCheck expr env = case expr of
     (r', tr, substr) <- typeCheck r env
     substboth <- compose substl substr
     case tl of  
-      NormImplProd var t1 t2 -> do
+      NormProd var Hidden t1 t2 -> do
         (lapp, rapp, substcomb) <- constrain t1 tr env
         subst <- compose substcomb substboth
         appTy <- evalNIntermediate r' env
@@ -225,7 +226,7 @@ typeCheck expr env = case expr of
         let r'' = mkApp r' app
         subst <- compose substcomb substboth
         pure (TApply l' r'', t2, subst)
-      NormProd var a t2 -> do 
+      NormProd var Visible a t2 -> do 
         (_, app, substcomb) <- constrain a tr env
         subst <- compose substcomb substboth
         depApp <- evalNIntermediate r' env
@@ -256,7 +257,7 @@ typeCheck expr env = case expr of
                   -- lhs/ty  rhs/ty     rhs
       -- deriveFn :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) =>
       --             Normal m -> Normal m -> TIntermediate m Normal -> m ([(Bool, TIntermediate m Normal)], [(Normal m, String)], Subst m, Normal m)
-      deriveFn (NormImplProd var a t2) tr r = do
+      deriveFn (NormProd var Hidden a t2) tr r = do
         (args, unbnd, subst, rettype) <- deriveFn t2 tr r
         case findStrSubst var subst of 
           Just val -> do
@@ -288,7 +289,7 @@ typeCheck expr env = case expr of
             then
               (mkbdy [] bdy)
             else
-              TLambda (map (\(ty, s) -> (BoundArg s ty, True)) unbound) (mkbdy args bdy) (Just bodyty) 
+              TLambda (map (\(ty, s) -> (BoundArg s ty, Hidden)) unbound) (mkbdy args bdy) (Just bodyty) 
 
           mkbdy :: [(Bool, TIntermediate m Normal)] -> TIntermediate m Normal -> TIntermediate m Normal
           mkbdy [] bdy = bdy
@@ -304,11 +305,11 @@ typeCheck expr env = case expr of
           fnlty =
             case unbound of 
               [] -> bodyty -- TODO: eval bodyty if empty
-              ((ty, var) : xs) -> NormImplProd var ty (mkFnlBdy xs bodyty)
+              ((ty, var) : xs) -> NormProd var Hidden ty (mkFnlBdy xs bodyty)
 
           mkFnlBdy :: [(Normal m, String)] -> Normal m -> Normal m
           mkFnlBdy [] ret = ret
-          mkFnlBdy ((ty, var) : xs) ret = NormImplProd var ty (mkFnlBdy xs ret) 
+          mkFnlBdy ((ty, var) : xs) ret = NormProd var Hidden ty (mkFnlBdy xs ret) 
           
 
   (TLambda args body mty) -> do 
@@ -333,36 +334,37 @@ typeCheck expr env = case expr of
          pure (fnl_lambda, fnlTy, fnlsubst)
 
      where 
-       buildFnType :: MonadError String m => [(TArg m Normal, Bool)] -> Subst m -> Normal m -> m (Normal m) 
+       buildFnType :: MonadError String m => [(TArg m Normal, ArgType)] -> Subst m -> Normal m -> m (Normal m) 
        buildFnType [] _ bodyty = pure bodyty
        -- TODO: consider substitutions!
-       buildFnType ((ty, bl):tys) subst bodyty = do
+       buildFnType ((ty, aty):tys) subst bodyty = do
          ret_ty <- buildFnType tys subst bodyty
          case ty of 
            BoundArg str t ->
-             if bl then  
-               if Set.member str (free ret_ty) then
-                 pure (NormImplProd str t ret_ty)
-               else
-                 throwError "bound types must be deducible in implicit products"
-             else
-               if Set.member str (free ret_ty) then
-                 pure (NormProd str t ret_ty)
-               else
-                 pure (NormArr t ret_ty)
+             case aty of  
+               Hidden ->
+                 if Set.member str (free ret_ty) then
+                   pure (NormProd str Visible t ret_ty)
+                 else
+                   pure (NormArr t ret_ty)
+               Visible ->
+                 if Set.member str (free ret_ty) then
+                   pure (NormProd str Hidden t ret_ty)
+                 else
+                   throwError "bound types must be deducible in implicit products"
                
            InfArg _ _ -> 
              throwError "buildFnType not expecting inference!"
 
        -- fixArgs will take a list of Typed arguments, and convert any
        -- inference arguments to string arguments
-       fixArgs :: [(TArg m Normal, Bool)] -> Subst m -> ([(TArg m Normal, Bool)], Subst m)
+       fixArgs :: [(TArg m Normal, ArgType)] -> Subst m -> ([(TArg m Normal, ArgType)], Subst m)
        fixArgs args subst =
          let (args', subst', impl) = fixArgs' args subst
-         in (map (\str -> (BoundArg str (NormUniv 0), True)) impl <> args', subst')
+         in (map (\str -> (BoundArg str (NormUniv 0), Hidden)) impl <> args', subst')
          
 
-       fixArgs' :: [(TArg m Normal, Bool)] -> Subst m -> ([(TArg m Normal, Bool)], Subst m, [String])
+       fixArgs' :: [(TArg m Normal, ArgType)] -> Subst m -> ([(TArg m Normal, ArgType)], Subst m, [String])
        fixArgs' [] subst = ([], subst, [])
        fixArgs' ((arg, isImpl) : args) subst =
          let (args', subst', impl) = fixArgs' args subst in
@@ -380,7 +382,7 @@ typeCheck expr env = case expr of
        -- ann args takes a type annotation and argument list, and will annotate
        -- the arguments based on the type
        -- TODO consider the inference status of an argument!
-       annArgs :: MonadError String m => Normal m -> [(TArg m TIntermediate', Bool)] -> m ([(TArg m TIntermediate', Bool)], Normal m)
+       annArgs :: MonadError String m => Normal m -> [(TArg m TIntermediate', ArgType)] -> m ([(TArg m TIntermediate', ArgType)], Normal m)
        annArgs ret [] = pure ([], ret)
        annArgs ty ((arg, bl) : args) = case arg of 
          InfArg str id -> do
@@ -541,9 +543,9 @@ typeCheck expr env = case expr of
           foldTyApp 0 ty (n : ns) = do
             ty' <- Eval.tyApp ty n
             foldTyApp 0 ty' ns
-          foldTyApp n (NormImplProd sym a b) apps = do
+          foldTyApp n (NormProd sym Hidden a b) apps = do
             b' <- foldTyApp (n - 1) b apps 
-            pure $ NormImplProd sym a b'
+            pure $ NormProd sym Hidden a b'
 
       -- The secondary version takes in a list of types to constrain against
       getPatternType' :: Applicative m => (TPattern m TIntermediate', Normal m) -> m (TPattern m Normal, Normal m, [(String, Normal m)]) 
@@ -621,7 +623,7 @@ typeCheck expr env = case expr of
     throwError ("typecheck unimplemented for intermediate term " <> show other)
 
   where
-    updateFromArgs :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Environment m -> [(TArg m TIntermediate', Bool)] -> m (Environment m, [(TArg m Normal, Bool)])
+    updateFromArgs :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Environment m -> [(TArg m TIntermediate', ArgType)] -> m (Environment m, [(TArg m Normal, ArgType)])
     updateFromArgs ctx [] = pure (ctx, [])
     updateFromArgs ctx ((arg, bl) : args) = do 
       case arg of
@@ -675,7 +677,7 @@ typeCheckDef (TInductDef sym id params (TIntermediate' ty) alts) ctx = do
       pure $ (sym, id, (captureParams ps ty')) : alts'
       where
         captureParams [] ty = ty
-        captureParams ((sym, ty) : ps) tl = NormImplProd sym ty (captureParams ps tl)
+        captureParams ((sym, ty) : ps) tl = NormProd sym Hidden ty (captureParams ps tl)
 
     updateFromParams :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => [(String, TIntermediate' m)] -> Environment m -> m (Environment m, [(String, Normal m)])
     updateFromParams [] ctx = pure (ctx, [])
@@ -686,7 +688,7 @@ typeCheckDef (TInductDef sym id params (TIntermediate' ty) alts) ctx = do
 
     readIndex :: (MonadState (ProgState m) m, MonadError String m) => Normal m -> m [(String, Normal m)]
     readIndex (NormUniv n) = pure []
-    readIndex (NormProd sym a b) = do 
+    readIndex (NormProd sym Visible a b) = do 
       tl  <- readIndex b
       pure ((sym, a) : tl)
     readIndex (NormArr a b) = do
@@ -705,7 +707,7 @@ typeCheckDef (TInductDef sym id params (TIntermediate' ty) alts) ctx = do
 
     mkIndexTy' ((sym, ty) : params) index body args = do
       let (ctor, ctorty) = mkIndexTy' params index body ((sym, ty) : args)
-          fty = NormProd sym ty ctorty
+          fty = NormProd sym Visible ty ctorty
         in (NormAbs sym ctor fty, fty)
 
     mkIndexTy' [] ((sym, ty) : ids) index args = do
@@ -735,8 +737,8 @@ mkApp term (v:vs) = mkApp (TApply term (TValue v)) vs
 tyApp :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m -> [Normal m] -> m (Normal m)
 tyApp ty [] = pure ty
 tyApp (NormArr l r) (v:vs) = tyApp r vs
-tyApp (NormProd s a b) (v:vs) = Eval.normSubst (v, s) b >>= (\n -> tyApp n vs)
-tyApp (NormImplProd s a b) (v:vs) = Eval.normSubst (v, s) b >>= (\n -> tyApp n vs)
+tyApp (NormProd s Visible a b) (v:vs) = Eval.normSubst (v, s) b >>= (\n -> tyApp n vs)
+tyApp (NormProd s Hidden a b) (v:vs) = Eval.normSubst (v, s) b >>= (\n -> tyApp n vs)
 
 
 evalTIntermediate :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => TIntermediate m TIntermediate' -> Environment m -> m (Normal m)  
@@ -751,16 +753,13 @@ evalNIntermediate tint env = do
   local (const env) (Eval.eval c_term) 
 
 getTypes (NormArr l r) = l : getTypes r
-getTypes (NormProd _ a b) = a : getTypes b
-getTypes (NormImplProd _ a b) = a : getTypes b
+getTypes (NormProd _ _ a b) = a : getTypes b
 getTypes _ = []
 
 dropTypes 0 t = t
 dropTypes n (NormArr l r) = dropTypes (n-1) r
-dropTypes n (NormProd _ _ b) = dropTypes (n-1) b
-dropTypes n (NormImplProd _ _ b) = dropTypes (n-1) b
+dropTypes n (NormProd _ _ _ b) = dropTypes (n-1) b
 
 fnlType (NormArr l r) = fnlType r 
-fnlType (NormProd _ _ b) = fnlType b
-fnlType (NormImplProd _ _ b) = fnlType b
+fnlType (NormProd _ _ _ b) = fnlType b
 fnlType t = t

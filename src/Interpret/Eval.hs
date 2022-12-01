@@ -155,10 +155,6 @@ evalTop (TopDef def) = case def of
           alts' <- mkAlts alts
           pure ((sym, (alt, ty)) : alts')
 
-        tySize (NormArr l r) = 1 + tySize r
-        tySize (NormProd _ _ r) = 1 + tySize r
-        tySize (NormImplProd _ _ r) = 1 + tySize r
-        tySize _ = 0
     alts' <- mkAlts alts
     pure $ RDef (insertCtor . insertAlts alts')
 evalTop (TopAnn sym term) = do
@@ -203,11 +199,6 @@ evalDef def = case def of
           let alt = NormCoDtor sym coid id (tySize ty) (length params) [] ty
           alts' <- mkAlts alts
           pure ((sym, (alt, ty)) : alts')
-
-        tySize (NormArr l r) = 1 + tySize r
-        tySize (NormProd _ _ r) = 1 + tySize r
-        tySize (NormImplProd _ _ r) = 1 + tySize r
-        tySize _ = 0
     
     alts' <- mkAlts alts
     pure $ (ctorPr : alts')
@@ -227,17 +218,11 @@ eval (CArr l r) = do
   r' <- eval r
   pure $ NormArr l' r'
   
-eval (CProd var a b) = do
+eval (CProd var aty a b) = do
   a' <- eval a
   let ty = (NormUniv 0)
   b' <- local (Env.insert var (Neu (NeuVar var ty) ty) ty) (eval b)
-  pure $ NormProd var a' b'
-
-eval (CImplProd var a b) = do
-  a' <- eval a
-  let ty = (NormUniv 0)
-  b' <- local (Env.insert var (Neu (NeuVar var ty) ty) ty) (eval b)
-  pure $ NormImplProd var a' b'
+  pure $ NormProd var aty a' b'
 
 eval (CAbs var body ty) = do   
   hd <- tyHead ty
@@ -438,23 +423,14 @@ normSubst (val, var) ty = case ty of
  
   NormUniv n -> pure $ NormUniv n
   
-  NormProd var' a b ->
+  NormProd var' aty a b ->
     if var == var' then  do
       a' <- normSubst (val, var) a
-      pure $ NormProd var' a' b
+      pure $ NormProd var' aty a' b
     else do
       a' <- normSubst (val, var) a
       b' <- normSubst (val, var) b
-      pure $ NormProd var' a' b'
-
-  NormImplProd var' a b -> 
-    if var == var' then  do
-      a' <- normSubst (val, var) a
-      pure $ NormImplProd var' a' b
-    else do
-      a' <- normSubst (val, var) a
-      b' <- normSubst (val, var) b
-      pure $ NormImplProd var' a' b'
+      pure $ NormProd var' aty a' b'
 
   NormArr a b -> do
       a' <- normSubst (val, var) a
@@ -622,8 +598,7 @@ tyField field term = throwError ("can't get field  " <> field <> " of non struct
 
 tyApp :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m -> Normal m -> m (Normal m)
 tyApp (NormArr l r) _ = pure r 
-tyApp (NormProd sym a b) arg = normSubst (arg, sym) b
-tyApp (NormImplProd sym a b) arg = normSubst (arg, sym) b
+tyApp (NormProd sym _ a b) arg = normSubst (arg, sym) b
 
 
 
@@ -631,7 +606,7 @@ instance Eq (Normal m) where
   a == b = norm_equiv a b (Set.empty, 0) (Map.empty, Map.empty)
 
 
--- TODO: add Î· reductions to the equality check
+-- TODO: add eta reductions to the equality check
 norm_equiv :: Normal m -> Normal m -> Generator -> (Map.Map String String, Map.Map String String) -> Bool 
 norm_equiv (NormUniv n1) (NormUniv n2) gen rename = n1 == n2
 norm_equiv (Neu n1 _) (Neu n2 _) gen rename = neu_equiv n1 n2 gen rename
@@ -643,28 +618,25 @@ norm_equiv (Symbol s1)   (Symbol s2) _ _   = s1 == s2
 
 -- Note: arrows and dependent types /can/ be equivalent if the bound variable
 -- doesn't come on the LHS
-norm_equiv (NormProd var a b) (NormProd var' a' b') gen (lrename, rrename) = 
+norm_equiv (NormProd var aty1 a b) (NormProd var' aty2 a' b') gen (lrename, rrename) = 
   let (nvar, gen') = genFresh gen
-  in (a == a') && (norm_equiv b b'
-                   (useVars [var, var', nvar] gen')
-                   (Map.insert var nvar lrename, Map.insert var' nvar rrename))
+  in (a == a')
+    && (aty1 == aty2)
+    && (norm_equiv b b'
+        (useVars [var, var', nvar] gen')
+        (Map.insert var nvar lrename, Map.insert var' nvar rrename))
 norm_equiv (NormArr a b)     (NormArr a' b') gen rename = 
   (norm_equiv a a' gen rename) || (norm_equiv b b' gen rename)
-norm_equiv (NormProd var a b) (NormArr a' b') gen rename = 
+norm_equiv (NormProd var Visible a b) (NormArr a' b') gen rename = 
   if Set.member var (free b) then
     False
   else
     norm_equiv a a' gen rename && norm_equiv b b' gen rename
-norm_equiv (NormArr  a b) (NormProd var' a' b') gen rename = 
+norm_equiv (NormArr  a b) (NormProd var' Visible a' b') gen rename = 
   if Set.member var' (free b') then
     False
   else
     norm_equiv a a' gen rename && norm_equiv b b' gen rename
-norm_equiv (NormImplProd var a b) (NormImplProd var' a' b') gen (lrename, rrename) = 
-  let (nvar, gen') = genFresh gen
-  in (a == a') && (norm_equiv b b'
-                   (useVars [var, var', nvar] gen')
-                   (Map.insert var nvar lrename, Map.insert var' nvar rrename))
 
 norm_equiv (CollTy x) (CollTy y) gen rename =
   case (x, y) of 
@@ -775,8 +747,7 @@ getAsBuiltin m sym ty =
 
   where 
     argList (NormArr l r) = l : argList r
-    argList (NormProd sym a b) = a : argList b
-    argList (NormImplProd sym a b) = a : argList b
+    argList (NormProd sym _ a b) = a : argList b
     argList _ = []
 
     --cCall :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => FunPtr () -> [Normal m] -> [Arg m] -> Normal m -> Normal m -> Normal m -> m (Normal m)
@@ -813,8 +784,7 @@ getAsBuiltin m sym ty =
     getArg ty val = throwError ("bad getArg in getAsBuiltin: " <> show ty <> "," <> show val)
 
     getRet (NormArr _ r) = getRet r
-    getRet (NormProd _ _ r) = getRet r
-    getRet (NormImplProd _ _ r) = getRet r
+    getRet (NormProd _ _ _ r) = getRet r
     getRet v = v
 
 
@@ -930,8 +900,7 @@ liftFun2 f ty =
                 _ ->
                   case ty of
                     (NormArr _ r) -> pure $ liftFun (f val) r
-                    (NormProd var _ body) -> pure $ liftFun (f val) body
-                    (NormImplProd var _ body) -> pure $ liftFun (f val) body
+                    (NormProd var _ _ body) -> pure $ liftFun (f val) body
   in Builtin f' ty
 
 
@@ -943,8 +912,7 @@ liftFun3 f ty =
                   pure $ Neu (NeuBuiltinApp f' neu ty') ty'
                 _ -> case ty of
                   (NormArr _ r) -> pure $ liftFun2 (f val) r
-                  (NormProd var _ body) -> pure $ liftFun2 (f val) body
-                  (NormImplProd var _ body) -> do pure $ liftFun2 (f val) body
+                  (NormProd var _ _ body) -> pure $ liftFun2 (f val) body
   in Builtin f' ty
 
 
@@ -956,8 +924,7 @@ liftFun4 f ty =
                   pure $ Neu (NeuBuiltinApp f' neu ty') ty'
                 _ -> case ty of
                   (NormArr _ r) -> pure $ liftFun3 (f val) r
-                  (NormProd var _ body) -> pure $ liftFun3 (f val) body
-                  (NormImplProd var _ body) -> pure $ liftFun3 (f val) body
+                  (NormProd var _ _ body) -> pure $ liftFun3 (f val) body
   in Builtin f' ty
 
 
@@ -969,8 +936,7 @@ liftFun5 f ty =
                   pure $ Neu (NeuBuiltinApp f' neu ty') ty'
                 _ -> case ty of
                   (NormArr _ r) -> pure $ liftFun4 (f val) r
-                  (NormProd var _ body) -> pure $ liftFun4 (f val) body
-                  (NormImplProd var _ body) -> pure $ liftFun4 (f val) body
+                  (NormProd var _ _ body) -> pure $ liftFun4 (f val) body
     in Builtin f' ty
 
 
@@ -982,8 +948,7 @@ liftFun6 f ty =
                   pure $ Neu (NeuBuiltinApp f' neu ty') ty'
                 _ -> case ty of
                   (NormArr _ r) -> pure $ liftFun5 (f val) r
-                  (NormProd var _ body) -> pure $ liftFun5 (f val) body
-                  (NormImplProd var _ body) -> pure $ liftFun5 (f val) body
+                  (NormProd var _ _ body) -> pure $ liftFun5 (f val) body
     in Builtin f' ty
 
 
@@ -1003,8 +968,7 @@ liftFunL2 :: Applicative m => (m (Normal m) -> m (Normal m) -> m (Normal m)) -> 
 liftFunL2 f ty =
   let f' val = case ty of
         (NormArr _ r) -> pure $ liftFunL (f val) r
-        (NormProd var _ body) -> pure $ liftFunL (f val) body
-        (NormImplProd var _ body) -> pure $ liftFunL (f val) body
+        (NormProd var _ _ body) -> pure $ liftFunL (f val) body
   in BuiltinLzy f' ty
 
 
@@ -1012,8 +976,7 @@ liftFunL3 :: Applicative m => (m (Normal m) -> m (Normal m) -> m (Normal m) -> m
 liftFunL3 f ty =
   let f' val = case ty of
         (NormArr _ r) -> pure $ liftFunL2 (f val) r
-        (NormProd var _ body) -> pure $ liftFunL2 (f val) body
-        (NormImplProd var _ body) -> pure $ liftFunL2 (f val) body
+        (NormProd var _ _ body) -> pure $ liftFunL2 (f val) body
   in BuiltinLzy f' ty
 
 
@@ -1021,8 +984,7 @@ liftFunL4 :: Applicative m => (m (Normal m) -> m (Normal m) -> m (Normal m) -> m
 liftFunL4 f ty =
   let f' val = case ty of
         (NormArr _ r) -> pure $ liftFunL3 (f val) r
-        (NormProd var _ body) -> pure $ liftFunL3 (f val) body
-        (NormImplProd var _ body) -> pure $ liftFunL3 (f val) body
+        (NormProd var _ _ body) -> pure $ liftFunL3 (f val) body
   in BuiltinLzy f' ty
 
 
@@ -1030,8 +992,7 @@ liftFunL5 :: Applicative m => (m (Normal m) -> m (Normal m) -> m (Normal m) -> m
 liftFunL5 f ty =
   let f' val = case ty of
         (NormArr _ r) -> pure $ liftFunL4 (f val) r
-        (NormProd var _ body) -> pure $ liftFunL4 (f val) body
-        (NormImplProd var _ body) -> pure $ liftFunL4 (f val) body
+        (NormProd var _ _ body) -> pure $ liftFunL4 (f val) body
   in BuiltinLzy f' ty
 
 
@@ -1039,6 +1000,5 @@ liftFunL6 :: Applicative m => (m (Normal m) -> m (Normal m) -> m (Normal m) -> m
 liftFunL6 f ty =
   let f' val = case ty of
         (NormArr _ r) -> pure $ liftFunL5 (f val) r
-        (NormProd var _ body) -> pure $ liftFunL5 (f val) body
-        (NormImplProd var _ body) -> pure $ liftFunL5 (f val) body
+        (NormProd var _ _ body) -> pure $ liftFunL5 (f val) body
   in BuiltinLzy f' ty

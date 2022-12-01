@@ -71,7 +71,7 @@ showable = NormSig
   ]
 
 implShowTy :: Normal m
-implShowTy = NormImplProd "s" showable 
+implShowTy = NormProd "s" Hidden showable 
              (NormArr st (PrimType StringT))
   where st = Neu (NeuDot (NeuVar "s" showable) "T") showable
 

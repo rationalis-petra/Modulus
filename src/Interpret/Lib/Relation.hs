@@ -13,7 +13,7 @@ equalitySig = NormSig
 
 
 implEqTy :: Normal m
-implEqTy = NormImplProd "e" equalitySig
+implEqTy = NormProd "e" Hidden equalitySig
              (NormArr et (NormArr et (PrimType BoolT)))
   where et = Neu (NeuDot (NeuVar "e" equalitySig) "T") equalitySig
 
