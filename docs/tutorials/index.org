@@ -7,6 +7,13 @@
 #+html: </div>
 
 
++ [[file:quickstart.org][Quickstart Guide]]
++ [[file:tooling.org][Introduction to Tooling]]
+
+This series is designed to be approachable both by new programmers and
+imperative programmers, although those familiar with functional programming may
+find them a bit slow. 
+
 | Tutorial          | Concepts                             |
 |-------------------+--------------------------------------|
 | [[file:expressions.org][Expressions]]       | REPL, Arithmetic, Definitions        |
@@ -16,10 +23,10 @@
 | [[file:abstraction.org][Abstraction]]       | Structures & Signatures              |
 | [[file:projects.org][Projects]]          | Modules, build-system                |
 
+
 Each tutorial has an accompanying set of [[file:exercises/index.org][exercises]].
 
-+ [[file:quickstart.org][Quickstart Guide]]
-+ [[file:tooling.org][Introduction to Tooling]]
+
 
 + Book of Modulus
 

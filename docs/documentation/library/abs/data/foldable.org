@@ -3,37 +3,37 @@
 #+options: toc:nil num:nil html-postamble:nil
 
 #+html: <div style="text-align:right">
-[[file:../../../../index.org][Modulus]] / [[file:../../../index.org][Documentation]] / [[../../index.org][Library]] / [[file:../index.org][Abstractions]] / [[file:f:/Home/wiki/mls/io/documentation/library/abs/index.org][Data]] / Foldable
+[[file:../../../../index.org][Modulus]] / [[file:../../../index.org][Documentation]] / [[../../index.org][Library]] / [[file:../index.org][Abstractions]] / [[file:index.org][Data]] / Foldable
 #+html: </div>
 
 
 * Overview
-The foldable module contains the =Foldable= signature, which represents values 
+The =Foldable= class can be thought of as representing a finite container of
+values.
 
 * Foldable
-The foldable signature
+The foldable class represents  
 
 
-** Core Functions
-+ fold {m : Monoid} → T m.T → T m.T ::
+** Core
++ fold {A} → ⦃Monoid A⦄ → F A → A ::
   
 
-+ fold' {m : Monoid} → T m.T → T m.T ::
++ fold' {A} → ⦃Monoid A⦄ → F A → A ::
   Lazy accumulator
 
-+ foldl {A B} → (A → B → B) → T A → B ::
++ foldl {A B} → (A → B → B) → F A → B ::
   Foldl is a left-to-right fold 
   Left to Right fold (Strict accumulator)
   Expected to be efficient
 
-
-+ foldl' {A B} → (A → B → B) → T A → B ::
++ foldl' {A B} → (A → B → B) → F A → B ::
   Lazy accumulator
 
-+ foldr {A B} → (B → A → B) → B → T A → B ::
++ foldr {A B} → (B → A → B) → B → F A → B ::
   Right-to-left Fold 
 
-+ foldr' {m : Monoid} → T m.T → T m.T ::
++ foldr' {A B} → (B → A → B) → B → F A → B ::
   Lazy accumulator
 
 ** Utility Folds
@@ -48,7 +48,7 @@ The foldable signature
 + length {A} → T A → Int ::
   equivalent to =foldl (λ [_ n] (n+1)) 0=
 
-+ elem {A} → T A → Int ::
++ in?/∈ {A} → ⦃Eq A⦄ → T A → Bool :: 
   
 
 + at/! {A} → ℕ → T A ::

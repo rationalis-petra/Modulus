@@ -3,7 +3,7 @@
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 <head>
-<!-- 2022-11-28 Mon 16:38 -->
+<!-- 2022-11-29 Tue 15:10 -->
 <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Tutorial: Expressions</title>
@@ -225,21 +225,20 @@
 </p>
 </div>
 
-<div id="outline-container-org703ca66" class="outline-2">
-<h2 id="org703ca66">Arithmetic, Unicode</h2>
-<div class="outline-text-2" id="text-org703ca66">
+<div id="outline-container-org418502a" class="outline-2">
+<h2 id="org418502a">Arithmetic, Unicode</h2>
+<div class="outline-text-2" id="text-org418502a">
 </div>
-<div id="outline-container-org32d26a6" class="outline-3">
-<h3 id="org32d26a6">Introduction</h3>
-<div class="outline-text-3" id="text-org32d26a6">
+<div id="outline-container-orgb9a7444" class="outline-3">
+<h3 id="orgb9a7444">Introduction</h3>
+<div class="outline-text-3" id="text-orgb9a7444">
 <p>
-&lt;TODO: brief tooling&gt;
+&lt;TODO: brief tooling introduction&gt;
+&lt;Introduction&gt;
 </p>
 
 <p>
-Arguably the simplest thing we can do when programming is arithmetic: addition,
-multiplication etc. In Modulus, we can write all the common operations (add,
-multiply, etc.). Here are some examples:
+Let's warm up with some simple arithmetic:
 </p>
 
 <div class="org-src-container">
@@ -255,11 +254,11 @@ multiply, etc.). Here are some examples:
 </div>
 
 <p>
-You'll notice some symbols that (probably) aren't available on your keyboard -
-for example, × and ÷. Modulus offers two options for entering characters like
-this. In Modulus, you can type these characters in with special 'keycodes'. For
-the multiplication (×) sign, there are two keycodes: ';x' and ':times'. For
-division, you can type in ':divide' or ';:-'. Most characters have two different keycodes:
+You'll notice some symbols that aren't available on your keyboard - notably, ×
+and ÷. Modulus offers two options for entering characters like this. In Modulus,
+you can type these characters in with special 'keycodes'. For the multiplication
+(×) sign, there are two keycodes: ';x' and ':times'. For division, you can type
+in ':divide' or ';:-'. Most characters have two different keycodes:
 </p>
 <ul class="org-ul">
 <li>long-form e.g. :times for ×, :divide for ÷, :less-or-equal for ≤, etc. These
@@ -277,16 +276,16 @@ will also provide the keycodes for symbols as they are introduced.
 </div>
 
 
-<div id="outline-container-org4d0c6cb" class="outline-3">
-<h3 id="org4d0c6cb">Order of Operations</h3>
-<div class="outline-text-3" id="text-org4d0c6cb">
+<div id="outline-container-orgf3eb093" class="outline-3">
+<h3 id="orgf3eb093">Order of Operations</h3>
+<div class="outline-text-3" id="text-orgf3eb093">
 <p>
 Depending on where you grew up, you likely had to memorize one of the acronyms
 for the order of operations: BODMAS/BIMDAS/PEMDAS/etc. Modulus attempts to
-simplify things by making the vast majority of binary operations
-left-associative with equal precedence. In plain English, read from
-left-to-right, so the expression <code>1 + 3 × 4 ÷ 6 - 2</code> is read as <code>((((1 + 3) × 4)
-÷ 6) - 2)</code> instead of <code>(1 + ((3 × 4) ÷ 6) - 2)</code>.
+simplify things by making the vast majority of operations left-associative with
+equal precedence. In plain English, read from left-to-right, so the expression
+<code>1 + 3 × 4 ÷ 6 - 2</code> is read as <code>((((1 + 3) × 4) ÷ 6) - 2)</code> instead of the more
+'standard' <code>(1 + ((3 × 4) ÷ 6) - 2)</code>.
 </p>
 
 <p>
@@ -295,15 +294,15 @@ reason: Modulus has a very large number of operators, and forcing a programmer
 to remember a huge precedence list would likely be a source of errors and
 headaches. There are a <b>VERY</b> small number of specific exceptions which were
 carefully chosen only when it would be very inconvenient for them to adhere to
-the above rule. These exceptions are '≜', '.', and '→'.
+the above rule. These exceptions are '≜', '.', ':', and '→'.
 </p>
 </div>
 </div>
 </div>
 
-<div id="outline-container-orgcb56b5a" class="outline-2">
-<h2 id="orgcb56b5a">Naming Values, Functions</h2>
-<div class="outline-text-2" id="text-orgcb56b5a">
+<div id="outline-container-org33f633b" class="outline-2">
+<h2 id="org33f633b">Naming Values, Functions</h2>
+<div class="outline-text-2" id="text-org33f633b">
 <p>
 If we use some value repeatedly, it can be useful to give it a name. For
 example, suppose we want to calculate the area of a circle with radius <code>2.5</code>. We can
@@ -364,11 +363,11 @@ circumference and area of a circle with radius 3.2
 </div>
 
 <p>
-To stop us from having to write out the calculations each time, we're going to
-use <b>functions</b>. A function describes a way to go from some input value to an
-output value. In this case, the input value is the radius (which we'll call <code>r</code>),
-and the output value is either the area or circumference. We can define the
-functions for area and circumference as follows:  
+To save us from having to write out the calculations each time, let's create a
+function. A function describes a way to go from some input value to an output
+value. In this case, the input value is the radius (which we'll call <code>r</code>), and
+the output value is either the area or circumference. We can define the
+functions for area and circumference as follows:
 </p>
 
 <pre class="example">
@@ -378,9 +377,9 @@ functions for area and circumference as follows:
 
 <p>
 It is worth noting that ≜ is considered a binary operator, and is one of the
-very few exceptions mentioned in the 'order of operations'. The key difference
-is that '≜' always has the "loosest" binding, so you read <code>x ≜ 2 + 3</code> as
-<code>x ≜ (2 + 3)</code> and not <code>(x ≜ 2) + 3</code>, as the latter doesn't really make any sense.
+very few exceptions mentioned in the 'order of operations' section. The key
+difference is that '≜' always has the "loosest" binding, so you read <code>x ≜ 2 + 3</code>
+as <code>x ≜ (2 + 3)</code> and not <code>(x ≜ 2) + 3</code>.
 </p>
 
 <p>
@@ -403,9 +402,9 @@ precedence than binary operations. What this means is that you should read
 </div>
 </div>
 
-<div id="outline-container-org882696e" class="outline-2">
-<h2 id="org882696e">Booleans, Conditionals</h2>
-<div class="outline-text-2" id="text-org882696e">
+<div id="outline-container-org39bd2a8" class="outline-2">
+<h2 id="org39bd2a8">Booleans, Conditionals</h2>
+<div class="outline-text-2" id="text-org39bd2a8">
 <p>
 'Boolean' is the computer science term for something which can be either true or
 false. The easiest way to get a boolean is to just write <code>true</code> or <code>false</code>:
@@ -454,17 +453,16 @@ There are also several ways of combining booleans, but the most useful are 'or'
 </div>
 
 <p>
-So that's all about how we <i>produce</i> a boolean, but how to we <i>use</i> them?  The
-simplest way is to use <code>if</code>, has three parts: a condition (boolean), something
-to return when the condition is true, and something to return when the condition
-is false.
+The primary way we make use of a boolean is with <code>if</code>. An if has three parts: a
+condition (boolean), something to return when the condition is true, and
+something to return when the condition is false.
 </p>
 
 <div class="org-src-container">
-<pre class="src src-modulus">&gt; <span style="color: #807f96;">(</span><span style="color: #738FD7;">if</span> <span style="color: #cea2ca;">true</span> <span style="color: #7CF083;">"when-true"</span> <span style="color: #7CF083;">"when-false"</span><span style="color: #807f96;">)</span>
-when-true
-&gt; <span style="color: #807f96;">(</span><span style="color: #738FD7;">if</span> <span style="color: #9d81ba;">(</span><span style="color: #cea2ca;">3</span> &lt; <span style="color: #cea2ca;">2</span><span style="color: #9d81ba;">)</span> <span style="color: #7CF083;">"when-true"</span> <span style="color: #7CF083;">"when-false"</span><span style="color: #807f96;">)</span>
-when-false
+<pre class="src src-modulus">&gt; <span style="color: #807f96;">(</span><span style="color: #738FD7;">if</span> <span style="color: #cea2ca;">true</span> <span style="color: #7CF083;">"true is true"</span> <span style="color: #7CF083;">"logic is broken! true is false"</span><span style="color: #807f96;">)</span>
+<span style="color: #cea2ca;">true</span> is <span style="color: #cea2ca;">true</span>
+&gt; <span style="color: #807f96;">(</span><span style="color: #738FD7;">if</span> <span style="color: #9d81ba;">(</span><span style="color: #cea2ca;">3</span> &lt; <span style="color: #cea2ca;">2</span><span style="color: #9d81ba;">)</span> <span style="color: #7CF083;">"math is broken! 3 is less than 2"</span> <span style="color: #7CF083;">"3 is not less than 2"</span><span style="color: #807f96;">)</span>
+<span style="color: #cea2ca;">3</span> is not less than <span style="color: #cea2ca;">2</span>
 </pre>
 </div>
 
@@ -474,38 +472,13 @@ number is positive or negative (keep in mind that 0 is neither positive or negat
 </p>
 
 <div class="org-src-container">
-<pre class="src src-modulus"><span style="color: #807f96;">(</span>sign n &#8796; <span style="color: #738FD7;">if</span> <span style="color: #9d81ba;">(</span>n = <span style="color: #cea2ca;">0</span><span style="color: #9d81ba;">)</span> <span style="color: #7CF083;">"neither"</span> <span style="color: #9d81ba;">(</span><span style="color: #738FD7;">if</span> <span style="color: #4d9391;">(</span>n &lt; <span style="color: #cea2ca;">0</span><span style="color: #4d9391;">)</span> <span style="color: #7CF083;">"negative"</span> <span style="color: #7CF083;">"positive"</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
-</pre>
-</div>
-</div>
-</div>
-
-<div id="outline-container-orgc859806" class="outline-2">
-<h2 id="orgc859806">Recursion</h2>
-<div class="outline-text-2" id="text-orgc859806">
-<p>
-When programming, a common technique that we can exploit is <i>recursion</i>. This is
-when we can break down a problem into 'smaller' parts. As an example, suppose we
-want to write a function to implement the factorial function. Recall that
-factorial is defined:
-</p>
-
-<p>
-\[
-fact\: n = n \times (n - 1) \times (n - 2) \times \ldots \times 1
-\]
-</p>
-
-<p>
-So, for example \(fact\: 5 = 5 \times 4 \times 3 \times 2 \times 1 = 120\).
-</p>
-
-<p>
-What we notice is a pattern if n &gt; 1, then: \(fact\: n = n \times fact (n - 1)\). 
-</p>
-
-<div class="org-src-container">
-<pre class="src src-modulus"><span style="color: #807f96;">(</span>fact n &#8796; <span style="color: #738FD7;">if</span> <span style="color: #9d81ba;">(</span>n &gt; <span style="color: #cea2ca;">1</span><span style="color: #9d81ba;">)</span> <span style="color: #9d81ba;">(</span>n &#215; fact <span style="color: #4d9391;">(</span>n - <span style="color: #cea2ca;">1</span><span style="color: #4d9391;">)</span><span style="color: #9d81ba;">)</span> <span style="color: #cea2ca;">1</span><span style="color: #807f96;">)</span>  
+<pre class="src src-modulus">&gt; <span style="color: #807f96;">(</span>sign n &#8796; <span style="color: #738FD7;">if</span> <span style="color: #9d81ba;">(</span>n = <span style="color: #cea2ca;">0</span><span style="color: #9d81ba;">)</span> <span style="color: #7CF083;">"neither"</span> <span style="color: #9d81ba;">(</span><span style="color: #738FD7;">if</span> <span style="color: #4d9391;">(</span>n &lt; <span style="color: #cea2ca;">0</span><span style="color: #4d9391;">)</span> <span style="color: #7CF083;">"negative"</span> <span style="color: #7CF083;">"positive"</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
+&gt; sign <span style="color: #cea2ca;">2</span>
+<span style="color: #7CF083;">"positive"</span>
+&gt; sign -1
+<span style="color: #7CF083;">"negative"</span>
+&gt; sign <span style="color: #cea2ca;">0</span>
+<span style="color: #7CF083;">"neither"</span>
 </pre>
 </div>
 </div>

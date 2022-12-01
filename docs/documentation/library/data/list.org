@@ -3,7 +3,7 @@
 #+options: toc:nil num:nil html-postamble:nil
 
 #+html: <div style="text-align:right">
-[[file:f:/Home/wiki/mls/io/index.org][Modulus]] / [[file:index.org][Documentation]] / [[../index.org][Library]] / Data/ Collections/ List
+[[file:../../../index.org][Modulus]] / [[file:../../index.org][Documentation]] / [[../index.org][Library]] / [[file:index.org][Data Structures]] / List
 #+html: </div>
 
 * Overview

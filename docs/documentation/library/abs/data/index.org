@@ -1,5 +1,5 @@
 #+html_head: <link rel="stylesheet" href="../../../../modulus-style.css" type="text/css"/>
-#+title: Library: Data
+#+title: Library: abs.data
 #+options: toc:nil num:nil html-postamble:nil
 
 #+html: <div style="text-align:right">
@@ -10,4 +10,7 @@
 + [[file:applicative.org][Applicative]]
 + [[file:monad.org][Monad]]
 + [[file:foldable.org][Foldable]]
++ [[file:cofoldable.org][Cofoldable]]
 + [[file:traversable.org][Traversable]]
++ [[file:dictionary.org][Dictionary]]
+

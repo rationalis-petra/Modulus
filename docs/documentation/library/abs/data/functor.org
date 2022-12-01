@@ -3,11 +3,11 @@
 #+options: toc:nil num:nil html-postamble:nil
 
 #+html: <div style="text-align:right">
-[[file:../../../../index.org][Modulus]] / [[file:../../../index.org][Documentation]] / [[../../index.org][Library]] / [[file:../index.org][Abstractions]] / [[file:f:/Home/wiki/mls/io/documentation/library/abs/index.org][Data]] / Functor
+[[file:../../../../index.org][Modulus]] / [[file:../../../index.org][Documentation]] / [[../../index.org][Library]] / [[file:../index.org][Abstractions]] / [[file:index.org][Data]] / Functor
 #+html: </div>
 
 * Overview
-The Functor is a 
+The Functor is one of the simplest classes: 
 
 #+begin_src modulus
 (Functor : (𝒰 → 𝒰) → 𝒰)
@@ -16,11 +16,12 @@ The Functor is a
     (map : {A B} → F A → (A → B) → F B)))
 #+end_src
 
+Note: Functor and Cofunctor are equivalent
+
 * Examples
 
 #+begin_src modulus
-(def-implicit ListFunctor : (Functor List) 
-  (map
+(instance (struct (map ≜ data.list.internal.map)) (Functor List))
 
 #+end_src
 

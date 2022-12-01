@@ -3,22 +3,30 @@
 #+options: toc:nil num:nil html-postamble:nil
 
 #+html: <div style="text-align:right">
-[[file:f:/Home/wiki/mls/io/index.org][Modulus]] / [[file:index.org][Documentation]] / [[../index.org][Library]] / Data/ Collections/ Array
+[[file:../../../index.org][Modulus]] / [[file:../../index.org][Documentation]] / [[../index.org][Library]] / [[file:index.org][Data Structures]] / Array
 #+html: </div>
 
 * Overview
 * Outline
 # todo: tree display
-+ =array=
++ Types
   + =Array [A]=
-    + =cons= 
-    + =nil= 
-  + =array-monad=
-  + =array-seq=
-  + =array-monoid=
-  + =array-operators=
-
-
++ Functions
+  + =cons=
+  + =snoc=
++ Instances
+  + ={A} → Functor (Array A)=
+  + ={A} → Applicative (Array A)=
+  + ={A} → Monad (Array A)=
+  + ={A} → Magma (Array A)=
+  + ={A} → Semigroup (Array A)=
+  + ={A} → Monoid (Array A)=
+  + ={A} → Foldable (Array A)=
+  + ={A} → Unfoldable (Array A)=
+  + ={A} → Traversable (Array A)=
+  + ={A} → Alternative (Array A)=
+  + ={A} → ⦃Ord A⦄ → Ord (Array A)=
+  + ={A} → ⦃Show A⦄ → Show (Array A)=
 
 * List Seq
 Implementation of the [Seq] signature for lists. [Seq] is a generalization
@@ -115,7 +123,7 @@ supertype of [groupoid] and [magma].
 
 *empty, ⦗⦘* 
 
-* List Operators
+* List Internals
 
 #+begin_src 
 #+end_src

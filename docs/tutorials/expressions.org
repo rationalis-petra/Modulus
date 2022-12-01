@@ -8,11 +8,10 @@
 
 * Arithmetic, Unicode
 ** Introduction
-<TODO: brief tooling>
+<TODO: brief tooling introduction>
+<Introduction>
 
-Arguably the simplest thing we can do when programming is arithmetic: addition,
-multiplication etc. In Modulus, we can write all the common operations (add,
-multiply, etc.). Here are some examples:
+Let's warm up with some simple arithmetic:
 
 #+begin_src modulus
 > 2 + 3
@@ -25,11 +24,11 @@ multiply, etc.). Here are some examples:
 2.0
 #+end_src
 
-You'll notice some symbols that (probably) aren't available on your keyboard -
-for example, × and ÷. Modulus offers two options for entering characters like
-this. In Modulus, you can type these characters in with special 'keycodes'. For
-the multiplication (×) sign, there are two keycodes: ';x' and ':times'. For
-division, you can type in ':divide' or ';:-'. Most characters have two different keycodes:
+You'll notice some symbols that aren't available on your keyboard - notably, ×
+and ÷. Modulus offers two options for entering characters like this. In Modulus,
+you can type these characters in with special 'keycodes'. For the multiplication
+(×) sign, there are two keycodes: ';x' and ':times'. For division, you can type
+in ':divide' or ';:-'. Most characters have two different keycodes:
 + long-form e.g. :times for ×, :divide for ÷, :less-or-equal for ≤, etc. These
   are easy to remember but take a while to type in. Useful for symbols you don't
   use much. These are preceded by a colon `:` character
@@ -43,17 +42,17 @@ will also provide the keycodes for symbols as they are introduced.
 ** Order of Operations
 Depending on where you grew up, you likely had to memorize one of the acronyms
 for the order of operations: BODMAS/BIMDAS/PEMDAS/etc. Modulus attempts to
-simplify things by making the vast majority of binary operations
-left-associative with equal precedence. In plain English, read from
-left-to-right, so the expression =1 + 3 × 4 ÷ 6 - 2= is read as =((((1 + 3) × 4)
-÷ 6) - 2)= instead of =(1 + ((3 × 4) ÷ 6) - 2)=.
+simplify things by making the vast majority of operations left-associative with
+equal precedence. In plain English, read from left-to-right, so the expression
+=1 + 3 × 4 ÷ 6 - 2= is read as =((((1 + 3) × 4) ÷ 6) - 2)= instead of the more
+'standard' =(1 + ((3 × 4) ÷ 6) - 2)=.
 
 This can trip up newcomers to the language, but it was introduced for good
 reason: Modulus has a very large number of operators, and forcing a programmer
 to remember a huge precedence list would likely be a source of errors and
 headaches. There are a *VERY* small number of specific exceptions which were
 carefully chosen only when it would be very inconvenient for them to adhere to
-the above rule. These exceptions are '≜', '.', and '→'.
+the above rule. These exceptions are '≜', '.', ':', and '→'.
 
 * Naming Values, Functions
 If we use some value repeatedly, it can be useful to give it a name. For
@@ -100,11 +99,11 @@ circumference and area of a circle with radius 3.2
 20.106176
 #+end_src
 
-To stop us from having to write out the calculations each time, we're going to
-use *functions*. A function describes a way to go from some input value to an
-output value. In this case, the input value is the radius (which we'll call =r=),
-and the output value is either the area or circumference. We can define the
-functions for area and circumference as follows:  
+To save us from having to write out the calculations each time, let's create a
+function. A function describes a way to go from some input value to an output
+value. In this case, the input value is the radius (which we'll call =r=), and
+the output value is either the area or circumference. We can define the
+functions for area and circumference as follows:
 
 #+begin_src 
 > area r ≜ pi × (r ^ 2)
@@ -112,9 +111,9 @@ functions for area and circumference as follows:
 #+end_src
 
 It is worth noting that ≜ is considered a binary operator, and is one of the
-very few exceptions mentioned in the 'order of operations'. The key difference
-is that '≜' always has the "loosest" binding, so you read =x ≜ 2 + 3= as
-=x ≜ (2 + 3)= and not =(x ≜ 2) + 3=, as the latter doesn't really make any sense.
+very few exceptions mentioned in the 'order of operations' section. The key
+difference is that '≜' always has the "loosest" binding, so you read =x ≜ 2 + 3=
+as =x ≜ (2 + 3)= and not =(x ≜ 2) + 3=.
 
 We can now calculate the area and circumference of a circle with radius 1.4.
 
@@ -169,40 +168,26 @@ true
 false
 #+end_src
 
-So that's all about how we /produce/ a boolean, but how to we /use/ them?  The
-simplest way is to use =if=, has three parts: a condition (boolean), something
-to return when the condition is true, and something to return when the condition
-is false.
+The primary way we make use of a boolean is with =if=. An if has three parts: a
+condition (boolean), something to return when the condition is true, and
+something to return when the condition is false.
 
 #+begin_src modulus
-> (if true "when-true" "when-false")
-when-true
-> (if (3 < 2) "when-true" "when-false")
-when-false
+> (if true "true is true" "logic is broken! true is false")
+true is true
+> (if (3 < 2) "math is broken! 3 is less than 2" "3 is not less than 2")
+3 is not less than 2
 #+end_src
 
 Using this, we could, for example, write a function which tells us whether a
 number is positive or negative (keep in mind that 0 is neither positive or negative).
 
 #+begin_src modulus
-(sign n ≜ if (n = 0) "neither" (if (n < 0) "negative" "positive"))
+> (sign n ≜ if (n = 0) "neither" (if (n < 0) "negative" "positive"))
+> sign 2
+"positive"
+> sign -1
+"negative"
+> sign 0
+"neither"
 #+end_src
-
-* Recursion
-When programming, a common technique that we can exploit is /recursion/. This is
-when we can break down a problem into 'smaller' parts. As an example, suppose we
-want to write a function to implement the factorial function. Recall that
-factorial is defined:
-
-$$
-fact\: n = n \times (n - 1) \times (n - 2) \times \ldots \times 1
-$$
-
-So, for example $fact\: 5 = 5 \times 4 \times 3 \times 2 \times 1 = 120$.
-
-What we notice is a pattern if n > 1, then: $fact\: n = n \times fact (n - 1)$. 
-
-#+begin_src modulus
-(fact n ≜ if (n > 1) (n × fact (n - 1)) 1)  
-#+end_src
-

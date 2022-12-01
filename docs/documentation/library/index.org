@@ -18,23 +18,25 @@ Most standard libraries
     + [[file:abs/data/applicative.org][Applicative]]
     + [[file:abs/data/monad.org][Monad]]
     + [[file:abs/data/foldable.org][Foldable]]
+    + [[file:abs/data/cofoldable.org][Cofoldable]]
     + [[file:abs/data/traversable.org][Traversable]]
+    + [[file:abs/data/dictionary.org][Dictionary]]
   + Category / =cat=
-    + Isomorphism / =iso=
-    + Product / =iso= (lens)
-    + Sum / =iso= (prism)
-  + Orderings / =ord=
+    + Isomorphism
+    + Product
+    + Sum
+  + Orders / =ord=
     + Partial
     + Total
     + Lattice
-  + Groups / =group=
-    + Magma / =magma=
-    + Semigroup / =semigroup=
-    + Monoid / =monoid=
-    + Group / =group=
-  + Numerics / =num=
-    + Ring / =ring=
-    + Field / =field=
+  + [[file:abs/algebra/index.org][Algebra]]
+    + [[file:abs/algebra/magma.org][Magma]]
+    + [[file:abs/algebra/semigroup.org][Semigroup]]
+    + [[file:abs/algebra/monoid.org][Monoid]]
+    + [[file:abs/algebra/semigroup.org][Group]]
+    + [[file:abs/algebra/ring.org][Ring]] 
+    + [[file:abs/algebra/field.org][Field]]
+    + [[file:abs/algebra/module.org][Module]]
 
 + Numerics / =num=
   + Unit / =unit=
@@ -47,10 +49,10 @@ Most standard libraries
   + Signed / =sint=
   + Word / =word=
 
-+ Data Structures / =data=
++ [[file:data/index.org][Data Structures]] / =data=
   + [[file:data/array.org][Array]] / =array=
   + [[file:data/list.org][List]] / =list=
-  + Vector / =vector=
+  + [[file:data/vector.org][Vector]] / =vector=
   + Tensor / =tensor=
 
 + Monad / =monad=

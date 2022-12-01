@@ -12,9 +12,20 @@
   + [[file:data/applicative.org][Applicative]]
   + [[file:data/monad.org][Monad]]
   + [[file:data/foldable.org][Foldable]]
+  + [[file:data/cofoldable.org][Cofoldable]]
   + [[file:data/traversable.org][Traversable]]
+  + [[file:data/dictionary.org][Dictionary]]
 
-* Numerics
++ Orders    
+
++ [[file:algebra/index.org][Algebra]]
+  + [[file:algebra/magma.org][Magma]]
+  + [[file:algebra/semigroup.org][Semigroup]]
+  + [[file:algebra/monoid.org][Monoid]]
+  + [[file:algebra/semigroup.org][Group]]
+  + [[file:algebra/ring.org][Ring]]
+  + [[file:algebra/field.org][Field]]
+  + [[file:algebra/module.org][Module]]
 
 * Category
 

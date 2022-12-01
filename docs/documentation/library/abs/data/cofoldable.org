@@ -1,0 +1,52 @@
+#+html_head: <link rel="stylesheet" href="../../../../modulus-style.css" type="text/css"/>
+#+title: Modulus Libraries: Cofoldable
+#+options: toc:nil num:nil html-postamble:nil
+
+#+html: <div style="text-align:right">
+[[file:../../../../index.org][Modulus]] / [[file:../../../index.org][Documentation]] / [[../../index.org][Library]] / [[file:../index.org][Abstractions]] / [[file:index.org][Data]] / Cofoldable
+#+html: </div>
+
+
+* Overview
+The =Cofoldable= class represents containers which can be constructed.
+
+Monoid 
+⋅ M A → M A → M A
+co⋅ M A → M A → M A
+
+∅: {A} → M A
+∅: {A} → M A
+
+Comonoid
+
+
+** Core
++ unfold {A} → ⦃Comonoid A⦄ → A → F A ::
+  this might be the 'wrong' definition of unfold (when/how to terminate?). We
+  shall have to see...
+
++ unfoldl {A B} → B → (B → Maybe (B * A)) → F A ::
+  Unfoldl produces a new value  
+
++ unfoldl' {A B} → B → (B → Maybe (B * A)) → F A ::
+
++ unfoldlr {A B} → B → (B → Maybe (A * B)) → F A ::
+
++ unfoldlr' {A B} → B → (B → Maybe (A * B)) → F A ::
+
+
++ =empty/∅= :: {F} → ⦃Foldable F⦄ → {A} → F A
+
+
+Notes:  
++ are unfoldables monoids?
+  + possibly unfoldable + foldable => monoid?
+  + mempty = unfold.empty
+  + mappend = λ [l r] (unfold (jn) mempty) 
++ if so, is monoid-empty = unfold-empty
+
+
+#+begin_src modulus
+mappend = 
+  λ [l r] (unfold (λ ) empty)
+#+end_src

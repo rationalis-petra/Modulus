@@ -3,7 +3,7 @@
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 <head>
-<!-- 2022-11-28 Mon 17:06 -->
+<!-- 2022-11-29 Tue 15:10 -->
 <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Tutorial: Collections</title>
@@ -206,9 +206,24 @@
 
 
 
-<div id="outline-container-org6f379e3" class="outline-2">
-<h2 id="org6f379e3">Arrays &amp; Types</h2>
-<div class="outline-text-2" id="text-org6f379e3">
+<div id="outline-container-org6fc394a" class="outline-2">
+<h2 id="org6fc394a">Types and Arrays</h2>
+<div class="outline-text-2" id="text-org6fc394a">
+<p>
+Modulus is what is known as a statically typed language. A type is like a
+category of values - for example, <code>Integer</code> is the type of values which are
+whole numbers. An equally common type is <code>String</code>, which is a sequence of
+Characters. For example, "hello" and "my name is chris" are both
+Strings. Modulus uses types to catch errors before you run your program. As an
+example, suppose you write <code>pi + 2</code>, expecting <code>pi</code> to hold the value
+<code>3.14159...</code>. However, someone decided to set it to the string "pi". In this
+case, Modulus will report a <i>type error</i>, because + both inputs to have the type
+<code>Integer</code>, but you gave it a <code>String</code>.
+</p>
+
+
+
+
 <p>
 Modulus also allows you to group data together into structures called <i>arrays</i>,
 which you can thing of as a collection of values. Arrays are written as a list
@@ -217,32 +232,7 @@ or <code>:left-tortoise</code> and <code>:right-tortoise</code>). For example, t
 numbers 1, 2 and 3 is written <code>⦗1 2 3⦘</code>.
 </p>
 
-<p>
-Important when discussing Arrays is the concept of a <b>type</b>. A type is like a
-category of values in your program. A common type is <code>Integer</code>, which is the
-type of values which are whole numbers. An equally common type is <code>String</code>,
-which is a sequence of Characters. Some example strings are "hello" and "my name
-is chris". Types serve two purposes: first, Modulus can use them to catch
-errors. Imagine that you write <code>pi + 2</code>, thinking that <code>pi</code> holds the value
-<code>3.14159...</code>. However, someone decided to set it to the string "pi". In this
-case, Modulus will report a <i>type error</i>, because + expects its' inputs to be of
-the type Integer, but you gave it a string. The second use of types is as a form
-of communication: through types, the language can give you information about a
-thing. As an example, imagine you have a function called <code>f</code>. This is not a
-particularly descriptive name, and we don't really have any way of knowing what
-it does. Now, imagine you know it is a function which takes an Array of Strings
-as its' input and outputs a String. That is, you know its' <b>type</b> is <code>Array
-String → String</code>. You might then reasonably guess that the output is just all of
-the strings in the array joined together, so <code>join ⦗"my" "name" "is" "kevin"⦘</code>
-is equal to <code>"mynameiskevin"</code>, based on the type information alone. Obviously
-this is not <i>guaranteed</i>, but there aren't too many other things a function
-might (reasonably) do with an Array of strings.
-</p>
 
-<p>
-The reason for all this discussion of types is that Arrays must contain elements
-which all have the same type.
-</p>
 
 <p>
 It's cool to be able to make an array, but what can we <i>do</i> with them? For a
@@ -260,9 +250,9 @@ start, we can join them together with <i>append</i>, (also written `⋅' (<code>
 </div>
 
 
-<div id="outline-container-org32c0e38" class="outline-2">
-<h2 id="org32c0e38">Higher-Order Functions</h2>
-<div class="outline-text-2" id="text-org32c0e38">
+<div id="outline-container-orgc8410cb" class="outline-2">
+<h2 id="orgc8410cb">Higher-Order Functions</h2>
+<div class="outline-text-2" id="text-orgc8410cb">
 <div class="org-src-container">
 <pre class="src src-modulus">&gt; <span style="color: #738FD7;">defn</span> add1 <span style="color: #807f96;">[</span>x<span style="color: #807f96;">]</span> <span style="color: #807f96;">(</span>x + <span style="color: #cea2ca;">1</span><span style="color: #807f96;">)</span>
 &gt; map add1 <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span>
@@ -309,9 +299,9 @@ start, we can join them together with <i>append</i>, (also written `⋅' (<code>
 </div>
 </div>
 
-<div id="outline-container-orge7411d4" class="outline-2">
-<h2 id="orge7411d4">Useful Array functions</h2>
-<div class="outline-text-2" id="text-orge7411d4">
+<div id="outline-container-orgb9f0635" class="outline-2">
+<h2 id="orgb9f0635">Useful Array functions</h2>
+<div class="outline-text-2" id="text-orgb9f0635">
 <p>
 filter
 </p>

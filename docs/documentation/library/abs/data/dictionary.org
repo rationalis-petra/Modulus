@@ -1,0 +1,7 @@
+#+html_head: <link rel="stylesheet" href="../../../../modulus-style.css" type="text/css"/>
+#+title: Library: Dictionary
+#+options: toc:nil num:nil html-postamble:nil
+
+#+html: <div style="text-align:right">
+[[file:../../../../index.org][Modulus]] / [[file:../../../index.org][Documentation]] / [[../../index.org][Library]] / [[file:../index.org][Abstractions]] / [[file:index.org][Data]] / Dictionary
+#+html: </div>

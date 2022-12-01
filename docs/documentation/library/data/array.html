@@ -3,7 +3,7 @@
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 <head>
-<!-- 2022-11-09 Wed 09:17 -->
+<!-- 2022-11-29 Tue 15:43 -->
 <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Modulus Libraries: Array</title>
@@ -200,28 +200,28 @@
 <h1 class="title">Modulus Libraries: Array</h1>
 <div style="text-align:right">
 <p>
-<a href="file:///f:/Home/wiki/mls/io/index.html">Modulus</a> / <a href="index.html">Documentation</a> / <a href="../index.html">Library</a> / Data/ Collections/ Array
+<a href="../../../index.html">Modulus</a> / <a href="../../index.html">Documentation</a> / <a href="../index.html">Library</a> / <a href="index.html">Data Structures</a> / Array
 </p>
 </div>
 
-<div id="outline-container-orgaf72e82" class="outline-2">
-<h2 id="orgaf72e82">Overview</h2>
+<div id="outline-container-orgd3b2fd9" class="outline-2">
+<h2 id="orgd3b2fd9">Overview</h2>
 </div>
-<div id="outline-container-org0274f6f" class="outline-2">
-<h2 id="org0274f6f">Outline</h2>
-<div class="outline-text-2" id="text-org0274f6f">
+<div id="outline-container-orgf7d42ba" class="outline-2">
+<h2 id="orgf7d42ba">Outline</h2>
+<div class="outline-text-2" id="text-orgf7d42ba">
 <ul class="org-ul">
-<li><code>list</code>
+<li><code>array</code>
 <ul class="org-ul">
-<li><code>List [A]</code>
+<li><code>Array [A]</code>
 <ul class="org-ul">
 <li><code>cons</code></li>
 <li><code>nil</code></li>
 </ul></li>
-<li><code>list-monad</code></li>
-<li><code>list-seq</code></li>
-<li><code>list-monoid</code></li>
-<li><code>list-operators</code></li>
+<li><code>array-monad</code></li>
+<li><code>array-seq</code></li>
+<li><code>array-monoid</code></li>
+<li><code>array-operators</code></li>
 </ul></li>
 </ul>
 </div>
@@ -229,86 +229,139 @@
 
 
 
-<div id="outline-container-org24344c6" class="outline-2">
-<h2 id="org24344c6">List Seq</h2>
-<div class="outline-text-2" id="text-org24344c6">
+<div id="outline-container-org0590640" class="outline-2">
+<h2 id="org0590640">List Seq</h2>
+<div class="outline-text-2" id="text-org0590640">
 <p>
 Implementation of the [Seq] signature for lists. [Seq] is a generalization
 [Container] for data-structures where the elements have some kind of ordering.
 </p>
 </div>
 
-<div id="outline-container-org4e3a6bd" class="outline-3">
-<h3 id="org4e3a6bd">Monad</h3>
-<div class="outline-text-3" id="text-org4e3a6bd">
+<div id="outline-container-org877a088" class="outline-3">
+<h3 id="org877a088">Monad</h3>
+<div class="outline-text-3" id="text-org877a088">
 </div>
-<div id="outline-container-org87b3afe" class="outline-4">
-<h4 id="org87b3afe">Functor</h4>
-<div class="outline-text-4" id="text-org87b3afe">
+<div id="outline-container-org3822e1f" class="outline-4">
+<h4 id="org3822e1f">Functor</h4>
+<div class="outline-text-4" id="text-org3822e1f">
 <p>
-map
-</p>
-</div>
-</div>
-
-<div id="outline-container-org719d590" class="outline-4">
-<h4 id="org719d590">Applicative</h4>
-<div class="outline-text-4" id="text-org719d590">
-<p>
-map
-</p>
-</div>
-</div>
-
-<div id="outline-container-org5402ba9" class="outline-4">
-<h4 id="org5402ba9">Monad</h4>
-<div class="outline-text-4" id="text-org5402ba9">
-<p>
-join
+Array is a <code>functor</code>, and so implements <code>map</code>.
 </p>
 
 <p>
-bind
+Map (binary <code>¨</code>) 
 </p>
+
+<div class="org-src-container">
+<pre class="src src-modulus">&gt; map <span style="color: #807f96;">(</span>+ <span style="color: #cea2ca;">1</span><span style="color: #807f96;">)</span> <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span>
+<span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">4</span><span style="color: #807f96;">&#10648;</span>
+</pre>
 </div>
 </div>
 </div>
 
-<div id="outline-container-orgf48075b" class="outline-3">
-<h3 id="orgf48075b">Monoid</h3>
-<div class="outline-text-3" id="text-orgf48075b">
+<div id="outline-container-org616af41" class="outline-4">
+<h4 id="org616af41">Applicative</h4>
+<div class="outline-text-4" id="text-org616af41">
+<p>
+Array is an applicative, and so implements <code>pure</code> and <code>apply</code>.
+</p>
+
+<div class="org-src-container">
+<pre class="src src-modulus">&gt; pure <span style="color: #cea2ca;">3</span> 
+<span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span>
+</pre>
 </div>
-<div id="outline-container-orgdbce958" class="outline-4">
-<h4 id="orgdbce958">Magma</h4>
-<div class="outline-text-4" id="text-orgdbce958">
+
+<div class="org-src-container">
+<pre class="src src-modulus">&gt; apply <span style="color: #807f96;">&#10647;</span><span style="color: #9d81ba;">(</span>+1<span style="color: #9d81ba;">)</span> <span style="color: #9d81ba;">(</span>-1<span style="color: #9d81ba;">)</span><span style="color: #807f96;">&#10648;</span> <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span>
+<span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">4</span> <span style="color: #cea2ca;">0</span> <span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span><span style="color: #807f96;">&#10648;</span>
+</pre>
+</div>
+</div>
+</div>
+
+<div id="outline-container-org86ec69a" class="outline-4">
+<h4 id="org86ec69a">Monad</h4>
+<div class="outline-text-4" id="text-org86ec69a">
+<p>
+Monad 
+</p>
+
+<p>
+Join
+</p>
+
+<div class="org-src-container">
+<pre class="src src-modulus">&gt; join <span style="color: #807f96;">&#10647;</span><span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">4</span> <span style="color: #cea2ca;">5</span> <span style="color: #cea2ca;">6</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">7</span> <span style="color: #cea2ca;">8</span> <span style="color: #cea2ca;">9</span><span style="color: #9d81ba;">&#10648;</span><span style="color: #807f96;">&#10648;</span>
+<span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">4</span> <span style="color: #cea2ca;">5</span> <span style="color: #cea2ca;">6</span> <span style="color: #cea2ca;">7</span> <span style="color: #cea2ca;">8</span> <span style="color: #cea2ca;">9</span><span style="color: #807f96;">&#10648;</span>
+</pre>
+</div>
+
+<p>
+Bind
+</p>
+
+<div class="org-src-container">
+<pre class="src src-modulus">&gt; <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">6</span><span style="color: #807f96;">&#10648;</span> &gt;&gt;= <span style="color: #807f96;">(</span><span style="color: #738FD7;">&#955;</span> <span style="color: #9d81ba;">[</span>x<span style="color: #9d81ba;">]</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #4d9391;">(</span>x + <span style="color: #cea2ca;">1</span><span style="color: #4d9391;">)</span> <span style="color: #4d9391;">(</span>x + <span style="color: #cea2ca;">2</span><span style="color: #4d9391;">)</span> <span style="color: #4d9391;">(</span>x + <span style="color: #cea2ca;">3</span><span style="color: #4d9391;">)</span><span style="color: #9d81ba;">&#10648;</span><span style="color: #807f96;">)</span>
+<span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">4</span> <span style="color: #cea2ca;">5</span> <span style="color: #cea2ca;">6</span> <span style="color: #cea2ca;">7</span> <span style="color: #cea2ca;">8</span> <span style="color: #cea2ca;">9</span><span style="color: #807f96;">&#10648;</span>
+</pre>
+</div>
+</div>
+</div>
+</div>
+
+<div id="outline-container-org8cb3d1c" class="outline-3">
+<h3 id="org8cb3d1c">Monoid</h3>
+<div class="outline-text-3" id="text-org8cb3d1c">
+</div>
+<div id="outline-container-org475e615" class="outline-4">
+<h4 id="org475e615">Magma</h4>
+<div class="outline-text-4" id="text-org475e615">
 <p>
 <b>append/⋅</b>
 </p>
 </div>
 </div>
 
-<div id="outline-container-org964f80b" class="outline-4">
-<h4 id="org964f80b">Semigroup</h4>
-<div class="outline-text-4" id="text-org964f80b">
-<p>
-<b>append/⋅</b>
-</p>
+<div id="outline-container-org97da76d" class="outline-4">
+<h4 id="org97da76d">Semigroup</h4>
+<div class="outline-text-4" id="text-org97da76d">
+<ul class="org-ul">
+<li>assoc</li>
+</ul>
 </div>
 </div>
 
-<div id="outline-container-orgbe05bf6" class="outline-4">
-<h4 id="orgbe05bf6">Monoid</h4>
-<div class="outline-text-4" id="text-orgbe05bf6">
+<div id="outline-container-orgae00afd" class="outline-4">
+<h4 id="orgae00afd">Monoid</h4>
+<div class="outline-text-4" id="text-orgae00afd">
+<ul class="org-ul">
+<li>id</li>
+</ul>
 <p>
 <b>empty/⦗⦘</b>
 </p>
 </div>
 </div>
+
+<div id="outline-container-org1c9850a" class="outline-4">
+<h4 id="org1c9850a">Group</h4>
+<div class="outline-text-4" id="text-org1c9850a">
+<ul class="org-ul">
+<li>invertibility</li>
+</ul>
+<p>
+<b>append/⋅</b>
+</p>
+</div>
+</div>
 </div>
 
-<div id="outline-container-orgc9e721b" class="outline-3">
-<h3 id="orgc9e721b">Seq</h3>
-<div class="outline-text-3" id="text-orgc9e721b">
+<div id="outline-container-org1ee8f9c" class="outline-3">
+<h3 id="org1ee8f9c">Seq</h3>
+<div class="outline-text-3" id="text-org1ee8f9c">
 <p>
 <b>insert</b>
 </p>
@@ -361,9 +414,9 @@ bind
 </div>
 
 
-<div id="outline-container-org29dcd6c" class="outline-2">
-<h2 id="org29dcd6c">List Monoid</h2>
-<div class="outline-text-2" id="text-org29dcd6c">
+<div id="outline-container-org9bd1e00" class="outline-2">
+<h2 id="org9bd1e00">List Monoid</h2>
+<div class="outline-text-2" id="text-org9bd1e00">
 <p>
 Implementation of the [monoid] signature for lists. Note that [monoid] is a
 supertype of [groupoid] and [magma]. 
@@ -379,9 +432,9 @@ supertype of [groupoid] and [magma].
 </div>
 </div>
 
-<div id="outline-container-orgfa897b4" class="outline-2">
-<h2 id="orgfa897b4">List Operators</h2>
-<div class="outline-text-2" id="text-orgfa897b4">
+<div id="outline-container-org8054b1e" class="outline-2">
+<h2 id="org8054b1e">List Internals</h2>
+<div class="outline-text-2" id="text-org8054b1e">
 <pre class="example">
 
 </pre>

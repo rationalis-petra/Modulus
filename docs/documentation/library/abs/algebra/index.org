@@ -1,0 +1,16 @@
+#+html_head: <link rel="stylesheet" href="../../../../modulus-style.css" type="text/css"/>
+#+title: Library: abs.algebra
+#+options: toc:nil num:nil html-postamble:nil
+
+#+html: <div style="text-align:right">
+[[file:../../../../index.org][Modulus]] / [[file:../../../index.org][Documentation]] / [[../../index.org][Library]] / [[file:../index.org][Abstractions]] / Algebra
+#+html: </div>
+
+
++ [[file:magma.org][Magma]]
++ [[file:semigroup.org][Semigroup]]
++ [[file:monoid.org][Monoid]]
++ [[file:semigroup.org][Group]]
++ [[file:ring.org][Ring]]
++ [[file:field.org][Field]]
++ [[file:module.org][Module]]

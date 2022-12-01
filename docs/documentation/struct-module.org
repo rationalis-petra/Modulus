@@ -1,0 +1,19 @@
+#+html_head: <link rel="stylesheet" href="../modulus-style.css" type="text/css"/>
+#+title: Modulus Docs: Structures and Modules
+#+options: toc:nil num:nil html-postamble:nil
+
+#+html: <div style="text-align:right">
+[[file:../index.org][Modulus]] / [[file:index.org][Documentation]] / Structures and Modules
+#+html: </div>
+
+
+
+* Visibility
+Public, Private, Shy
+
++ Public :: If =foo= is public in a structure =s=, then =s.foo= will resolve and
+  =open s= will import foo into the current namespace.
++ Private :: If =foo= is private in structure =s=, then =s.foo= is an error and
+  =open s= will not return any value
++ Shy :: If =foo= is shy in structure =s=, the =s.foo= will resolve, but =open
+  s= will not import foo into the current namespace.

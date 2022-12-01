@@ -3,7 +3,7 @@
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 <head>
-<!-- 2022-11-28 Mon 09:38 -->
+<!-- 2022-12-01 Thu 12:11 -->
 <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Modulus Libraries: Foldable</title>
@@ -200,59 +200,56 @@
 <h1 class="title">Modulus Libraries: Foldable</h1>
 <div style="text-align:right">
 <p>
-<a href="../../../../index.html">Modulus</a> / <a href="../../../index.html">Documentation</a> / <a href="../../index.html">Library</a> / <a href="../index.html">Abstractions</a> / <a href="file:///f:/Home/wiki/mls/io/documentation/library/abs/index.html">Data</a> / Foldable
+<a href="../../../../index.html">Modulus</a> / <a href="../../../index.html">Documentation</a> / <a href="../../index.html">Library</a> / <a href="../index.html">Abstractions</a> / <a href="index.html">Data</a> / Foldable
 </p>
 </div>
 
 
-<div id="outline-container-org54ad9da" class="outline-2">
-<h2 id="org54ad9da">Overview</h2>
-<div class="outline-text-2" id="text-org54ad9da">
+<div id="outline-container-org64d1185" class="outline-2">
+<h2 id="org64d1185">Overview</h2>
+<div class="outline-text-2" id="text-org64d1185">
 <p>
 The foldable module contains the <code>Foldable</code> signature, which represents values 
 </p>
 </div>
 </div>
 
-<div id="outline-container-orgcc34207" class="outline-2">
-<h2 id="orgcc34207">Foldable</h2>
-<div class="outline-text-2" id="text-orgcc34207">
+<div id="outline-container-org45215d9" class="outline-2">
+<h2 id="org45215d9">Foldable</h2>
+<div class="outline-text-2" id="text-org45215d9">
 <p>
-The foldable signature
+The foldable class represents  
 </p>
 </div>
 
 
-<div id="outline-container-orgee5a6cc" class="outline-3">
-<h3 id="orgee5a6cc">Core Functions</h3>
-<div class="outline-text-3" id="text-orgee5a6cc">
+<div id="outline-container-orga3ff516" class="outline-3">
+<h3 id="orga3ff516">Core Functions</h3>
+<div class="outline-text-3" id="text-orga3ff516">
 <dl class="org-dl">
-<dt>fold {m : Monoid} → T m.T → T m.T</dt><dd></dd>
+<dt>fold {A} → ⦃Monoid A⦄ → F A → A</dt><dd></dd>
 </dl>
 
 
 <dl class="org-dl">
-<dt>fold' {m : Monoid} → T m.T → T m.T</dt><dd>Lazy accumulator</dd>
+<dt>fold' {A} → ⦃Monoid A⦄ → F A → F A</dt><dd>Lazy accumulator</dd>
 
-<dt>foldl {A B} → (A → B → B) → T A → B</dt><dd>Foldl is a left-to-right fold 
+<dt>foldl {A B} → (A → B → B) → F A → B</dt><dd>Foldl is a left-to-right fold 
 Left to Right fold (Strict accumulator)
 Expected to be efficient</dd>
-</dl>
 
+<dt>foldl' {A B} → (A → B → B) → F A → B</dt><dd>Lazy accumulator</dd>
 
-<dl class="org-dl">
-<dt>foldl' {A B} → (A → B → B) → T A → B</dt><dd>Lazy accumulator</dd>
+<dt>foldr {A B} → (B → A → B) → B → F A → B</dt><dd>Right-to-left Fold</dd>
 
-<dt>foldr {A B} → (B → A → B) → B → T A → B</dt><dd>Right-to-left Fold</dd>
-
-<dt>foldr' {m : Monoid} → T m.T → T m.T</dt><dd>Lazy accumulator</dd>
+<dt>foldr' {A B} → (B → A → B) → B → F A → B</dt><dd>Lazy accumulator</dd>
 </dl>
 </div>
 </div>
 
-<div id="outline-container-orgc1b4933" class="outline-3">
-<h3 id="orgc1b4933">Utility Folds</h3>
-<div class="outline-text-3" id="text-orgc1b4933">
+<div id="outline-container-orgade9125" class="outline-3">
+<h3 id="orgade9125">Utility Folds</h3>
+<div class="outline-text-3" id="text-orgade9125">
 <dl class="org-dl">
 <dt>fold-map {A} → {m : Monoid} → (A → m.T) → T A → m.T</dt><dd></dd>
 
@@ -264,7 +261,7 @@ Expected to be efficient</dd>
 
 <dt>length {A} → T A → Int</dt><dd>equivalent to <code>foldl (λ [_ n] (n+1)) 0</code></dd>
 
-<dt>elem {A} → T A → Int</dt><dd></dd>
+<dt>in?/∈ {A} → ⦃Eq A⦄ → T A → Bool</dt><dd></dd>
 </dl>
 
 
@@ -311,8 +308,8 @@ Expected to be efficient</dd>
 </div>
 </div>
 
-<div id="outline-container-org8de12b6" class="outline-2">
-<h2 id="org8de12b6">Definition</h2>
+<div id="outline-container-org4aac14e" class="outline-2">
+<h2 id="org4aac14e">Definition</h2>
 </div>
 </div>
 </body>

@@ -17,15 +17,16 @@ Tooling
 
 Concepts 
 + [[file:exprs.org][Expressions and Parsing]]
-+ Functions & Currying
 + Types
++ Functions & Currying
 + Type Inference
-+ Structures & Modules
-+ Advanced Type Inference
-+ Macros
-+ Reader Macros
-+ Normal Forms & Dependent Types
++ Structures, Signatures and Instances
++ [[file:struct-module.org][Structures and Modules]]
 + Monads, IO
++ Advanced Type Inference
++ Metaprogramming
++ Modifying the Parser
++ Normal Forms & Dependent Types
 
 Libraries  
 + Modules, Structures & Signatures

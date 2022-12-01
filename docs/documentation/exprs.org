@@ -3,7 +3,7 @@
 #+options: toc:nil num:nil html-postamble:nil
 
 #+html: <div style="text-align:right">
-[[file:../index.org][Modulus]] / [[file:index.org][Documentation]] / Expressions & Parsing 
+[[file:../index.org][Modulus]] / [[file:index.org][Documentation]] / Expressions and Parsing 
 #+html: </div>
 
 * Symbols, Prefix & Infix Operations
