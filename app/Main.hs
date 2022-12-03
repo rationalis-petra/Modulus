@@ -151,7 +151,7 @@ runExprs (e : es) env state sets = do
           result <- evalToIO (toTIntermediateTop val) env state'
           case result of 
             Just (tint, state'') -> do
-              result <- evalToIO (typeCheckTop tint env) env state''
+              result <- evalToIO (typeCheckTop tint) env state''
               case result of 
                 Just (cint, state''') -> do
                   cint' <- case cint of 

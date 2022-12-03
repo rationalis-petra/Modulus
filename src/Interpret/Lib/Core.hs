@@ -195,6 +195,7 @@ coreTerms =
   , ("let",         Special Let)
   , ("structure",   Special MkStructure)
   , ("signature",   Special MkSig)
+  , ("instance",    Special InstanceDef)
   , ("struct",      mlsStruct)
   , ("sig",         mlsSig)
   , ("match",       Special MkMatch)

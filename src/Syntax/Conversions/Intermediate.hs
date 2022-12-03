@@ -257,7 +257,7 @@ mkSig lst ctx = do
           let syms = getDefSyms def 
           tl' <- foldDefs tl (foldr shadow ctx syms)
           pure $ def : tl'
-        _ -> throwError "Signatures should contain only definition terms"
+        _ -> throwError ("Signatures should contain only definition terms, got" <> show mdef)
     foldDefs v _ = throwError ("bad term in signature definition: " ++ show v)
 
 

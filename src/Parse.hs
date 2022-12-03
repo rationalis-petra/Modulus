@@ -145,30 +145,22 @@ pTerm = choice [pLiteral,
           Cons (op : args)
 
 
-mkOp :: Text -> Parser ([AST m] -> AST m -> AST m)
-mkOp str = (\str x y ->
-              Cons ([(Atom . Symbol . unpack) str] <> x <> [y])) <$> symbol str
-mkOpP :: Parser (Normal m) -> Parser ([AST m] -> AST m -> AST m)
-mkOpP = (<$>) (\sym x y -> Cons ([Atom sym] <> x <> [y]))
+mkOp :: Text -> Parser (AST m -> AST m -> AST m)
+mkOp str = (\str x y -> Cons ((Atom . Symbol . unpack) str : [x, y])) <$> symbol str
+mkOpP :: Parser (Normal m) -> Parser (AST m -> AST m -> AST m)
+mkOpP = (<$>) (\sym x y -> Cons (Atom sym : [x, y]))
 
 
 
 pNormalNoFun :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Parser (AST m) 
 pNormalNoFun =
-  let mkBin :: Parser (Either (AST m) [AST m]) -> Parser (AST m) -> Parser ([AST m] -> AST m -> AST m) -> Parser (AST m)
-      mkBin l r op = (l >>= go0) where
-        go0 acc = choice [(((\f x -> f (case acc of Left ast -> [ast]; Right lst -> lst) x)
-                              <$> op <*> r) >>= go1),
-                          pure (case acc of Left ast -> ast; Right lst -> Cons lst)]
-
-        go1 acc = choice [(((\f x -> f [acc] x) <$> op <*> r) >>= go1), pure acc]
-
-      mkBin' = mkBin (((\v -> case v of Cons l -> Right l; x -> Right [x]) <$> larens pNormal)
-                      <|> (\x -> Left x) <$> pTerm)
+  let mkBin :: Parser (AST m) -> Parser (AST m) -> Parser (AST m -> AST m -> AST m) -> Parser (AST m)
+      mkBin l r op = (l >>= go) where
+        go acc = choice [(((\f x -> f acc x) <$> op <*> r) >>= go), pure acc]
 
       -- TODO: mkBinTight ++ mkRBin
-      sml    = mkBin' pTerm  (mkOpP pTightSym)
-      expr   = mkBin' sml    (mkOpP pSpecial)
+      sml    = mkBin pTerm  pTerm (mkOpP pTightSym)
+      expr   = mkBin sml    sml   (mkOpP pSpecial)
     in expr
 
 
@@ -186,46 +178,25 @@ pFunc v p = mkFun <$> p <*> many p
 
 pNormal :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Parser (AST m)
 pNormal = 
-  let mkBin l r op = l >>= go0 where
-        go0 acc = choice [(((\f x -> f (toLst acc) x) <$> op <*> pMaybeFunc r) >>= go1),
-                         ((mkCall (toVal acc)
-                           <$> r
-                           <*> many r) >>= go1),
-                         return (toVal acc)]
-
-        go1 acc = choice [(((\f x -> f [acc] x) <$> op <*> pMaybeFunc r) >>= go1),
-                         (pFunc acc r >>= go1),
-                         return acc]
-
-      mkBinTight l r op = l >>= go0 where
-        go0 acc = choice [(((\f x -> f (toLst acc) x) <$> op <*> r) >>= go1), return (toVal acc)]
-        go1 acc = choice [(((\f x -> f [acc] x) <$> op <*> r) >>= go1), return acc]
-
-      pLeft :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Parser (Either (AST m) [AST m])
-      pLeft = ((\v -> case v of Cons l -> Right l; x -> Right [x]) <$> larens pNormal)
-                 <|> ((\x -> Left x) <$> pTerm)
-
-
+  let mkBin l r op = l >>= go where
+        go acc = choice [ (((\f x -> f acc x) <$> op <*> pMaybeFunc r) >>= go)
+                         , ((mkCall acc
+                             <$> r
+                             <*> many r) >>= go)
+                         , return acc]
+      mkBinTight :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => 
+                    Parser (AST m) -> Parser (AST m) -> Parser (AST m -> AST m -> AST m) -> Parser (AST m)
+      mkBinTight l r op = l >>= go where
+        go acc = choice [(((\f x -> f acc x) <$> op <*> r) >>= go), return acc]
   
       mkRBin l r op = l >>= go where
-        go acc = choice [((\f x -> f (toLst acc) x) <$> op <*> mkRBin l r op),
-                         return (toVal acc)]
-
-      mkLeft p = (((\v -> case v of Cons l -> Right l; x -> Right [x]) <$> larens p)
-                 <|> ((\v tl -> case tl of
-                          [] -> Left v
-                          _ -> Left $ Cons (v:tl)) <$> p <*> many p))
-      mkLeftTight p = (((\v -> case v of Cons l -> Right l; x -> Right [x]) <$> larens p)
-                 <|> (Left <$> p))
-
-      toLst v = case v of Left x -> [x]; Right lst -> lst
-      toVal v = case v of Left x -> x;   Right lst -> Cons lst
+        go acc = choice [((\f x -> f acc x) <$> op <*> mkRBin l r op), return acc]
 
       mkCall op arg args = Cons (op : (arg : args))
 
-      sml    = mkBinTight (mkLeftTight pTerm)  pTerm (mkOp ".")
-      ty     = mkRBin (mkLeft sml) sml         (mkOpP pRightSym)
-      expr   = mkBin  (mkLeft ty) ty           (mkOpP pSpecial)
+      sml    = mkBinTight  pTerm  pTerm (mkOp ".")
+      ty     = mkRBin      sml    sml   (mkOpP pRightSym)
+      expr   = mkBin       ty     ty    (mkOpP pSpecial)
     in expr
 
 

@@ -88,7 +88,7 @@ data Environment m = Environment {
 
 data Special
   -- Definition Forms 
-  = Def | Induct | Coinduct | Open | LetOpen
+  = Def | Induct | Coinduct | Open | LetOpen | InstanceDef
   -- Control Flow 
   | If | MkMatch | MkCoMatch
   -- Value Constructors
@@ -158,7 +158,7 @@ data IEThread m
   | Seq (m (IEThread m)) (m (IEThread m))
 
 
-data Modifier = Implicit
+data Modifier = Implicit | MInstance | Private 
   deriving (Show, Eq, Ord)
 
 
@@ -232,6 +232,23 @@ data Neutral m
 data AST m
   = Atom (Normal m)
   | Cons [AST m]
+
+
+data PrimType
+  = BoolT | SpecialT | CharT | IntT | NatT | FloatT | UnitT | StringT | AbsurdT
+  -- TODO: refactor ctypes via a plugin system!
+  | CModuleT | CIntT | CDoubleT | CStringT
+  | MacroT
+  deriving (Eq, Ord)
+  
+
+data ProgState m = ProgState
+  { _uid_counter   :: Int
+  , _var_counter   :: Int
+  , _thunk_counter :: Int
+  , _thunk_map :: Map.Map Thunk (Either (m (Normal m, Normal m)) (Normal m, Normal m))
+  }
+
 
 
 instance Show (Normal m) where
@@ -318,24 +335,6 @@ instance Show (Neutral m) where
   show (NeuIf cond e1 e2 _) = "(if " <> show e1 <> " " <> show e2 <> ")"
 
   show (NeuBuiltinApp fn neu ty)  = "((fn " <> show neu <> ") : " <>  show ty <> ")"
-
-  
-data PrimType
-  = BoolT | SpecialT | CharT | IntT | NatT | FloatT | UnitT | StringT | AbsurdT
-  -- TODO: refactor ctypes via a plugin system!
-  | CModuleT | CIntT | CDoubleT | CStringT
-  | MacroT
-  deriving (Eq, Ord)
-  
-
-
-
-data ProgState m = ProgState
-  { _uid_counter   :: Int
-  , _var_counter   :: Int
-  , _thunk_counter :: Int
-  , _thunk_map :: Map.Map Thunk (Either (m (Normal m, Normal m)) (Normal m, Normal m))
-  }
 
 
   

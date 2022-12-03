@@ -17,7 +17,7 @@ module Typecheck.Constrain (
 
 import qualified Data.Map as Map  
 import qualified Data.Set as Set  
-import Control.Monad.Reader (MonadReader)
+import Control.Monad.Reader (MonadReader, ask)
 import Control.Monad.State  (MonadState)
 import Control.Monad.Except (MonadError, throwError)
 
@@ -55,7 +55,8 @@ type Subst m = ([(Normal m, String)], [((String, Normal m), (String, Normal m))]
 -- but the substitution of dependently-bound (string) variables occurs only on
 -- the left(right) side
 
-constrain :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m -> Normal m -> Environment m -> m ([Normal m], [Normal m], Subst m)
+constrain :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) =>
+             Normal m -> Normal m -> Environment m -> m ([Normal m], [Normal m], Subst m)
 constrain n1 n2 env = do
   (lapp, rapp, subst) <- constrainLRApp n1 n2 env
   pure (lapp, rapp, toSing subst)
@@ -71,7 +72,6 @@ constrain n1 n2 env = do
 -- Note: constrainLRApp doesn't actually check the types!  
 -- TODO: perform α-renaming on implicit products!  
 constrainLRApp :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m -> Normal m -> Environment m -> m ([Normal m], [Normal m], LRSubst m)
-
 constrainLRApp (NormProd s1 Hidden a1 b1) (NormProd s2 Hidden a2 b2) ctx = do
   subst <- constrain' b1 b2
   pure ([], [], subst)

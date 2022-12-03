@@ -56,11 +56,11 @@ toTIntermediate (ILambda args bdy) = do
     processArgs ((Sym s, aty) : xs) = case aty of 
       Visible -> do
         tl <- processArgs xs
-        pure $ ((BoundArg s (TIntermediate' $ TValue $ NormUniv 0), aty) : tl)
-      Hidden -> do
-        tl <- processArgs xs
         var <- freshIVar
         pure $ (InfArg s var, aty) : tl
+      Hidden -> do
+        tl <- processArgs xs
+        pure $ ((BoundArg s (TIntermediate' $ TValue $ NormUniv 0), aty) : tl)
       Instance -> throwError "instance args must be annotated"
     processArgs ((Annotation s i, aty) : xs) = do
       ty <- toTIntermediate i

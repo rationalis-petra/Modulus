@@ -123,13 +123,12 @@ compileTree (Node dir mtext) state ctx = do
               let eintermediate = toIntermediate expanded env  
               intermediate <- (case eintermediate of Right val -> pure val; Left err -> throwError err)
               tintermediate <- toTIntermediateTop intermediate
-              env <- ask
               -- TODO: typechecking should be monadic
               checked <- case ty of 
                 Just ty -> do
                   annotated <- annotate tintermediate ty
-                  typeCheckTop annotated env
-                Nothing -> typeCheckTop tintermediate env
+                  typeCheckTop annotated
+                Nothing -> typeCheckTop tintermediate
 
               -- TODO: integrate type-checking results into allTypes
               let justvals = (case checked of Left (val, _) -> val; Right val -> val)
