@@ -137,7 +137,7 @@ runExprs [] env state _ = pure (env, state)
 runExprs (e : es) env state sets = do
   -- result <- evalToIO compile env state 
   -- where my_mnd = do
-  --         expanded <- macroExpand e 
+  --         expanded < - macroExpand e 
   --         intermediate <- liftExcept toIntermediateM e 
   --         tintermediate <- toTIntermediateTop intermediate
   --         env <- ask

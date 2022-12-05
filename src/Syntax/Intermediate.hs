@@ -29,6 +29,7 @@ data IArg m
 
 data IDefinition m
   = ISingleDef String (Intermediate m) (Maybe (Intermediate m))
+  | IInstanceDef String (Intermediate m)
   | IInductDef String [IArg m] (Intermediate m) [(String, Intermediate m)]
   | ICoinductDef String [IArg m] (Intermediate m) [(String, Intermediate m)]
   | IEffectDef String [String] [(String, [Intermediate m])]

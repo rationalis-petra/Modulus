@@ -163,6 +163,11 @@ toTDef (ISingleDef s i mann) = do
     Nothing -> pure Nothing
   pure (TSingleDef s t ann')
 
+toTDef (IInstanceDef s cls val) = do
+  cls' <- TIntermediate' <$> toTIntermediate cls
+  val' <- toTIntermediate val
+  pure (TInstanceDef s cls' val')
+
 toTDef (IOpenDef i) = do
   t <- toTIntermediate i
   pure (TOpenDef t Nothing)

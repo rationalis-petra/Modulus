@@ -42,6 +42,7 @@ import Control.Monad.Except (MonadError, ExceptT)
 import Control.Monad.Reader (MonadReader,ReaderT)
 
 import Bindings.Libtdl
+import Syntax.Expression
 
 
 
@@ -158,8 +159,8 @@ data IEThread m
   | Seq (m (IEThread m)) (m (IEThread m))
 
 
-data Modifier = Implicit | MInstance | Private 
-  deriving (Show, Eq, Ord)
+data Modifier m = Implicit | MInstance (Normal m) | Private 
+  deriving (Show, Eq)
 
 
 -- m is the type of monad inside the object
@@ -192,7 +193,7 @@ data Normal m
   | BuiltinLzy (m (Normal m) -> m (Normal m)) (Normal m)
   
   -- Structures & Signatures
-  | NormSct [(String, (Normal m, [Modifier]))] (Normal m)
+  | NormSct [(String, (Normal m, [Modifier m]))] (Normal m)
   | NormSig [(String, Normal m)]
 
   -- Inductive and Coinductive Types and Values
@@ -427,6 +428,179 @@ fncLike (NormArr _ _)        = True
 fncLike (NormProd _ _ _ _)     = True
 fncLike _ = False
 
+
+
+instance Eq (Normal m) where
+  a == b = norm_equiv a b (Set.empty, 0) (Map.empty, Map.empty)
+
+
+
+-- TODO: add eta reductions to the equality check
+norm_equiv :: Normal m -> Normal m -> Generator -> (Map.Map String String, Map.Map String String) -> Bool 
+norm_equiv (NormUniv n1) (NormUniv n2) gen rename = n1 == n2
+norm_equiv (Neu n1 _) (Neu n2 _) gen rename = neu_equiv n1 n2 gen rename
+norm_equiv (PrimVal p1)  (PrimVal p2) _ _  = p1 == p2
+norm_equiv (PrimType p1) (PrimType p2) _ _ = p1 == p2
+norm_equiv (Special s1)  (Special s2) _ _  = s1 == s2
+norm_equiv (Keyword s1)  (Keyword s2) _ _  = s1 == s2
+norm_equiv (Symbol s1)   (Symbol s2) _ _   = s1 == s2
+
+-- Note: arrows and dependent types /can/ be equivalent if the bound variable
+-- doesn't come on the LHS
+norm_equiv (NormProd var aty1 a b) (NormProd var' aty2 a' b') gen (lrename, rrename) = 
+  let (nvar, gen') = genFresh gen
+  in (a == a')
+    && (aty1 == aty2)
+    && (norm_equiv b b'
+        (useVars [var, var', nvar] gen')
+        (Map.insert var nvar lrename, Map.insert var' nvar rrename))
+norm_equiv (NormArr a b)     (NormArr a' b') gen rename = 
+  (norm_equiv a a' gen rename) || (norm_equiv b b' gen rename)
+norm_equiv (NormProd var Visible a b) (NormArr a' b') gen rename = 
+  if Set.member var (free b) then
+    False
+  else
+    norm_equiv a a' gen rename && norm_equiv b b' gen rename
+norm_equiv (NormArr  a b) (NormProd var' Visible a' b') gen rename = 
+  if Set.member var' (free b') then
+    False
+  else
+    norm_equiv a a' gen rename && norm_equiv b b' gen rename
+
+norm_equiv (CollTy x) (CollTy y) gen rename =
+  case (x, y) of 
+    (MaybeTy a, MaybeTy b) -> norm_equiv a b gen rename
+
+norm_equiv (CollVal x) (CollVal y) gen rename =
+  case (x, y) of 
+    (MaybeVal (Just a) t1, MaybeVal (Just b) t2) ->
+      (norm_equiv a b gen rename) && (norm_equiv t1 t2 gen rename)
+    (MaybeVal Nothing t1, MaybeVal Nothing t2) ->
+      (norm_equiv t1 t2 gen rename)
+    (MaybeVal _ _, MaybeVal _ _) -> False
+
+-- norm_equiv (NormSig fields1) (NormSig fields1) = 
+--   case (x, y)
+
+-- norm_equiv (NormSct fields1 ty1) (NormSct fields1 ty2)
+  
+norm_equiv _ _ _ _ = False
+
+
+instance Eq (Neutral m) where
+  a == b = neu_equiv a b (Set.empty, 0) (Map.empty, Map.empty)
+  
+  
+neu_equiv :: Neutral m -> Neutral m -> Generator -> (Map.Map String String, Map.Map String String)
+        -> Bool 
+neu_equiv (NeuVar v1 _) (NeuVar v2 _) used (lrename, rrename) =
+  case (Map.lookup v1 lrename, Map.lookup v2 rrename) of
+    (Just v1', Just v2') -> v1' == v2'
+    (Nothing, Nothing) -> v1 == v2
+    (_, _) -> False
+neu_equiv (NeuApp l1 r1) (NeuApp l2 r2) used rename = 
+  (neu_equiv l1 l2 used rename) && (norm_equiv r1 r2 used rename)
+neu_equiv (NeuDot neu1 field1) (NeuDot neu2 field2) used rename
+  = (field1 == field2) && neu_equiv neu1 neu2 used rename 
+
+
+
+type Generator = (Set.Set String, Int)  
+
+useVar :: String -> Generator -> Generator  
+useVar var (set, id) = (Set.insert var set, id)
+
+useVars :: [String] -> Generator -> Generator  
+useVars vars (set, id) = (foldr Set.insert set vars, id)
+
+  
+genFresh :: Generator -> (String, Generator)
+genFresh (set, id) =
+  let var = ("#" <> show id)
+  in
+    if Set.member var set then
+      genFresh (set, id+1)
+    else
+      (var, (Set.insert var set, id+1))
+
+instance Expression (Normal m) where 
+  free (Builtin _ _) = Set.empty
+  free (PrimType  _) = Set.empty
+  free (NormUniv  _) = Set.empty
+  free (PrimVal   _) = Set.empty
+  free (CollTy ty) = case ty of 
+    ListTy a -> free a
+    ArrayTy a -> free a
+    IOMonadTy a -> free a
+    CPtrTy a -> free a
+  free (CollVal val) = case val of 
+    ListVal lst ty -> foldr (Set.union . free) (free ty) lst
+    IOAction _ ty -> free ty
+
+  free (Neu neutral ty) = Set.union (free neutral) (free ty)
+  free (NormProd var _ a b) =
+    Set.union (free a) (Set.delete var (free b))
+  free (NormArr a b) =
+    Set.union (free a) (free b)
+  free (NormIVal _ _ _ _ norms ty) = foldr (Set.union . free) Set.empty norms
+  free (NormIType _ _ norms) = foldr (Set.union . free) Set.empty norms
+  free (NormSig fields) = foldl (\set (field, val) ->
+                                   Set.delete field (Set.union (free val) set)) Set.empty fields
+
+  rename s1 s2 norm = case norm of
+    (Neu neutral ty) -> Neu (rename s1 s2 neutral) (rename s1 s2 ty)
+    (Builtin fn ty) -> Builtin fn (rename s1 s2 ty)
+    (PrimType  t)   -> PrimType t
+    (NormUniv  u)   -> NormUniv u
+    (PrimVal   v)   -> PrimVal v
+    (CollTy ty) -> CollTy $ case ty of 
+      ListTy a -> ListTy $ rename s1 s2 a
+      ArrayTy a -> ArrayTy (rename s1 s2 a)
+      IOMonadTy a -> IOMonadTy $ rename s1 s2 a
+    (CollVal val) -> CollVal $ case val of 
+      ListVal lst ty -> ListVal (map (rename s1 s2) lst) (rename s1 s2 ty) 
+      IOAction action ty -> IOAction action (rename s1 s2 ty)
+
+    (NormProd var aty a b) ->
+      if var == s1 then
+        NormProd var aty (rename s1 s2 a) b
+      else 
+        NormProd var aty (rename s1 s2 a) (rename s1 s2 b)
+    (NormArr a b) -> NormArr (rename s1 s2 a) (rename s1 s2 b)
+    -- (NormIVal _ _ _ _ norms ty) = foldr (Set.union . rename) Set.empty norms
+    -- (NormIType _ _ norms) = foldr (Set.union . rename) Set.empty norms
+    (NormSig fields) ->
+      NormSig (renameFields fields)
+      where renameFields [] = []
+            renameFields ((field, val):fields) = 
+              if field == s1 then
+                (field, val):fields
+              else 
+                (field, rename s1 s2 val):renameFields fields
+
+
+instance Expression (Neutral m) where
+  free (NeuVar var ty) = Set.insert var (free ty)
+  free (NeuApp l r) = (free l) <> (free r)
+  free (NeuDot sig field) = (free sig)
+  free (NeuIf cond e1 e2 ty) = free cond <> free e1 <> free e2 <> free ty
+  free (NeuMatch term alts ty) =
+      free term <> (foldr (Set.union . altfree) Set.empty alts) <> free ty
+    where
+      altfree (p, e) = foldr (Set.delete) (patVars p) (free e)
+  free (NeuBuiltinApp _ _ _) = Set.empty
+
+  rename s1 s2 neu = case neu of  
+    (NeuVar var ty) ->
+      if var == s1 then
+        NeuVar s2 (rename s1 s2 ty)
+      else
+        NeuVar var (rename s1 s2 ty)
+    (NeuApp l r) -> NeuApp (rename s1 s2 l) (rename s1 s2 r)
+
+patVars :: Pattern m -> Set.Set String
+patVars WildCard = Set.empty
+patVars (VarBind sym _) = Set.singleton sym
+patVars (MatchInduct id1 id2 subpats) = foldr Set.union Set.empty (map patVars subpats)
+
 $(makeLenses ''ProgState)
-
-

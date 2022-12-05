@@ -10,7 +10,7 @@ import Syntax.Normal (AST(..),
                       Environment,
                       ArgType(..),
                       Special(..),
-                      Normal(Symbol, Special, Keyword, NormIVal, NormCoDtor, PrimVal),
+                      Normal(Symbol, Special, Keyword, NormIVal, NormCoDtor, PrimVal, NormUniv),
                       PrimVal(String),
                       Neutral)
 
@@ -51,6 +51,7 @@ toIntermediateM (Cons (e : es)) ctx = do
   val <- toIntermediateM e ctx
   case val of  
     (IValue (Special Def)) -> mkDef es Nothing ctx >>= (pure . IDefinition)
+    (IValue (Special InstanceDef)) -> mkInstanceDef es ctx >>= (pure . IDefinition)
     (IValue (Special Induct)) -> mkInduct IInductDef es ctx >>= (pure . IDefinition)
     (IValue (Special Coinduct)) -> mkInduct ICoinductDef es ctx >>= (pure . IDefinition)
     (IValue (Special Do)) -> mkDo es ctx
@@ -125,9 +126,18 @@ mkProd [arg, body] ctx =
               (IValue (Special Annotate)) -> do
                 ty' <- toIntermediateM ty ctx
                 pure (Annotation s ty', Just s)
+              
               _ -> do
                 ty' <- toIntermediateM (Cons [hd, Atom (Symbol s), ty]) ctx
                 pure (IWildCardArg ty', Nothing)
+
+          -- this may happen for unannotated implicit/instance arguments
+          (Atom (Symbol s)) -> do
+            case impl of 
+              Hidden -> do 
+                pure (Annotation s (IValue (NormUniv 0)), Nothing)
+              _ -> do
+                pure (IWildCardArg (ISymbol s), Nothing)
           ty -> do
             ty' <- toIntermediateM ty ctx
             pure (IWildCardArg ty', Nothing)
@@ -178,7 +188,15 @@ mkDef [(Atom (Symbol s)), body] ann ctx =
           throwError "annotation must match subsequent definition"
       Nothing ->
         pure $ (ISingleDef s body' Nothing)
-mkDef ast _ _ = throwError ("bad syntax in def: " ++ show ast)
+mkDef ast _ _ = throwError ("bad syntax in def: " <> show ast)
+
+  
+mkInstanceDef :: [AST m] -> GlobCtx m -> Except String (IDefinition m)
+mkInstanceDef [(Atom (Symbol s)), typeclass] ctx = 
+  let new_ctx = shadow s ctx in do
+    typeclass' <- toIntermediateM typeclass new_ctx
+    pure $ IInstanceDef s typeclass'
+mkInstanceDef ast _ = throwError ("bad syntax in instance: " <> show ast)
 
 mkModule :: [AST m] -> GlobCtx m -> Except String (Intermediate m)
 mkModule lst ctx = do

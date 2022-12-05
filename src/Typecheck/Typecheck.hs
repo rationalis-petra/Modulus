@@ -23,7 +23,8 @@ import qualified Interpret.Environment as Env
 import qualified Syntax.Conversions as Conv 
 import Interpret.EvalM
 import qualified Interpret.Eval as Eval
-import Syntax.Utils (tyHead, tyTail, typeVal, free, getField, mkVar)
+import Syntax.Expression
+import Syntax.Utils (tyHead, tyTail, typeVal, getField, mkVar)
 
 import Typecheck.Constrain
 
@@ -61,7 +62,6 @@ typeCheckTop (TDefinition def) =
         _ ->
           local (Env.insert name (Neu (NeuVar name ty') ty') ty') (typeCheck expr) 
       pure $ Right $ TDefinition $ TSingleDef name expr' (Just ty')
-
 
     TOpenDef expr Nothing -> do 
       (expr', ty, subst) <- typeCheck expr

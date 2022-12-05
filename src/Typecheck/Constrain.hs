@@ -21,7 +21,7 @@ import Control.Monad.Reader (MonadReader, ask)
 import Control.Monad.State  (MonadState)
 import Control.Monad.Except (MonadError, throwError)
 
-
+import Syntax.Expression(free, rename)
 import Syntax.Normal (PrimType(..),
                       Normal(..),
                       Neutral(..),
@@ -37,7 +37,7 @@ import qualified Interpret.Environment as Env
 import qualified Interpret.Eval as Eval
 import Interpret.EvalM
 import Interpret.Eval (normSubst)
-import Syntax.Utils (typeVal, free, rename, getField, freshen)
+import Syntax.Utils (typeVal, getField, freshen)
 import Control.Monad.Except (Except, runExcept)
 
 type LRSubst m = ([(Normal m, String)], [(Normal m, String)], [((String, Normal m), (String, Normal m))])
@@ -533,7 +533,7 @@ subType (NormSig s1) (NormSig s2) =
 -- neutral terms
 -- TODO: THIS IS INCREDIBLY DODGY AND MAY BE RESPONSIBLE FOR ERRORS YOU CANT
 -- FIGURE OUT!
-subType (Neu n1 _) (Neu n2 _) = Eval.neu_equiv n1 n2 (Set.empty, 0) (Map.empty, Map.empty)
+subType (Neu n1 _) (Neu n2 _) = n1 == n2 
 -- value forms  
 subType (PrimVal p1) (PrimVal p2) = p1 == p2
 subType _ _ = False

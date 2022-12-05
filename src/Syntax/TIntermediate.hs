@@ -37,6 +37,7 @@ data TDefinition m ty
   = TInductDef String  Int [(String, ty m)] (ty m) [(String, Int, ty m)]
   | TCoinductDef String Int [(String, ty m)] (ty m) [(String, Int, ty m)]
   | TSingleDef String (TIntermediate m ty) (Maybe (ty m))
+  | TInstanceDef String (ty m) (TIntermediate m ty)
   | TOpenDef (TIntermediate m ty) (Maybe (ty m))
   deriving Show
 

@@ -1,6 +1,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Server.Interpret (interpreter) where
 
+import Debug.Trace
+
 import Control.Concurrent
 import Control.Concurrent.STM
 

@@ -190,7 +190,11 @@ pNormal =
         go acc = choice [(((\f x -> f acc x) <$> op <*> r) >>= go), return acc]
   
       mkRBin l r op = l >>= go where
-        go acc = choice [((\f x -> f acc x) <$> op <*> mkRBin l r op), return acc]
+        go acc = choice [ ((\f x -> f acc x) <$> op <*> mkRBin l r op)
+                        , ((mkCall acc
+                             <$> r
+                             <*> many r) >>= go)
+                        , return acc]
 
       mkCall op arg args = Cons (op : (arg : args))
 

@@ -10,7 +10,6 @@ module Interpret.Eval (Normal,
                        normSubst,
                        tyApp,
                        Result(..),
-                       neu_equiv,
                        liftFun,
                        liftFun2,
                        liftFun3,
@@ -602,101 +601,6 @@ tyApp (NormProd sym _ a b) arg = normSubst (arg, sym) b
 
 
 
-instance Eq (Normal m) where
-  a == b = norm_equiv a b (Set.empty, 0) (Map.empty, Map.empty)
-
-
--- TODO: add eta reductions to the equality check
-norm_equiv :: Normal m -> Normal m -> Generator -> (Map.Map String String, Map.Map String String) -> Bool 
-norm_equiv (NormUniv n1) (NormUniv n2) gen rename = n1 == n2
-norm_equiv (Neu n1 _) (Neu n2 _) gen rename = neu_equiv n1 n2 gen rename
-norm_equiv (PrimVal p1)  (PrimVal p2) _ _  = p1 == p2
-norm_equiv (PrimType p1) (PrimType p2) _ _ = p1 == p2
-norm_equiv (Special s1)  (Special s2) _ _  = s1 == s2
-norm_equiv (Keyword s1)  (Keyword s2) _ _  = s1 == s2
-norm_equiv (Symbol s1)   (Symbol s2) _ _   = s1 == s2
-
--- Note: arrows and dependent types /can/ be equivalent if the bound variable
--- doesn't come on the LHS
-norm_equiv (NormProd var aty1 a b) (NormProd var' aty2 a' b') gen (lrename, rrename) = 
-  let (nvar, gen') = genFresh gen
-  in (a == a')
-    && (aty1 == aty2)
-    && (norm_equiv b b'
-        (useVars [var, var', nvar] gen')
-        (Map.insert var nvar lrename, Map.insert var' nvar rrename))
-norm_equiv (NormArr a b)     (NormArr a' b') gen rename = 
-  (norm_equiv a a' gen rename) || (norm_equiv b b' gen rename)
-norm_equiv (NormProd var Visible a b) (NormArr a' b') gen rename = 
-  if Set.member var (free b) then
-    False
-  else
-    norm_equiv a a' gen rename && norm_equiv b b' gen rename
-norm_equiv (NormArr  a b) (NormProd var' Visible a' b') gen rename = 
-  if Set.member var' (free b') then
-    False
-  else
-    norm_equiv a a' gen rename && norm_equiv b b' gen rename
-
-norm_equiv (CollTy x) (CollTy y) gen rename =
-  case (x, y) of 
-    (MaybeTy a, MaybeTy b) -> norm_equiv a b gen rename
-
-norm_equiv (CollVal x) (CollVal y) gen rename =
-  case (x, y) of 
-    (MaybeVal (Just a) t1, MaybeVal (Just b) t2) ->
-      (norm_equiv a b gen rename) && (norm_equiv t1 t2 gen rename)
-    (MaybeVal Nothing t1, MaybeVal Nothing t2) ->
-      (norm_equiv t1 t2 gen rename)
-    (MaybeVal _ _, MaybeVal _ _) -> False
-
--- norm_equiv (NormSig fields1) (NormSig fields1) = 
---   case (x, y)
-
--- norm_equiv (NormSct fields1 ty1) (NormSct fields1 ty2)
-  
-norm_equiv _ _ _ _ = False
-
-  
-neu_equiv :: Neutral m -> Neutral m -> Generator -> (Map.Map String String, Map.Map String String)
-        -> Bool 
-neu_equiv (NeuVar v1 _) (NeuVar v2 _) used (lrename, rrename) =
-  case (Map.lookup v1 lrename, Map.lookup v2 rrename) of
-    (Just v1', Just v2') -> v1' == v2'
-    (Nothing, Nothing) -> v1 == v2
-    (_, _) -> False
-neu_equiv (NeuApp l1 r1) (NeuApp l2 r2) used rename = 
-  (neu_equiv l1 l2 used rename) && (norm_equiv r1 r2 used rename)
-neu_equiv (NeuDot neu1 field1) (NeuDot neu2 field2) used rename
-  = (field1 == field2) && neu_equiv neu1 neu2 used rename 
-
-
-
-type Generator = (Set.Set String, Int)  
-
-useVar :: String -> Generator -> Generator  
-useVar var (set, id) = (Set.insert var set, id)
-
-useVars :: [String] -> Generator -> Generator  
-useVars vars (set, id) = (foldr Set.insert set vars, id)
-
-  
-genFresh :: Generator -> (String, Generator)
-genFresh (set, id) =
-  let var = ("#" <> show id)
-  in
-    if Set.member var set then
-      genFresh (set, id+1)
-    else
-      (var, (Set.insert var set, id+1))
-
-
--- runEvalT :: Monad m => EvalM m a -> Environment -> ProgState -> m (Either String (a, ProgState))
--- runEvalT inner_mnd ctx state =
---   fmap unwrap (runStateT (runExceptT (runReaderT inner_mnd ctx)) state)
---   where
---     unwrap (Right obj, state') = Right (obj, state')
---     unwrap (Left err, state')  = Left $ "err: " <> err
 
 
 applyDtor :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Int -> Int -> Int -> [Normal m] -> m (Normal m)
