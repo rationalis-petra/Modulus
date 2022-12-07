@@ -15,16 +15,17 @@
   + =cons=
   + =snoc=
 + Instances
-  + ={A} → Functor (Array A)=
-  + ={A} → Applicative (Array A)=
-  + ={A} → Monad (Array A)=
+  + =Functor Array=
+  + =Applicative Array=
+  + =Monad Array=
+  + =Alternative Array=
+  + =Foldable Array=
+  + =Unfoldable Array=
+  + =Traversable Array=
   + ={A} → Magma (Array A)=
   + ={A} → Semigroup (Array A)=
   + ={A} → Monoid (Array A)=
-  + ={A} → Foldable (Array A)=
-  + ={A} → Unfoldable (Array A)=
-  + ={A} → Traversable (Array A)=
-  + ={A} → Alternative (Array A)=
+  + ={A} → ⦃Eq A⦄ → Eq (Array A)=
   + ={A} → ⦃Ord A⦄ → Ord (Array A)=
   + ={A} → ⦃Show A⦄ → Show (Array A)=
 

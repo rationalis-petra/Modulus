@@ -9,55 +9,184 @@
 
 
 * Types and Arrays
-Modulus is what is known as a statically typed language. A type is like a
-category of values - for example, =Integer= is the type of values which are
-whole numbers. An equally common type is =String=, which is a sequence of
-Characters. For example, "hello" and "my name is chris" are both
-Strings. Modulus uses types to catch errors before you run your program. As an
-example, suppose you write =pi + 2=, expecting =pi= to hold the value
-=3.14159...=. However, someone decided to set it to the string "pi". In this
-case, Modulus will report a /type error/, because + both inputs to have the type
-=Integer=, but you gave it a =String=.
+Modulus is a statically typed language. What this means is that it assigns a
+type to everything in your program, and uses this to check for errors before
+your program runs. A type is like a category of values - for example, =ℤ= (which
+you read 'Integer') is the type of values which are whole numbers. An equally
+common type is =String=, which is a sequence of Characters. For example, "hello"
+and "my name is chris" are both Strings. Modulus uses types to catch errors
+before you run your program. As an example, suppose you write =pi + 2=,
+expecting =pi= to hold the value =3.14159...=. However, someone decided to set
+it to the string "pi". In this case, Modulus will report a /type error/,
+because + expects both inputs to have the type =ℤ=, but you gave it a
+=String=.
+
+The second topic of this tutorial is the /array/ which are a collection of
+values. Arrays are written as a list of values between 'tortoise' brackets =⦗⦘=
+(these have codes =;[​[= and =;]​]=, or =:left-tortoise= and
+=:right-tortoise=). For example, the array containing the numbers 1, 2 and 3 is
+written =⦗1 2 3⦘=. Arrays are =homogeneous=, which means that all values in an
+array have the same type. Hence, while =⦗1 2 3⦘= and =⦗"hello" "my" "name"⦘= are
+valid arrays, =⦗1 "my" 3⦘= is not, as it contains values with different
+types. The type of an array is =Array= followed by the type of its'
+contents. So, the type of =⦗"hello" "bob"⦘= is =Array String=.
 
 
 
-
-Modulus also allows you to group data together into structures called /arrays/,
-which you can thing of as a collection of values. Arrays are written as a list
-of values between 'tortoise' brackets =⦗⦘=, (these have codes =;[​[= and =;]​]=,
-or =:left-tortoise= and =:right-tortoise=). For example, the array containing the
-numbers 1, 2 and 3 is written =⦗1 2 3⦘=.
-
-
-
-It's cool to be able to make an array, but what can we /do/ with them? For a
-start, we can join them together with /append/, (also written `⋅' (=;**=)).
+* Functions
+** The Function Type
+In the last tutorial, we defined several functions to calculate values for
+us. Below is a very simple function which adds 1 to a number - I've called it
+=next=. 
 
 #+begin_src modulus
-> ⦗1 2 3⦘ ⋅ ⦗4 5 6⦘
-⦗1 2 3 4 5 6⦘
+> next n ≜ n + 1
+#+end_src
+
+But what is the type of the =next= function?. Well, it can takes as input a whole
+number, and return as output a whole number. This means we can give it type
+=ℤ → ℤ=, where the ℤ on the left of the arrow represents the input, and the ℤ
+on the right represents the output. More generally, we can construct a function
+=A → B=, which has input type 'A' and output type 'B'. As an example, the
+function =even?=, which returns =True= when its' input is even and =False=
+otherwise could have type =ℤ → Bool=.
+
+** Type Annotation
+Sometimes it is useful to /annotate/ the inputs to a function 
+
+** Currying
+So, we've established that functions have type =A → B=, where =A= is the /input/
+type and =B= is the /output/ type. But, what if a function has more than one
+input? Take for example the =add= function:
+
+#+begin_src modulus
+> add n m ≜ n + m
+#+end_src
+
+While it may seem like it takes two inputs, =add= function here is pulling a
+cheeky trick: it only takes 1! This means that =add 1=, =add 3= and =add 5= are
+all completely ok expressions, as =add= only takes one argument. What the
+/output/ of =add= is is another function, so the output of =add 1= is a function
+equivalent to: =add-one m ≜ 1 + m=. Similarly, the output of =add 3= is a
+function equivalent to: =add-three m ≜ 3 + m=. This means, for any value =n= we
+provide as input, =add n= has type =ℤ → ℤ=. Zooming out, we see that the
+function =add= takes as input a =ℤ=, and outputs a =ℤ → ℤ=. Hence, the final
+type of =add= is =ℤ → (ℤ → ℤ)=. You may recall that =→= is one of the few
+exceptions to operator precedence - =→= is *right associative*, so =ℤ → ℤ → ℤ=
+is bracketed as =ℤ → (ℤ → ℤ)= *not* =(ℤ → ℤ) → ℤ=, as the former is what we want
+to do most of the time.
+
+While currying is relatively simple, it can be somewhat difficult to properly
+internalize it, so if you don't normally, I would definitely recommend doing 
+the [exercises] for this section.
+
+
+** Polymorphism
+Sometimes, simple types can be too restrictive. Take for instance the function
+=id=, which does absolutely nothing:
+
+#+begin_src modulus
+> id x ≜ x
+#+end_src
+
+What is the type of id? We could give it the type =ℤ → ℤ=, but we could also
+give it the type =String → String=, or =Array ℤ → Array ℤ=. In fact, for any
+type =A=, we can give =id= the type =A → A=. Fortunately, Modulus lets us do
+just this - we can add an argument =A=, which has the type =𝒰= (U for Universe, 
+the type of types), then tell Modulus that the type of =x= is A.
+
+#+begin_src modulus
+> id (A : 𝒰) (x : A) ≜ x
+#+end_src
+
+Then, we can apply the function =id= to a type and a value of that type:
+
+#+begin_src modulus
+> id ℤ 2
+2
+> id String "hello"
+"hello"
+> id Bool (2 < 3)
+true
+> id Bool 2
+type error: expecting type Bool, but got type ℤ.
+#+end_src
+
+While quite useful, this can quickly get annoying: clearly, the type of "hello"
+is =String=, so it seems somewhat pointless to type =id String "hello"=
+. Fortunately, Modulus has a feature called /implicit arguments/, which is a way
+of telling it to 'figure out' a specific input. We put these inside
+curly-braces, so write:
+
+#+begin_src modulus
+> id {A : 𝒰} (x : A) ≜ x 
+#+end_src
+
+To let Modulus know it should attempt to figure out the value of =A= based on
+the value of =x=. Then, you can do:
+
+#+begin_src modulus
+> id 2
+2
+> id "hello"
+hello
+> id true
+true
+#+end_src
+
+
+* Array Manipulation
+One of the main uses for polymorphism is so we can write functions which work
+for =Arrays= with any container type =A=. For example, the =append= function has
+type: ={A:𝒰} → Array A → Array A → Array A=. This means it takes in 
++ a type A (implicit)
++ two arrays containing elements of type A
+and outputs a new array containing elements of type =A=. For example:
+
+#+begin_src modulus
 > append ⦗1 2 3⦘ ⦗4 5 6⦘
 ⦗1 2 3 4 5 6⦘
 #+end_src
 
-
-* Higher-Order Functions
+Append can also be written as an operator =⋅= (code =;*= or =:dot=).
 
 #+begin_src modulus
-> defn add1 [x] (x + 1)
+> ⦗"hello"⦘ ⋅ ⦗"bob"⦘
+⦗"hello" "bob"⦘
+#+end_src
+
+Another common thing we might want to do is apply some transformation to each
+element of an array. This role is fulfilled by the =map= function. As a simple
+example, suppose we want to add 1 to each element of an array:
+
+#+begin_src modulus
+> add1 x ≜ x + 1
 > map add1 ⦗1 2 3⦘
 ⦗2 3 4⦘
 #+end_src
 
-#+begin_src 
-> map (+ 1) ⦗1 2 3⦘
-⦗2 3 4⦘
-#+end_src
+Alternatively, we might want to reverse each word in an array:
 
 #+begin_src 
-> (+ 1) ¨ ⦗1 2 3⦘
-⦗2 3 4⦘
+> map reverse ⦗"the" "quick" "brown" "fox"⦘
+⦗"eht" "kciuq" "nworb" "xof"⦘
 #+end_src
+
+However, we don't have to keep the same type: =map= can change the type of the
+array contents, for example from an array of integers to an array of booleans:
+
+#+begin_src modulus
+> map even? ⦗1 2 3 4⦘
+⦗false true false true⦘
+#+end_src
+
+This moves us to the type of the =map= function
+
+#+begin_src modulus
+map : {A : 𝒰} → {B : 𝒰} → (A → B) → Array A → Array B
+#+end_src
+
+
 
 #+begin_src modulus
 > defn add [x y] (x + y)
@@ -81,13 +210,31 @@ start, we can join them together with /append/, (also written `⋅' (=;**=)).
 > + ⟨/ 0⟩ ⦗1 2 3⦘
 #+end_src
 
-* Useful Array functions
+#+begin_src modulus
+foldl : {A : 𝒰} → {B : 𝒰} → (B → A → B) → Array A → B → Array B
+#+end_src
+
+#+begin_src modulus
+foldl : {A B} → (B → A → B) → Array A → B → Array B
+#+end_src
+
+* Useful Array Functions
+** Generating Arrays
+#+begin_src 
+> ⍳ 10
+⦗0 1 2 3 4 5 6 7 8 9⦘
+#+end_src
+
+# g ⮞ f = f ∘ g = f ⮜ g
+# f ̲$ x ̈⋅ 
+# f ⟛ x  
+# f ̈⟛ x 
 
 filter
 
 #+begin_src modulus
-> even? n ≜ (n | 2 = 0)
-⦗1 2 3⦘ ⟨◉ ,⟩ ⦗⁖a ⁖b ⁖c⦘
+> filter even? ⦗⦘
+⦗1 2 3⦘ ⧼◉ ,⧽ ⦗⁖a ⁖b ⁖c⦘
 > ⦗⦗1 ⁖a⦘ ⦗1 ⁖b⦘ ⦗1 ⁖c⦘
    ⦗2 ⁖a⦘ ⦗2 ⁖b⦘ ⦗2 ⁖c⦘
    ⦗3 ⁖a⦘ ⦗3 ⁖b⦘ ⦗3 ⁖c⦘⦘

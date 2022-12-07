@@ -3,7 +3,7 @@
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 <head>
-<!-- 2022-12-01 Thu 13:11 -->
+<!-- 2022-12-06 Tue 13:55 -->
 <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Library: Functor</title>
@@ -204,11 +204,12 @@
 </p>
 </div>
 
-<div id="outline-container-org2a457c0" class="outline-2">
-<h2 id="org2a457c0">Overview</h2>
-<div class="outline-text-2" id="text-org2a457c0">
+<div id="outline-container-orgc9955a2" class="outline-2">
+<h2 id="orgc9955a2">Overview</h2>
+<div class="outline-text-2" id="text-orgc9955a2">
 <p>
-The Functor is one of the simplest classes: 
+This module is based around the functor class, which has the following
+definition:
 </p>
 
 <div class="org-src-container">
@@ -220,24 +221,38 @@ The Functor is one of the simplest classes:
 </div>
 
 <p>
+A functor can be thought of as the most general notion of a container for some
+values. A simple example is <code>Array</code>.
+</p>
+
+
+
+<p>
 Note: Functor and Cofunctor are equivalent
 </p>
 </div>
 </div>
 
-<div id="outline-container-orgf8852a3" class="outline-2">
-<h2 id="orgf8852a3">Examples</h2>
-<div class="outline-text-2" id="text-orgf8852a3">
+<div id="outline-container-org8328ee7" class="outline-2">
+<h2 id="org8328ee7">Examples</h2>
+<div class="outline-text-2" id="text-org8328ee7">
 <div class="org-src-container">
-<pre class="src src-modulus"><span style="color: #807f96;">(</span>instance <span style="color: #9d81ba;">(</span><span style="color: #738FD7;">struct</span> <span style="color: #4d9391;">(</span>map &#8796; data.list.internal.map<span style="color: #4d9391;">)</span><span style="color: #9d81ba;">)</span> <span style="color: #9d81ba;">(</span>Functor List<span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
-
+<pre class="src src-modulus">&gt; <span style="color: #738FD7;">open</span> data.array <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">opening data.array imports a functor instance for array</span>
+&gt; map <span style="color: #807f96;">(</span>+ <span style="color: #cea2ca;">1</span><span style="color: #807f96;">)</span> <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span>
+<span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">4</span><span style="color: #807f96;">&#10648;</span>
+&gt; map reverse <span style="color: #807f96;">&#10647;</span><span style="color: #7CF083;">"hello"</span> <span style="color: #7CF083;">"world"</span><span style="color: #807f96;">&#10648;</span>
+<span style="color: #807f96;">&#10647;</span><span style="color: #7CF083;">"olleh"</span> <span style="color: #7CF083;">"dlrow"</span><span style="color: #807f96;">&#10648;</span>
+&gt; map <span style="color: #807f96;">(</span><span style="color: #738FD7;">&#955;</span> <span style="color: #9d81ba;">[</span>x<span style="color: #9d81ba;">]</span> <span style="color: #9d81ba;">(</span>x | <span style="color: #cea2ca;">2</span> = <span style="color: #cea2ca;">0</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span> <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">4</span> <span style="color: #cea2ca;">5</span> <span style="color: #cea2ca;">6</span><span style="color: #807f96;">&#10648;</span>
+<span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">false</span> <span style="color: #cea2ca;">true</span> <span style="color: #cea2ca;">false</span> <span style="color: #cea2ca;">true</span> <span style="color: #cea2ca;">false</span> <span style="color: #cea2ca;">true</span><span style="color: #807f96;">&#10648;</span>
 </pre>
 </div>
 </div>
 </div>
 
-<div id="outline-container-org28d401f" class="outline-2">
-<h2 id="org28d401f">Definition</h2>
+
+
+<div id="outline-container-orgdd1eb89" class="outline-2">
+<h2 id="orgdd1eb89">Definition</h2>
 </div>
 </div>
 </body>

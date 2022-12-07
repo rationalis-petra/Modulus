@@ -3,7 +3,7 @@
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 <head>
-<!-- 2022-11-29 Tue 16:25 -->
+<!-- 2022-12-06 Tue 13:55 -->
 <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Modulus Standard Library</title>
@@ -204,17 +204,62 @@
 </p>
 </div>
 
-<div id="outline-container-orgc81cbdb" class="outline-2">
-<h2 id="orgc81cbdb">Standard Library</h2>
-<div class="outline-text-2" id="text-orgc81cbdb">
+<div id="outline-container-org0c1e2ff" class="outline-2">
+<h2 id="org0c1e2ff">Standard Library</h2>
+<div class="outline-text-2" id="text-org0c1e2ff">
+</div>
+<div id="outline-container-org938aa42" class="outline-3">
+<h3 id="org938aa42">Intro</h3>
+<div class="outline-text-3" id="text-org938aa42">
 <p>
-Most standard libraries 
+The Modulus Standard library is arranged into 6 top-level modules
 </p>
 
+<ul class="org-ul">
+<li><b>Abstractions</b> This library contains classes for various abstractions,
+including collections (like dictionaries).</li>
+
+<li><b>Numerics</b> This library</li>
+
+<li><b>Data Structures</b> This library contains many common data structures, including
+lists, arrays, dictionaries etc.</li>
+
+<li><b>System</b> Utilities for interacting with the environment/underlying
+system. This includes the filesystem, console, etc.</li>
+
+<li><b>Foreign</b> Definitions for interacting with other languages. For example, the
+C submodule contains c types like <code>cdouble</code>, <code>cfloat</code>, etc.</li>
+</ul>
+</div>
+</div>
+
+<div id="outline-container-orgf566a4e" class="outline-3">
+<h3 id="orgf566a4e">Using the Libraries</h3>
+<div class="outline-text-3" id="text-orgf566a4e">
+<p>
+If you're consulting the tree below, most standard libraries are simply
+lowercase versions of the name provided. For example, if you see:
+</p>
 
 <ul class="org-ul">
-<li>Prelude</li>
+<li>Monad
+<ul class="org-ul">
+<li>State</li>
+</ul></li>
+</ul>
 
+<p>
+And want to access the State module, you find it at <code>monad.state</code>. There are
+some exceptions, whose module names are given in brackets. For example, the
+<i>Abstractions</i> module's name is shortened to <code>abs</code>. 
+</p>
+</div>
+</div>
+
+<div id="outline-container-org27eb176" class="outline-3">
+<h3 id="org27eb176">The Library</h3>
+<div class="outline-text-3" id="text-org27eb176">
+<ul class="org-ul">
 <li><a href="abs/index.html">Abstractions</a> (<code>abs</code>)
 <ul class="org-ul">
 <li><a href="abs/data/index.html">Data Structures</a> (<code>data</code>)
@@ -223,6 +268,7 @@ Most standard libraries
 <li><a href="abs/data/applicative.html">Applicative</a></li>
 <li><a href="abs/data/monad.html">Monad</a></li>
 <li><a href="abs/data/foldable.html">Foldable</a></li>
+<li><a href="abs/data/cofoldable.html">Cofoldable</a></li>
 <li><a href="abs/data/traversable.html">Traversable</a></li>
 <li><a href="abs/data/dictionary.html">Dictionary</a></li>
 </ul></li>
@@ -234,6 +280,7 @@ Most standard libraries
 </ul></li>
 <li>Orders / <code>ord</code>
 <ul class="org-ul">
+<li>Equal</li>
 <li>Partial</li>
 <li>Total</li>
 <li>Lattice</li>
@@ -248,37 +295,46 @@ Most standard libraries
 <li><a href="abs/algebra/field.html">Field</a></li>
 <li><a href="abs/algebra/module.html">Module</a></li>
 </ul></li>
+<li>Monads
+<ul class="org-ul">
+<li>IO</li>
+<li>State</li>
+<li>Except</li>
+<li>Reader</li>
+<li>Writer</li>
+</ul></li>
 </ul></li>
 
-<li>Numerics / <code>num</code>
+<li><a href="num/index.html">Numerics</a> / <code>num</code>
 <ul class="org-ul">
-<li>Unit / <code>unit</code></li>
-<li>Bool / <code>bool</code></li>
-<li>Integer / <code>int</code></li>
-<li>Rational / <code>rational</code></li>
-<li>Real / <code>real</code></li>
-<li>Complex / <code>complex</code></li>
-<li>Unsigned / <code>uint</code></li>
-<li>Signed / <code>sint</code></li>
-<li>Word / <code>word</code></li>
+<li><a href="num/unit.html">Unit</a></li>
+<li><a href="num/bool.html">Bool</a></li>
+<li><a href="num/integer.html">Integer</a></li>
+<li><a href="num/rational.html">Rational</a></li>
+<li><a href="num/real.html">Real</a></li>
+<li><a href="num/complex.html">Complex</a></li>
+<li><a href="num/word.html">Word</a></li>
+<li><a href="num/unsigned.html">Unsigned</a> / <code>uint</code></li>
+<li><a href="num/unsigned.html">Signed</a> / <code>sint</code></li>
 </ul></li>
 
 <li><a href="data/index.html">Data Structures</a> / <code>data</code>
 <ul class="org-ul">
-<li><a href="data/array.html">Array</a> / <code>array</code></li>
-<li><a href="data/list.html">List</a> / <code>list</code></li>
-<li><a href="data/vector.html">Vector</a> / <code>vector</code></li>
-<li>Tensor / <code>tensor</code></li>
+<li><a href="data/array.html">Array</a></li>
+<li><a href="data/list.html">List</a></li>
+<li><a href="data/vector.html">Vector</a></li>
+<li>Tensor</li>
 </ul></li>
 
-<li>Monad / <code>monad</code>
+<li>Monads / <code>monads</code>
 <ul class="org-ul">
-<li>IO / <code>io</code></li>
-<li>State / <code>state</code></li>
-<li>Except / <code>except</code></li>
-<li>Reader / <code>reader</code></li>
-<li>Writer / <code>writer</code></li>
-<li>STM / <code>stm</code></li>
+<li>IO</li>
+<li>State</li>
+<li>Except</li>
+<li>Reader</li>
+<li>Writer</li>
+<li>Identity</li>
+<li>STM</li>
 </ul></li>
 </ul>
 
@@ -289,6 +345,7 @@ Most standard libraries
 <li>Console (<code>console</code>)</li>
 </ul></li>
 </ul>
+</div>
 </div>
 </div>
 </div>

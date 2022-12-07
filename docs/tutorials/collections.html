@@ -3,7 +3,7 @@
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 <head>
-<!-- 2022-11-29 Tue 15:10 -->
+<!-- 2022-12-05 Mon 16:53 -->
 <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Tutorial: Collections</title>
@@ -206,69 +206,265 @@
 
 
 
-<div id="outline-container-org6fc394a" class="outline-2">
-<h2 id="org6fc394a">Types and Arrays</h2>
-<div class="outline-text-2" id="text-org6fc394a">
+<div id="outline-container-orgd2ab35e" class="outline-2">
+<h2 id="orgd2ab35e">Types and Arrays</h2>
+<div class="outline-text-2" id="text-orgd2ab35e">
 <p>
-Modulus is what is known as a statically typed language. A type is like a
-category of values - for example, <code>Integer</code> is the type of values which are
-whole numbers. An equally common type is <code>String</code>, which is a sequence of
-Characters. For example, "hello" and "my name is chris" are both
-Strings. Modulus uses types to catch errors before you run your program. As an
-example, suppose you write <code>pi + 2</code>, expecting <code>pi</code> to hold the value
-<code>3.14159...</code>. However, someone decided to set it to the string "pi". In this
-case, Modulus will report a <i>type error</i>, because + both inputs to have the type
-<code>Integer</code>, but you gave it a <code>String</code>.
+Modulus is a statically typed language. What this means is that it assigns a
+type to everything in your program, and uses this to check for errors before
+your program runs. A type is like a category of values - for example, <code>ℤ</code> (which
+you read 'Integer') is the type of values which are whole numbers. An equally
+common type is <code>String</code>, which is a sequence of Characters. For example, "hello"
+and "my name is chris" are both Strings. Modulus uses types to catch errors
+before you run your program. As an example, suppose you write <code>pi + 2</code>,
+expecting <code>pi</code> to hold the value <code>3.14159...</code>. However, someone decided to set
+it to the string "pi". In this case, Modulus will report a <i>type error</i>,
+because + expects both inputs to have the type <code>ℤ</code>, but you gave it a
+<code>String</code>.
 </p>
 
-
-
-
 <p>
-Modulus also allows you to group data together into structures called <i>arrays</i>,
-which you can thing of as a collection of values. Arrays are written as a list
-of values between 'tortoise' brackets <code>⦗⦘</code>, (these have codes <code>;[​[</code> and <code>;]​]</code>,
-or <code>:left-tortoise</code> and <code>:right-tortoise</code>). For example, the array containing the
-numbers 1, 2 and 3 is written <code>⦗1 2 3⦘</code>.
+The second topic of this tutorial is the <i>array</i> which are a collection of
+values. Arrays are written as a list of values between 'tortoise' brackets <code>⦗⦘</code>
+(these have codes <code>;[​[</code> and <code>;]​]</code>, or <code>:left-tortoise</code> and
+<code>:right-tortoise</code>). For example, the array containing the numbers 1, 2 and 3 is
+written <code>⦗1 2 3⦘</code>. Arrays are <code>homogeneous</code>, which means that all values in an
+array have the same type. Hence, while <code>⦗1 2 3⦘</code> and <code>⦗"hello" "my" "name"⦘</code> are
+valid arrays, <code>⦗1 "my" 3⦘</code> is not, as it contains values with different
+types. The type of an array is <code>Array</code> followed by the type of its'
+contents. So, the type of <code>⦗"hello" "bob"⦘</code> is <code>Array String</code>.
 </p>
+</div>
+</div>
 
 
 
+<div id="outline-container-orgb6a6a98" class="outline-2">
+<h2 id="orgb6a6a98">Functions</h2>
+<div class="outline-text-2" id="text-orgb6a6a98">
+</div>
+<div id="outline-container-org0e12b67" class="outline-3">
+<h3 id="org0e12b67">The Function Type</h3>
+<div class="outline-text-3" id="text-org0e12b67">
 <p>
-It's cool to be able to make an array, but what can we <i>do</i> with them? For a
-start, we can join them together with <i>append</i>, (also written `⋅' (<code>;**</code>)).
+In the last tutorial, we defined several functions to calculate values for
+us. Below is a very simple function which adds 1 to a number - I've called it
+<code>next</code>. 
 </p>
 
 <div class="org-src-container">
-<pre class="src src-modulus">&gt; <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span> &#8901; <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">4</span> <span style="color: #cea2ca;">5</span> <span style="color: #cea2ca;">6</span><span style="color: #807f96;">&#10648;</span>
-<span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">4</span> <span style="color: #cea2ca;">5</span> <span style="color: #cea2ca;">6</span><span style="color: #807f96;">&#10648;</span>
-&gt; append <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span> <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">4</span> <span style="color: #cea2ca;">5</span> <span style="color: #cea2ca;">6</span><span style="color: #807f96;">&#10648;</span>
-<span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">4</span> <span style="color: #cea2ca;">5</span> <span style="color: #cea2ca;">6</span><span style="color: #807f96;">&#10648;</span>
+<pre class="src src-modulus">&gt; next n &#8796; n + <span style="color: #cea2ca;">1</span>
+</pre>
+</div>
+
+<p>
+But what is the type of the <code>next</code> function?. Well, it can takes as input a whole
+number, and return as output a whole number. This means we can give it type
+<code>ℤ → ℤ</code>, where the ℤ on the left of the arrow represents the input, and the ℤ
+on the right represents the output. More generally, we can construct a function
+<code>A → B</code>, which has input type 'A' and output type 'B'. As an example, the
+function <code>even?</code>, which returns <code>True</code> when its' input is even and <code>False</code>
+otherwise could have type <code>ℤ → Bool</code>.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org1c81978" class="outline-3">
+<h3 id="org1c81978">Type Annotation</h3>
+<div class="outline-text-3" id="text-org1c81978">
+<p>
+Sometimes it is useful to <i>annotate</i> the inputs to a function 
+</p>
+</div>
+</div>
+
+<div id="outline-container-orgb2b2e8c" class="outline-3">
+<h3 id="orgb2b2e8c">Currying</h3>
+<div class="outline-text-3" id="text-orgb2b2e8c">
+<p>
+So, we've established that functions have type <code>A → B</code>, where <code>A</code> is the <i>input</i>
+type and <code>B</code> is the <i>output</i> type. But, what if a function has more than one
+input? Take for example the <code>add</code> function:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-modulus">&gt; add n m &#8796; n + m
+</pre>
+</div>
+
+<p>
+While it may seem like it takes two inputs, <code>add</code> function here is pulling a
+cheeky trick: it only takes 1! This means that <code>add 1</code>, <code>add 3</code> and <code>add 5</code> are
+all completely ok expressions, as <code>add</code> only takes one argument. What the
+<i>output</i> of <code>add</code> is is another function, so the output of <code>add 1</code> is a function
+equivalent to: <code>add-one m ≜ 1 + m</code>. Similarly, the output of <code>add 3</code> is a
+function equivalent to: <code>add-three m ≜ 3 + m</code>. This means, for any value <code>n</code> we
+provide as input, <code>add n</code> has type <code>ℤ → ℤ</code>. Zooming out, we see that the
+function <code>add</code> takes as input a <code>ℤ</code>, and outputs a <code>ℤ → ℤ</code>. Hence, the final
+type of <code>add</code> is <code>ℤ → (ℤ → ℤ)</code>. You may recall that <code>→</code> is one of the few
+exceptions to operator precedence - <code>→</code> is <b>right associative</b>, so <code>ℤ → ℤ → ℤ</code>
+is bracketed as <code>ℤ → (ℤ → ℤ)</code> <b>not</b> <code>(ℤ → ℤ) → ℤ</code>, as the former is what we want
+to do most of the time.
+</p>
+
+<p>
+While currying is relatively simple, it can be somewhat difficult to properly
+internalize it, so if you don't normally, I would definitely recommend doing 
+the [exercises] for this section.
+</p>
+</div>
+</div>
+
+
+<div id="outline-container-org17b92b2" class="outline-3">
+<h3 id="org17b92b2">Polymorphism</h3>
+<div class="outline-text-3" id="text-org17b92b2">
+<p>
+Sometimes, simple types can be too restrictive. Take for instance the function
+<code>id</code>, which does absolutely nothing:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-modulus">&gt; id x &#8796; x
+</pre>
+</div>
+
+<p>
+What is the type of id? We could give it the type <code>ℤ → ℤ</code>, but we could also
+give it the type <code>String → String</code>, or <code>Array ℤ → Array ℤ</code>. In fact, for any
+type <code>A</code>, we can give <code>id</code> the type <code>A → A</code>. Fortunately, Modulus lets us do
+just this - we can add an argument <code>A</code>, which has the type <code>𝒰</code> (U for Universe, 
+the type of types), then tell Modulus that the type of <code>x</code> is A.
+</p>
+
+<div class="org-src-container">
+<pre class="src src-modulus">&gt; id <span style="color: #807f96;">(</span>A : &#119984;<span style="color: #807f96;">)</span> <span style="color: #807f96;">(</span>x : A<span style="color: #807f96;">)</span> &#8796; x
+</pre>
+</div>
+
+<p>
+Then, we can apply the function <code>id</code> to a type and a value of that type:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-modulus">&gt; id &#8484; <span style="color: #cea2ca;">2</span>
+<span style="color: #cea2ca;">2</span>
+&gt; id String <span style="color: #7CF083;">"hello"</span>
+<span style="color: #7CF083;">"hello"</span>
+&gt; id Bool <span style="color: #807f96;">(</span><span style="color: #cea2ca;">2</span> &lt; <span style="color: #cea2ca;">3</span><span style="color: #807f96;">)</span>
+<span style="color: #cea2ca;">true</span>
+&gt; id Bool <span style="color: #cea2ca;">2</span>
+type error: expecting type Bool, but got type &#8484;.
+</pre>
+</div>
+
+<p>
+While quite useful, this can quickly get annoying: clearly, the type of "hello"
+is <code>String</code>, so it seems somewhat pointless to type <code>id String "hello"</code>
+. Fortunately, Modulus has a feature called <i>implicit arguments</i>, which is a way
+of telling it to 'figure out' a specific input. We put these inside
+curly-braces, so write:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-modulus">&gt; id <span style="color: #807f96;">{</span>A : &#119984;<span style="color: #807f96;">}</span> <span style="color: #807f96;">(</span>x : A<span style="color: #807f96;">)</span> &#8796; x 
+</pre>
+</div>
+
+<p>
+To let Modulus know it should attempt to figure out the value of <code>A</code> based on
+the value of <code>x</code>. Then, you can do:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-modulus">&gt; id <span style="color: #cea2ca;">2</span>
+<span style="color: #cea2ca;">2</span>
+&gt; id <span style="color: #7CF083;">"hello"</span>
+hello
+&gt; id <span style="color: #cea2ca;">true</span>
+<span style="color: #cea2ca;">true</span>
 </pre>
 </div>
 </div>
 </div>
+</div>
 
 
-<div id="outline-container-orgc8410cb" class="outline-2">
-<h2 id="orgc8410cb">Higher-Order Functions</h2>
-<div class="outline-text-2" id="text-orgc8410cb">
+<div id="outline-container-org0b5559d" class="outline-2">
+<h2 id="org0b5559d">Array Manipulation</h2>
+<div class="outline-text-2" id="text-org0b5559d">
+<p>
+One of the main uses for polymorphism is so we can write functions which work
+for <code>Arrays</code> with any container type <code>A</code>. For example, the <code>append</code> function has
+type: <code>{A:𝒰} → Array A → Array A → Array A</code>. This means it takes in 
+</p>
+<ul class="org-ul">
+<li>a type A (implicit)</li>
+<li>two arrays containing elements of type A</li>
+</ul>
+<p>
+and outputs a new array containing elements of type <code>A</code>. For example:
+</p>
+
 <div class="org-src-container">
-<pre class="src src-modulus">&gt; <span style="color: #738FD7;">defn</span> add1 <span style="color: #807f96;">[</span>x<span style="color: #807f96;">]</span> <span style="color: #807f96;">(</span>x + <span style="color: #cea2ca;">1</span><span style="color: #807f96;">)</span>
+<pre class="src src-modulus">&gt; append <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span> <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">4</span> <span style="color: #cea2ca;">5</span> <span style="color: #cea2ca;">6</span><span style="color: #807f96;">&#10648;</span>
+<span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">4</span> <span style="color: #cea2ca;">5</span> <span style="color: #cea2ca;">6</span><span style="color: #807f96;">&#10648;</span>
+</pre>
+</div>
+
+<p>
+Append can also be written as an operator <code>⋅</code> (code <code>;*</code> or <code>:dot</code>).
+</p>
+
+<div class="org-src-container">
+<pre class="src src-modulus">&gt; <span style="color: #807f96;">&#10647;</span><span style="color: #7CF083;">"hello"</span><span style="color: #807f96;">&#10648;</span> &#8901; <span style="color: #807f96;">&#10647;</span><span style="color: #7CF083;">"bob"</span><span style="color: #807f96;">&#10648;</span>
+<span style="color: #807f96;">&#10647;</span><span style="color: #7CF083;">"hello"</span> <span style="color: #7CF083;">"bob"</span><span style="color: #807f96;">&#10648;</span>
+</pre>
+</div>
+
+<p>
+Another common thing we might want to do is apply some transformation to each
+element of an array. This role is fulfilled by the <code>map</code> function. As a simple
+example, suppose we want to add 1 to each element of an array:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-modulus">&gt; add1 x &#8796; x + <span style="color: #cea2ca;">1</span>
 &gt; map add1 <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span>
 <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">4</span><span style="color: #807f96;">&#10648;</span>
 </pre>
 </div>
 
-<pre class="example">
-&gt; map (+ 1) ⦗1 2 3⦘
-⦗2 3 4⦘
-</pre>
+<p>
+Alternatively, we might want to reverse each word in an array:
+</p>
 
 <pre class="example">
-&gt; (+ 1) ¨ ⦗1 2 3⦘
-⦗2 3 4⦘
+&gt; map reverse ⦗"the" "quick" "brown" "fox"⦘
+⦗"eht" "kciuq" "nworb" "xof"⦘
 </pre>
+
+<p>
+However, we don't have to keep the same type: <code>map</code> can change the type of the
+array contents, for example from an array of integers to an array of booleans:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-modulus">&gt; map even? <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">4</span><span style="color: #807f96;">&#10648;</span>
+<span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">false</span> <span style="color: #cea2ca;">true</span> <span style="color: #cea2ca;">false</span> <span style="color: #cea2ca;">true</span><span style="color: #807f96;">&#10648;</span>
+</pre>
+</div>
+
+<p>
+This moves us to the type of the <code>map</code> function
+</p>
+
+<div class="org-src-container">
+<pre class="src src-modulus">map : <span style="color: #807f96;">{</span>A : &#119984;<span style="color: #807f96;">}</span> &#8594; <span style="color: #807f96;">{</span>B : &#119984;<span style="color: #807f96;">}</span> &#8594; <span style="color: #807f96;">(</span>A &#8594; B<span style="color: #807f96;">)</span> &#8594; Array A &#8594; Array B
+</pre>
+</div>
+
+
 
 <div class="org-src-container">
 <pre class="src src-modulus">&gt; <span style="color: #738FD7;">defn</span> add <span style="color: #807f96;">[</span>x y<span style="color: #807f96;">]</span> <span style="color: #807f96;">(</span>x + y<span style="color: #807f96;">)</span>
@@ -296,18 +492,42 @@ start, we can join them together with <i>append</i>, (also written `⋅' (<code>
 <pre class="src src-modulus">&gt; + <span style="color: #807f96;">&#10216;</span>/ <span style="color: #cea2ca;">0</span><span style="color: #807f96;">&#10217;</span> <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span>
 </pre>
 </div>
+
+<div class="org-src-container">
+<pre class="src src-modulus">foldl : <span style="color: #807f96;">{</span>A : &#119984;<span style="color: #807f96;">}</span> &#8594; <span style="color: #807f96;">{</span>B : &#119984;<span style="color: #807f96;">}</span> &#8594; <span style="color: #807f96;">(</span>B &#8594; A &#8594; B<span style="color: #807f96;">)</span> &#8594; Array A &#8594; B &#8594; Array B
+</pre>
+</div>
+
+<div class="org-src-container">
+<pre class="src src-modulus">foldl : <span style="color: #807f96;">{</span>A B<span style="color: #807f96;">}</span> &#8594; <span style="color: #807f96;">(</span>B &#8594; A &#8594; B<span style="color: #807f96;">)</span> &#8594; Array A &#8594; B &#8594; Array B
+</pre>
+</div>
 </div>
 </div>
 
-<div id="outline-container-orgb9f0635" class="outline-2">
-<h2 id="orgb9f0635">Useful Array functions</h2>
-<div class="outline-text-2" id="text-orgb9f0635">
+<div id="outline-container-orgc3e39d8" class="outline-2">
+<h2 id="orgc3e39d8">Useful Array Functions</h2>
+<div class="outline-text-2" id="text-orgc3e39d8">
+</div>
+<div id="outline-container-org9c57d10" class="outline-3">
+<h3 id="org9c57d10">Generating Arrays</h3>
+<div class="outline-text-3" id="text-org9c57d10">
+<pre class="example">
+&gt; ⍳ 10
+⦗0 1 2 3 4 5 6 7 8 9⦘
+</pre>
+
+<pre class="example">
+&gt; Ɩ 1 (λ [x] if (x &lt; 10) (some (x + 1)) none))
+&gt; Ɩ 1 (guard ∘ (&lt; 10) ∘ (+ 1))
+</pre>
+
 <p>
 filter
 </p>
 
 <div class="org-src-container">
-<pre class="src src-modulus">&gt; even? n &#8796; <span style="color: #807f96;">(</span>n | <span style="color: #cea2ca;">2</span> = <span style="color: #cea2ca;">0</span><span style="color: #807f96;">)</span>
+<pre class="src src-modulus">&gt; filter even? <span style="color: #807f96;">&#10647;&#10648;</span>
 <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span> <span style="color: #807f96;">&#10216;</span>&#9673; ,<span style="color: #807f96;">&#10217;</span> <span style="color: #807f96;">&#10647;</span><span style="color: #d24b83;">&#8278;a</span> <span style="color: #d24b83;">&#8278;b</span> <span style="color: #d24b83;">&#8278;c</span><span style="color: #807f96;">&#10648;</span>
 &gt; <span style="color: #807f96;">&#10647;</span><span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #d24b83;">&#8278;a</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #d24b83;">&#8278;b</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #d24b83;">&#8278;c</span><span style="color: #9d81ba;">&#10648;</span>
    <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #d24b83;">&#8278;a</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #d24b83;">&#8278;b</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #d24b83;">&#8278;c</span><span style="color: #9d81ba;">&#10648;</span>
@@ -347,6 +567,7 @@ outer-product
    <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #d24b83;">&#8278;a</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #d24b83;">&#8278;b</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #d24b83;">&#8278;c</span><span style="color: #9d81ba;">&#10648;</span>
    <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">3</span> <span style="color: #d24b83;">&#8278;a</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">3</span> <span style="color: #d24b83;">&#8278;b</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">3</span> <span style="color: #d24b83;">&#8278;c</span><span style="color: #9d81ba;">&#10648;</span><span style="color: #807f96;">&#10648;</span>
 </pre>
+</div>
 </div>
 </div>
 </div>

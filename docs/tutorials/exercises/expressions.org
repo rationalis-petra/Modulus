@@ -1,5 +1,5 @@
 #+html_head: <link rel="stylesheet" href="../modulus-style.css" type="text/css"/>
-#+title: Tutorial Exercises: Expressions
+#+title: Exercise Sheet 1: Expressions
 #+options: toc:nil num:nil html-postamble:nil
 
 #+html: <div style="text-align:right">
@@ -7,3 +7,6 @@
 #+html: </div>
 
 * Arithmetic
+* Functions 1
+* Booleans
+* Functions 2

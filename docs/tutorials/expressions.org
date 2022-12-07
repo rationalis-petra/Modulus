@@ -49,10 +49,11 @@ equal precedence. In plain English, read from left-to-right, so the expression
 
 This can trip up newcomers to the language, but it was introduced for good
 reason: Modulus has a very large number of operators, and forcing a programmer
-to remember a huge precedence list would likely be a source of errors and
-headaches. There are a *VERY* small number of specific exceptions which were
-carefully chosen only when it would be very inconvenient for them to adhere to
-the above rule. These exceptions are '≜', '.', ':', and '→'.
+to remember a huge precedence lists for all operators would be impractical.
+There are a *VERY* small number of specific exceptions which were carefully
+chosen only when it would be very inconvenient for them to adhere to the above
+rule. These exceptions are '≜', '.', ':', and '→', and each will be explored
+later.
 
 * Naming Values, Functions
 If we use some value repeatedly, it can be useful to give it a name. For

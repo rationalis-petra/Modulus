@@ -7,11 +7,35 @@
 #+html: </div>
 
 * Standard Library
-Most standard libraries 
+** Intro
+The Modulus Standard library is arranged into 6 top-level modules
 
++ *Abstractions* This library contains classes for various abstractions,
+  including collections (like dictionaries).
 
-+ Prelude
++ *Numerics* This library  
 
++ *Data Structures* This library contains many common data structures, including
+  lists, arrays, dictionaries etc.
+
++ *System* Utilities for interacting with the environment/underlying
+  system. This includes the filesystem, console, etc.
+
++ *Foreign* Definitions for interacting with other languages. For example, the
+  C submodule contains c types like =cdouble=, =cfloat=, etc. 
+
+** Using the Libraries
+If you're consulting the tree below, most standard libraries are simply
+lowercase versions of the name provided. For example, if you see:
+
++ Monad
+  + State
+
+And want to access the State module, you find it at =monad.state=. There are
+some exceptions, whose module names are given in brackets. For example, the
+/Abstractions/ module's name is shortened to =abs=. 
+
+** The Library
 + [[file:abs/index.org][Abstractions]] (=abs=)
   + [[file:abs/data/index.org][Data Structures]] (=data=)
     + [[file:abs/data/functor.org][Functor]]
@@ -22,10 +46,11 @@ Most standard libraries
     + [[file:abs/data/traversable.org][Traversable]]
     + [[file:abs/data/dictionary.org][Dictionary]]
   + Category / =cat=
-    + Isomorphism
+    + Isomorphism / =iso=
     + Product
     + Sum
   + Orders / =ord=
+    + Equal
     + Partial
     + Total
     + Lattice
@@ -37,32 +62,39 @@ Most standard libraries
     + [[file:abs/algebra/ring.org][Ring]] 
     + [[file:abs/algebra/field.org][Field]]
     + [[file:abs/algebra/module.org][Module]]
+  + Monads
+    + IO
+    + State
+    + Except
+    + Reader
+    + Writer
 
-+ Numerics / =num=
-  + Unit / =unit=
-  + Bool / =bool=
-  + Integer / =int=
-  + Rational / =rational=
-  + Real / =real=
-  + Complex / =complex=
-  + Unsigned / =uint=
-  + Signed / =sint=
-  + Word / =word=
++ [[file:num/index.org][Numerics]] / =num=
+  + [[file:num/unit.org][Unit]]
+  + [[file:num/bool.org][Bool]]
+  + [[file:num/integer.org][Integer]]
+  + [[file:num/rational.org][Rational]]
+  + [[file:num/real.org][Real]]
+  + [[file:num/complex.org][Complex]]
+  + [[file:num/word.org][Word]]
+  + [[file:num/unsigned.org][Unsigned]] / =uint=
+  + [[file:num/unsigned.org][Signed]] / =sint=
 
 + [[file:data/index.org][Data Structures]] / =data=
-  + [[file:data/array.org][Array]] / =array=
-  + [[file:data/list.org][List]] / =list=
-  + [[file:data/vector.org][Vector]] / =vector=
-  + Tensor / =tensor=
+  + [[file:data/array.org][Array]]
+  + [[file:data/list.org][List]]
+  + [[file:data/vector.org][Vector]]
+  + Tensor
 
-+ Monad / =monad=
-  + IO / =io=
-  + State / =state=
-  + Except / =except=
-  + Reader / =reader=
-  + Writer / =writer=
++ Monads / =monads=
+  + IO
+  + State
+  + Except
+  + Reader
+  + Writer
+  + Identity
     # Software transactional Memory
-  + STM / =stm=
+  + STM
 
 # TODO: linear types?
 # getting resources via sockets

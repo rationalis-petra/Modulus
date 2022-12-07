@@ -7,7 +7,8 @@
 #+html: </div>
 
 * Overview
-The Functor is one of the simplest classes: 
+This module is based around the functor class, which has the following
+definition:
 
 #+begin_src modulus
 (Functor : (𝒰 → 𝒰) → 𝒰)
@@ -16,14 +17,26 @@ The Functor is one of the simplest classes:
     (map : {A B} → F A → (A → B) → F B)))
 #+end_src
 
+A functor can be thought of as the most general notion of a container for some
+values. A simple example is =Array=.
+
+
+
 Note: Functor and Cofunctor are equivalent
 
 * Examples
 
 #+begin_src modulus
-(instance (struct (map ≜ data.list.internal.map)) (Functor List))
-
+> open data.array ;; opening data.array imports a functor instance for array
+> map (+ 1) ⦗1 2 3⦘
+⦗2 3 4⦘
+> map reverse ⦗"hello" "world"⦘
+⦗"olleh" "dlrow"⦘
+> map (λ [x] (x | 2 = 0)) ⦗1 2 3 4 5 6⦘
+⦗false true false true false true⦘
 #+end_src
+
+
 
 * Definition
 

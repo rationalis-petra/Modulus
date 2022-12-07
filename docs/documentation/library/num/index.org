@@ -1,0 +1,17 @@
+#+html_head: <link rel="stylesheet" href="../../../modulus-style.css" type="text/css"/>
+#+title: Library: Numerics
+#+options: toc:nil num:nil html-postamble:nil
+
+#+html: <div style="text-align:right">
+[[file:../../../index.org][Modulus]] / [[file:../../index.org][Documentation]] / [[file:../index.org][Library]] / Numerics
+#+html: </div>
+
++ [[file:unit.org][Unit]]
++ [[file:bool.org][Bool]]
++ [[file:integer.org][Integer]]
++ [[file:rational.org][Rational]]
++ [[file:real.org][Real]]
++ [[file:complex.org][Complex]]
++ [[file:unsigned.org][Unsigned]]
++ [[file:signed.org][Signed]]
++ [[file:word.org][Word]]

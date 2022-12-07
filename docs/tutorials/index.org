@@ -11,17 +11,18 @@
 + [[file:tooling.org][Introduction to Tooling]]
 
 This series is designed to be approachable both by new programmers and
-imperative programmers, although those familiar with functional programming may
-find them a bit slow. 
+programmers who have experience in imperative programming, although the
+latter may find it prudent to skip some parts. Each tutorial has an accompanying
+set of exercises.
 
-| Tutorial          | Concepts                             |
-|-------------------+--------------------------------------|
-| [[file:expressions.org][Expressions]]       | REPL, Arithmetic, Definitions        |
-| [[file:collections.org][Collections]]       | Arrays, Types                        |
-| [[file:building-programs.org][Building Programs]] | Data, Pattern-Matching, Monads       |
-| [[file:data.org][Custom Data]]       | Inductive & Coinductive Data         |
-| [[file:abstraction.org][Abstraction]]       | Structures & Signatures              |
-| [[file:projects.org][Projects]]          | Modules, build-system                |
+| Tutorial          | Concepts                       | Exercises |
+|-------------------+--------------------------------+-----------|
+| [[file:expressions.org][Expressions]]       | REPL, Arithmetic, Definitions  | [[file:exercises/expressions.org][Sheet 1]]   |
+| [[file:collections.org][Collections]]       | Arrays, Types                  | Sheet 2   |
+| [[file:building-programs.org][Building Programs]] | Data, Pattern-Matching, Monads | Sheet 3   |
+| [[file:data.org][Custom Data]]       | Inductive & Coinductive Data   | Sheet 4   |
+| [[file:abstraction.org][Abstraction]]       | Structures & Signatures        | Sheet 5   |
+| [[file:projects.org][Projects]]          | Modules, build-system          | Sheet 6   |
 
 
 Each tutorial has an accompanying set of [[file:exercises/index.org][exercises]].
