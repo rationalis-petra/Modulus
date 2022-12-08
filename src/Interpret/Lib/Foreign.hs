@@ -6,6 +6,7 @@ import Control.Monad.State  (MonadState)
 import Control.Monad.Except (MonadError)
 
 import Syntax.Normal
+import Interpret.Environment
 import Interpret.Lib.Foreign.C
 
 

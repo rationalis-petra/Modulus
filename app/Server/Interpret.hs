@@ -1,8 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Server.Interpret (interpreter) where
 
-import Debug.Trace
-
 import Control.Concurrent
 import Control.Concurrent.STM
 
@@ -18,13 +16,13 @@ import Bindings.Libtdl
 import Syntax.Normal(Normal(NormSct, NormSig, NormCModule, PrimType),
                      PrimType(CModuleT),
                      ProgState,
-                     Environment,
                      AST,
                      toEmpty)
 import Syntax.Core(Core, TopCore(..), Definition)
 import Parse (parseModule)
 import Interpret.Eval (eval, evalDef, runIO)
 import Interpret.EvalM (runEval, Eval)
+import Interpret.Environment (Environment)
 import Syntax.Utils (typeVal, getField)
 import Syntax.Macroexpand (macroExpand)
 import Syntax.Conversions (toIntermediate, toTIntermediateTop, toTopCore)
@@ -118,7 +116,7 @@ compileTree (Node dir mtext) state ctx = do
       let addToEnv = flip (foldr (\(k, (v, ty)) -> Env.insert k v ty))
       local (addToEnv imports . addToEnv fmdles) $ do
 
-        let foldTerms ty [] = pure ([], [])
+        let foldTerms ty [] = pure ([], [], [])
             foldTerms ty (def:defs) = do
               expanded <- macroExpand def
               env <- ask
@@ -139,17 +137,21 @@ compileTree (Node dir mtext) state ctx = do
               res <- defOrAnn core
               case res of 
                 Left def -> do
-                  -- TODO: if vals is a type-annotation, we must here
-                  vals <- evalDef def
-                  (defs, vals') <- local (flip (foldr (\(k, (v, ty)) -> Env.insert k v ty)) vals) (foldTerms Nothing defs)
-                  pure (def : defs, vals <> vals')
+                  def' <- evalDef def
+                  case def' of
+                    Left vals -> do
+                      (defs, vals', instances) <- local (flip (foldr (\(k, (v, ty)) -> Env.insert k v ty)) vals) (foldTerms Nothing defs)
+                      pure (def : defs, vals <> vals', instances)
+                    Right inst -> do
+                      (defs, vals, instances) <- local (Env.addInstance inst) (foldTerms Nothing defs)
+                      pure (defs, vals, (inst : instances))
                 Right (str, core) -> do
                   ty <- eval core
                   foldTerms (Just ty) defs
 
 
         -- can carry forward for typechecking etc.
-        (defs, vals) <- foldTerms Nothing terms
+        (defs, vals, instances) <- foldTerms Nothing terms
         let (vals', allTypes) = foldr (\(k, (v, ty)) (vals, types) -> (((k, v) : vals), ((k, ty) : types))) ([], []) vals
         -- restrict the types to be only our exports!
         let types = foldr (\(k, v) rest -> if contains k exp then ((k, v) : rest) else rest) [] allTypes

@@ -36,7 +36,9 @@ data TopCore m = TopDef (Definition m) | TopExpr (Core m) | TopAnn String (Core 
 
 data Definition m
   = SingleDef   String (Core m) (Normal m)
+  | InstanceDef String (Normal m)
   | InductDef   String Int [(String, Normal m)] (Normal m) (Normal m) [(String, Int, Normal m)] 
   | CoinductDef String Int [(String, Normal m)] (Normal m) (Normal m) [(String, Int, Normal m)] 
   | OpenDef (Core m) [(String, Normal m)]
+  | OpenClsDef (Core m)
   deriving Show

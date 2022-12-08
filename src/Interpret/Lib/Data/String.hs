@@ -13,6 +13,7 @@ import Interpret.Lib.LibUtils
 import Syntax.Utils (mkVar)
 import Interpret.Eval (liftFun, liftFun2)
 import Interpret.EvalM
+import Interpret.Environment (Environment)
 
   
 

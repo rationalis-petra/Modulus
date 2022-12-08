@@ -1,6 +1,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Interpret.Lib.Foreign.C where
 
+import Data.Text (pack, unpack)
+
 import Control.Monad.Reader (MonadReader)
 import Control.Monad.State  (MonadState)
 import Control.Monad.Except (MonadError)
@@ -12,9 +14,10 @@ import Foreign.C.String (CString, peekCString, newCString)
 import Foreign.Marshal.Alloc
 
 import Syntax.Normal
-import Data.Text (pack, unpack)
-import Interpret.Eval (eval, liftFun, liftFun2, liftFun3, liftFun4, liftFun5, liftFun6)
 import Syntax.Utils (mkVar)
+import Interpret.Eval (eval, liftFun, liftFun2, liftFun3, liftFun4, liftFun5, liftFun6)
+import Interpret.Environment (Environment)
+
 
 mkCPtr :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mkCPtr = liftFun f (NormArr (NormUniv 0) (NormUniv 0))

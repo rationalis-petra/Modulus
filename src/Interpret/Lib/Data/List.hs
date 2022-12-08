@@ -9,15 +9,16 @@ import Control.Monad.Except (MonadError, throwError)
 import Syntax.Normal
 import Syntax.Core
 import Interpret.Eval (eval, liftFun, liftFun2, liftFun3, liftFun4, liftFun5, liftFun6)
+import Interpret.Environment (Environment)
 import Syntax.Utils (mkVar)
 
 mlsListCtorTy :: Normal m
 mlsListCtorTy = NormArr (NormUniv 0) (NormUniv 0)
 
 
-mlsListCtor :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
-mlsListCtor = liftFun f mlsListCtorTy
-  where f a = pure (CollTy (ListTy a))
+mlsListCtor :: Normal m
+mlsListCtor = NormAbs "A" fnBody mlsListCtorTy
+  where fnBody = CollTy (ListTy (mkVar "A"))
 
 
 consType :: Normal m

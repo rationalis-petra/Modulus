@@ -20,9 +20,9 @@ import qualified Control.Exception as Ex
 import Bindings.Libtdl
 import Syntax.Normal (Normal(NormSct, NormSig),
                       CollVal(..),
-                      Environment,
                       ProgState)
-import Interpret.Eval(Eval)
+import Interpret.Environment (Environment)
+import Interpret.Eval (Eval)
 
 
 import qualified Server.Message as Message

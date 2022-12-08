@@ -6,6 +6,7 @@ import Control.Monad.Except (MonadError)
 import Control.Monad.Reader (MonadReader)
 import Syntax.Normal
 
+import Interpret.Environment
 import Interpret.Lib.System.Console
 
   

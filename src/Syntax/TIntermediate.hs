@@ -37,15 +37,18 @@ data TDefinition m ty
   = TInductDef String  Int [(String, ty m)] (ty m) [(String, Int, ty m)]
   | TCoinductDef String Int [(String, ty m)] (ty m) [(String, Int, ty m)]
   | TSingleDef String (TIntermediate m ty) (Maybe (ty m))
-  | TInstanceDef String (ty m) (TIntermediate m ty)
+  | TInstanceDef String (ty m)
   | TOpenDef (TIntermediate m ty) (Maybe (ty m))
+  | TOpenClsDef (TIntermediate m ty)
   deriving Show
+
 
 data TIntTop m ty
   = TExpr (TIntermediate m ty)
   | TDefinition (TDefinition m ty) 
   | TAnnotation String (TIntermediate m ty)
   deriving Show
+
 
 data TPattern m (ty :: (* -> *) -> *)
   = TWildPat 
@@ -54,6 +57,7 @@ data TPattern m (ty :: (* -> *) -> *)
   | TBuiltinMatch ([Pattern m] -> Normal m -> (Normal m -> Pattern m -> m (Maybe [(String, (Normal m, Normal m))]))
                                -> m (Maybe [(String, (Normal m, Normal m))]))
     Int (ty m) [TPattern m ty]
+
 
 data TCoPattern m ty
   = TCoWildPat 

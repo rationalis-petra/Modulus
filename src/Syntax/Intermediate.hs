@@ -13,7 +13,6 @@ import Bindings.Libtdl (CModule)
 import qualified Interpret.Environment as Env
 import Syntax.Normal (AST(..),
                       ArgType,
-                      Environment,
                       Special(..),
                       Normal(Symbol, Special, Keyword, NormIVal),
                       Neutral)
@@ -34,7 +33,9 @@ data IDefinition m
   | ICoinductDef String [IArg m] (Intermediate m) [(String, Intermediate m)]
   | IEffectDef String [String] [(String, [Intermediate m])]
   | IOpenDef (Intermediate m)
+  | IOpenClsDef (Intermediate m)
   deriving Show
+
 
 -- Untyped (typed) intermediate
 data Intermediate m
@@ -61,11 +62,13 @@ data Intermediate m
   | IAdaptForeign String String [(String, String, Intermediate m)]
   deriving Show
 
+
 data IPattern m
   = ISingPattern String
   | IWildCard
   | ICheckPattern (Intermediate m) [IPattern m]
   deriving Show
+
 
 data ICoPattern m
   = ICoSingPattern String

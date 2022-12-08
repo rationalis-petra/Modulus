@@ -16,6 +16,7 @@ import Syntax.Conversions (toIntermediate,
                            toTopCore)
 import Interpret.Eval (evalTop, Result(..), runIO)
 import Interpret.EvalM (runEval, Eval)
+import Interpret.Environment (Environment(..))
 import Typecheck.Typecheck
 import Server (startServer)
 
@@ -84,7 +85,8 @@ main = do
 -- The REPL 
 defaultEnv :: Environment Eval
 defaultEnv = Environment
-  { localCtx = Map.empty
+  { localInstances = []
+  , localCtx = Map.empty
   , currentModule = NormSct (toEmpty defaultStructure) (NormSig [])
   , globalModule = NormSct [] (NormSig [])
   }

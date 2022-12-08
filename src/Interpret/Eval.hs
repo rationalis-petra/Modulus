@@ -37,6 +37,7 @@ import Control.Monad.State (State, MonadState, runState, runStateT)
 import Control.Monad.Except (ExceptT, MonadError, throwError, runExceptT)
 import Control.Monad.Reader (ReaderT, MonadReader, local, ask, runReaderT)
 import qualified Interpret.Environment as Env
+import Interpret.Environment (Environment)
 
 import Syntax.Utils  
 import Interpret.EvalM (Eval, runEval)
@@ -132,6 +133,28 @@ evalTop (TopDef def) = case def of
         pure $ RDef $ (flip $ foldr (\(k, (val, ty)) -> Env.insert k val ty)) m'
       _ -> throwError "cannot open non-module"
 
+  -- OpenClsDef cls clsty -> do
+  --   (clsName, mkfunty) <- unwindcls cls
+  --   (NormSig fields, mkfun) <- unwindty clsty
+  --   vals <- mapM (\(field, ty) -> (field, mkfunty ty , mkfun (NeuDot (mkVar clsName (NormSig fields)) field))) fields
+  --   pure $ RDef $ flip (\(k, val, ty) -> Env.insert k val ty) vals
+
+  --   where 
+  --     unwindcls (NormAbs str body ty) = 
+  --       let (x, f) = unwindcls body
+  --           (_, g) = unwindty ty
+  --       in
+  --         (x, \x ty -> NormAbs str (f x) (g ty))
+  --     unwindcls x = (x, id)
+
+  --     unwindty (NormProd str mdf a b) = 
+  --       let (x, f) = unwindty b in
+  --         (x, \x -> NormProd str mdf a (f x))
+  --     unwindty (NormArr a b) = 
+  --       let (x, f, g) = unwindty b in
+  --         (x, \x -> NormArr a (f x))
+  --     unwindty x = (x, id)
+
   InductDef sym indid params ctor ctorty alts -> do 
     let insertCtor = Env.insert sym ctor ctorty 
         insertAlts = flip (foldr (\(k, (val, ty)) env -> Env.insert k val ty env))
@@ -161,35 +184,66 @@ evalTop (TopAnn sym term) = do
   pure (RAnn sym term')
 
 
-evalDef :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Definition m -> m [(String, (Normal m, Normal m))]
+evalDef :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Definition m -> m (Either [(String, (Normal m, Normal m))] (String, Normal m))
 evalDef def = case def of
-  SingleDef name (CAbs sym core norm) ty -> do
-    env <- ask
-    let liftedFun = liftFun (\v -> local (const $ Env.insert sym v ty liftedEnv) (eval core)) norm
-        liftedEnv = Env.insert name liftedFun norm env
-    val <- local (const $ liftedEnv) (eval $ CAbs sym core norm)
-    pure [(name, (val, ty))]
+  -- SingleDef name (CAbs sym core norm) ty -> do
+  --   env <- ask
+  --   let liftedFun = liftFun (\v -> local (const $ Env.insert sym v ty liftedEnv) (eval core)) norm
+  --       liftedEnv = Env.insert name liftedFun norm env
+  --   val <- local (const $ liftedEnv) (eval $ CAbs sym core norm)
+  --   pure $ Left $ [(name, (val, ty))]
+
   SingleDef name body ty -> do
     val <- eval body
-    pure [(name, (val, ty))]
+    pure $ Left $ [(name, (val, ty))]
+
+  InstanceDef name typeclass -> pure $ Right $ (name, typeclass)
+
   OpenDef body sig -> do
     mdle <- eval body
     case mdle of 
       NormSct m (NormSig ty) -> 
-        pure $ (restrict . dropMod) (restrict (dropMod m) ty) sig
+        pure $ Left $ (restrict . dropMod) (restrict (dropMod m) ty) sig
       _ -> throwError "cannot open non-module"
+
+  -- OpenClsDef cls -> do
+  --   cls' <- eval cls
+  --   (fields, mkfun, mkfunty) <- unwindcls [] cls'
+  --   vals <- mapM (\(field, ty) -> (field, mkfun (NeuDot (mkVar "_" (NormSig fields)) field) ty, mkfunty ty)) fields
+  --   pure $ Left $ vals
+
+  --   where
+  --     unwindcls :: [(String, Normal m -> Normal m)] -> Normal m -> ([(String, Normal m)], Normal m -> Normal m -> Normal m, Normal m -> Normal m)
+  --     unwindcls ss (NormAbs str body ty) = 
+  --       let (x, f, g) = unwindcls ((str, g'):ss) body
+  --           g' = left ty
+  --       in
+  --         ((), \bdy' ty -> NormAbs str (f bdy') (g' $ g ty), (g' $ g ty))
+  --     unwindcls ss (NormSig fields) =
+  --       (fields, \body ty -> NormAbs "_" (mkInstanceTy ss) body, \ty -> NormProd "_" Instance (mkInstanceTy ss) ty)
+
+  --     left :: Normal m -> Normal m -> Normal m
+  --     left (NormArr l r) = NormArr l
+  --     left (NormProd sym mdf a b) = NormProd sym mdf a
+
+   {-- (λ [F] (signature : 𝒰 (map : {A B} → (A → B) → F A → F B)))
+         shorten to x
+       output:
+         (mkfun : bdy ty → λ [F] λ → ⦃x F⦄ → {A B} → (A → B) → F A → F B)
+         (map' {F} ⦃ftor⦄ ≜ map)
+--}
+
+  
   InductDef sym indid params ctor ctorty alts -> do 
     let ctorPr = (sym, (ctor, ctorty))
-
         mkAlts [] = pure []
         mkAlts ((sym, id, ty) : alts) = do
           let alt = NormIVal sym indid id (length params) [] ty
           alts' <- mkAlts alts
           pure ((sym, (alt, ty)) : alts')
-          
-    
     alts' <- mkAlts alts
-    pure $ (ctorPr : alts')
+    pure $ Left $ (ctorPr : alts')
+
   CoinductDef sym coid params ctor ctorty alts -> do 
     let ctorPr = (sym, (ctor, ctorty))
 
@@ -200,7 +254,7 @@ evalDef def = case def of
           pure ((sym, (alt, ty)) : alts')
     
     alts' <- mkAlts alts
-    pure $ (ctorPr : alts')
+    pure $ Left $ (ctorPr : alts')
   
 
 -- evaluate an expression, to a normal form (not a value!). This means that the

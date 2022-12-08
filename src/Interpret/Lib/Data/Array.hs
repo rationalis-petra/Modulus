@@ -2,8 +2,9 @@
 module Interpret.Lib.Data.Array (arrayStructure, arraySignature) where
 
 import qualified Data.Map as Map
-import Data.Vector hiding (mapM)
 import qualified Data.Vector as Vec
+import Data.Vector hiding (mapM)
+
 import Control.Monad.Reader (MonadReader)
 import Control.Monad.State  (MonadState)
 import Control.Monad.Except (MonadError, throwError)
@@ -18,6 +19,7 @@ import Interpret.Eval ( liftFun
                       , liftFun4
                       , liftFun5)
 import qualified Interpret.Environment as Env
+import Interpret.Environment (Environment)
 
 mlsArrTy :: Normal m
 mlsArrTy = NormArr (NormUniv 0) (NormUniv 0)

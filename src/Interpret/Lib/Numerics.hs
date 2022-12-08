@@ -8,6 +8,7 @@ import Control.Monad.Except (MonadError)
 
 import Syntax.Normal
 import Data.Text (pack)
+import Interpret.Environment (Environment)
 import Interpret.EvalM
 import Interpret.Eval (liftFun, liftFun2)
 

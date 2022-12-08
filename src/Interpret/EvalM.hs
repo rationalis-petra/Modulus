@@ -13,6 +13,7 @@ import qualified Control.Monad.Reader as Reader
 import qualified Control.Monad.State as State
 
 import Syntax.Normal
+import Interpret.Environment
 import Control.Lens (use, (+=))
 
 newtype EvalT m a = EvalT { unEvalT :: ReaderT (Environment (EvalT m)) (ExceptT String (StateT (ProgState (EvalT m)) m)) a }

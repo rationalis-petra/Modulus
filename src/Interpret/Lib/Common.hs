@@ -12,6 +12,7 @@ import Syntax.Core
 import Syntax.Utils
 import Interpret.Eval (eval, liftFun, liftFun2, liftFun3, liftFun4, liftFun5, liftFun6)
 import Interpret.EvalM
+import Interpret.Environment (Environment)
 import Syntax.Utils (mkVar)
 
 

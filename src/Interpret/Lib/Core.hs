@@ -11,6 +11,7 @@ import Syntax.Normal
 import Syntax.Utils
 import Interpret.Eval (liftFun, liftFun2, liftFun3, liftFun4)
 import Interpret.EvalM
+import Interpret.Environment (Environment)
 
 -- import Typecheck.Typecheck2 (subtype)
 
@@ -23,6 +24,7 @@ get_symlist ((Symbol s) : args) =
     Nothing -> Nothing
 get_symlist _ = Nothing
 
+
 get_bindlist :: [Normal m] -> Maybe ([String], [Normal m])
 get_bindlist [] = Just ([], [])
 get_bindlist ((Symbol s) : val : bindings) =
@@ -30,6 +32,7 @@ get_bindlist ((Symbol s) : val : bindings) =
     Just (syms, vals) -> Just $ ((s : syms), (val : vals))
     Nothing -> Nothing
 get_bindlist _ = Nothing
+
 
 toDefs :: MonadError String m => [AST m] -> m [AST m]
 toDefs (Cons [Atom (Symbol s), val] : tl) = do
@@ -195,7 +198,7 @@ coreTerms =
   , ("let",         Special Let)
   , ("structure",   Special MkStructure)
   , ("signature",   Special MkSig)
-  , ("instance",    Special InstanceDef)
+  , ("instance",    Special ClassInstance)
   , ("struct",      mlsStruct)
   , ("sig",         mlsSig)
   , ("match",       Special MkMatch)

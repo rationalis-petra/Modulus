@@ -8,13 +8,13 @@ import Control.Monad.Reader (MonadReader, ask)
 
 import Syntax.Normal(Normal(..),
                      AST (..),
-                     ProgState,
-                     Environment) 
+                     ProgState) 
 
 import Syntax.Core(Core(..))
 
 import qualified Interpret.Eval as Eval
 import qualified Interpret.Environment as Env
+import Interpret.Environment (Environment)
 
 -- TODO: change macro-expansion to incorporate splicing
 

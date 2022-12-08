@@ -10,6 +10,8 @@ import Interpret.Lib.Data.List
 import Interpret.Lib.Data.Maybe
 import Interpret.Lib.Data.Array
 
+import Interpret.Environment (Environment)
+
 import qualified Data.Map as Map
 import Syntax.Normal
 

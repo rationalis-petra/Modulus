@@ -1,12 +1,14 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Server.Data where 
 
-import Control.Lens (makeLenses)
-
-import Syntax.Normal (Normal, Environment, ProgState)
-import Syntax.Core(Core(..), Definition)
 import Data.Text (Text)
 import qualified Data.Map as Map
+import Control.Lens (makeLenses)
+
+import Syntax.Normal (Normal, ProgState)
+import Syntax.Core(Core(..), Definition)
+import Interpret.Environment (Environment) 
+  
 
 data ModuleHeader = ModuleHeader { _imports :: [String],
                                    _args    :: [String],

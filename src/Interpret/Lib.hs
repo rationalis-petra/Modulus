@@ -7,8 +7,9 @@ import Control.Monad.Reader (MonadReader)
 import Control.Monad.State  (MonadState)
 import Control.Monad.Except (MonadError)
 
-import Syntax.Normal (Normal(NormSct, NormSig), toEmpty, Environment, ProgState)
+import Syntax.Normal (Normal(NormSct, NormSig), toEmpty, ProgState)
 import Syntax.Utils  
+import Interpret.Environment (Environment) 
 
 import Interpret.Lib.Core 
 import Interpret.Lib.Numerics 

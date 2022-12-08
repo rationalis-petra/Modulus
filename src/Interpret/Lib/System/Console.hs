@@ -9,15 +9,14 @@ import Control.Monad.Reader (MonadReader)
 import System.IO
 import Syntax.Normal
 import Interpret.Eval (liftFun)
+import Interpret.Environment (Environment)
   
 import Data.Text(pack, unpack)
 
 mlsGetLine :: (Applicative m) => Normal m
 mlsGetLine = CollVal (IOAction (IOThread m) getType)
   where m :: (Applicative m) => IO (IEThread m)
-        m = do
-          line <- getLine
-          pure . Pure . pure . PrimVal $ String (pack line)
+        m = Pure . pure . PrimVal . String . pack  <$> getLine
 
 mlsPutLine :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsPutLine = liftFun f putType

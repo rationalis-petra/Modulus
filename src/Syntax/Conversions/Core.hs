@@ -27,11 +27,18 @@ toTopCore (TDefinition def) = TopDef <$> fromDef def
       pure (SingleDef name coreBody ty)
     fromDef (TSingleDef name body Nothing) = throwError "definitions must be typed"
 
+    fromDef (TInstanceDef name typeclass) = do
+      pure (InstanceDef name typeclass)
+
     fromDef (TOpenDef body (Just ty)) = do
       coreBody <- toCore body
       let (NormSig sig) = ty
       pure (OpenDef coreBody sig)
     fromDef (TOpenDef body Nothing) = throwError "definitions must be typed"
+
+    fromDef (TOpenClsDef body) = do
+      coreBody <- toCore body
+      pure (OpenClsDef coreBody)
 
     fromDef (TInductDef sym id params ctor alts) = do
       ctorty <- typeVal ctor
@@ -39,7 +46,9 @@ toTopCore (TDefinition def) = TopDef <$> fromDef def
     fromDef (TCoinductDef sym id params ctor alts) = do
       ctorty <- typeVal ctor
       pure (CoinductDef sym id params ctor ctorty alts)
+  
 toTopCore (TExpr expr) = TopExpr <$> toCore expr
+
 toTopCore (TAnnotation sym term) = TopAnn sym <$> toCore term
 
 

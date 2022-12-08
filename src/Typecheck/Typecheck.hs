@@ -4,6 +4,7 @@ module Typecheck.Typecheck where
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
+import Control.Monad (when)
 import Control.Monad.Except (MonadError, throwError)
 import Control.Monad.State (MonadState)
 import Control.Monad.Reader (MonadReader, ask, local)
@@ -12,14 +13,16 @@ import Syntax.Normal (PrimType(..),
                       Normal(..),
                       Neutral(..),
                       ArgType(..),
-                      Environment,
                       ProgState,
                       var_counter)
 import Syntax.Core(Core(..))
 import Syntax.TIntermediate
 
+  
+
 
 import qualified Interpret.Environment as Env
+import Interpret.Environment (Environment)
 import qualified Syntax.Conversions as Conv 
 import Interpret.EvalM
 import qualified Interpret.Eval as Eval
@@ -65,11 +68,28 @@ typeCheckTop (TDefinition def) =
 
     TOpenDef expr Nothing -> do 
       (expr', ty, subst) <- typeCheck expr
-      if subst /= nosubst
-        then 
-          throwError "subst non-empty at toplevel!"
-        else
-          pure $ Right $ TDefinition $ TOpenDef expr' (Just ty)
+      when (subst /= nosubst) (throwError "subst non-empty at toplevel!")
+      pure $ Right $ TDefinition $ TOpenDef expr' (Just ty)
+
+    TOpenClsDef cls -> do 
+      (cls', ty, subst) <- typeCheck cls
+      when (subst /= nosubst) (throwError "subst non-empty at toplevel!")
+      pure $ Right $ TDefinition $ TOpenClsDef cls'
+      -- TODO: check for how to ensure is signature?
+      -- case fnBody cls of 
+      --   TLambda _ ->  
+      --     pure $ Right $ TDefinition $ TOpenClsDef cls' (Just ty)
+      --   x -> throwError ("Opening as a typeclass requires function result to be a signature, not " <> show x)
+      -- where
+      --   fnBody (NormAbs _ x _) = fnBody x
+      --   fnBody x = x
+
+
+    TInstanceDef sym (TIntermediate' cls) -> do 
+      (_, ty) <- ask >>= Env.lookup sym
+      cls' <- evalTIntermediate cls
+      ask >>= constrain ty cls'
+      pure $ Right $ TDefinition $ TInstanceDef sym cls'
 
     TInductDef sym id params (TIntermediate' ty) alts -> do
       -- TODO: check alternative definitions are well-formed (positive, return
@@ -203,8 +223,7 @@ typeCheck (TValue v) = do
   pure (TValue v, t, nosubst)
 
 typeCheck (TSymbol s) = do
-  env <- ask
-  (_, ty) <- (Env.lookup s env)
+  (_, ty) <- ask >>= Env.lookup s
   pure (TSymbol s, ty, nosubst)
   
 typeCheck (TImplApply l r) = do
@@ -482,7 +501,6 @@ typeCheck (TSignature defs) = do
         (defs', fields, subst') <- local addDefs (foldDefs defs)
         fnlSubst <- compose subst subst'
         pure (def' : defs',  deflist <> fields, fnlSubst)
-        
   (defs', fields, subst) <- foldDefs defs
 
   pure (TSignature defs', NormUniv 0, subst)

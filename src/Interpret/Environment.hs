@@ -17,6 +17,13 @@ import Control.Monad.Reader (MonadReader)
 import Syntax.Normal
 import Syntax.Utils
 
+data Environment m = Environment
+  { localInstances :: [(String, Normal m)]
+  , localCtx       :: Map.Map String (Either (Normal m, Normal m) Thunk)
+  , currentModule  :: Normal m
+  , globalModule   :: Normal m
+  }
+
 
 getThunk :: MonadState (ProgState m) m => Either (Normal m, Normal m) Thunk -> m (Normal m, Normal m)
 getThunk (Left v) = pure v
@@ -79,10 +86,18 @@ insertThunk key thunk environment = environment {localCtx = newCtx}
 
 
 insertAll :: [(String, (Normal m, Normal m))] -> Environment m -> Environment m
-insertAll lst context = context{localCtx = newCtx}
+insertAll lst context = context {localCtx = newCtx}
   where
     newCtx = foldr (uncurry (\k v -> Map.insert k (Left v))) (localCtx context) lst
 
+
+addInstance :: (String, Normal m) -> Environment m -> Environment m
+addInstance val env = env {localInstances = newInstances} 
+  where newInstances =
+          if val `member` (localInstances env) then 
+            (localInstances env)
+          else 
+            val : (localInstances env)
 
 -- TODO: what sould folding over an environment do if a value is thunk'd/
 --       current implementation (ignore) is suboptimal
@@ -115,9 +130,12 @@ foldImpl f1 f2 z (Environment {localCtx = lcl,
 
 
 empty :: Environment m
-empty = Environment { localCtx = Map.empty
-                    , currentModule = NormSct [] (NormSig [])
-                    , globalModule = NormSct [] (NormSig [])}
+empty = Environment
+  { localInstances = []
+  , localCtx = Map.empty
+  , currentModule = NormSct [] (NormSig [])
+  , globalModule = NormSct [] (NormSig [])
+  }
 
 
 member _ [] = False

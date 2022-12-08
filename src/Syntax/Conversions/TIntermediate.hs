@@ -163,14 +163,17 @@ toTDef (ISingleDef s i mann) = do
     Nothing -> pure Nothing
   pure (TSingleDef s t ann')
 
-toTDef (IInstanceDef s cls val) = do
+toTDef (IInstanceDef s cls) = do
   cls' <- TIntermediate' <$> toTIntermediate cls
-  val' <- toTIntermediate val
-  pure (TInstanceDef s cls' val')
+  pure (TInstanceDef s cls')
 
 toTDef (IOpenDef i) = do
   t <- toTIntermediate i
   pure (TOpenDef t Nothing)
+
+toTDef (IOpenClsDef i) = do
+  cls <- toTIntermediate i
+  pure $ TOpenClsDef cls
 
 toTDef (IInductDef sym params ty alts) = do
   params' <- processParams params

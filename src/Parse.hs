@@ -14,6 +14,7 @@ import Data.Void
 import qualified Data.Map as Map
 
 import Syntax.Normal
+import Interpret.Environment (Environment)
 import Interpret.Lib.Data.String (mlsConcat, implShow)
 
 type Parser = Parsec Void Text

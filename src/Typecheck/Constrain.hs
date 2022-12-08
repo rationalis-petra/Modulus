@@ -28,15 +28,15 @@ import Syntax.Normal (PrimType(..),
                       CollTy(..),
                       CollVal(..),
                       ArgType(..),
-                      Environment,
                       ProgState,
                       var_counter)
 import Syntax.Core(Core(..))
 
 import qualified Interpret.Environment as Env
+import Interpret.Environment (Environment)
 import qualified Interpret.Eval as Eval
-import Interpret.EvalM
 import Interpret.Eval (normSubst)
+import Interpret.EvalM
 import Syntax.Utils (typeVal, getField, freshen)
 import Control.Monad.Except (Except, runExcept)
 
@@ -223,13 +223,13 @@ nnConstrain (NeuDot neu field) norm = do
   normTy <- typeVal norm 
   nnConstrain neu (NormSct [(field, (norm, []))] normTy)
 nnConstrain n1 n2 = throwError ("nnConstrain incomplete OR terms " <> show n1 <> " and " <> show n2
-                          <> "have different forms")
+                          <> " have different forms")
 
 
 -- neuconstrain: constrain two neutral terms  
 neuConstrain :: MonadError String m => Neutral m -> Neutral m -> m (LRSubst m)
 neuConstrain n1 n2 = throwError ("neuConstrain incomplete OR terms " <> show n1 <> " and " <> show n2
-                          <> "have different forms")
+                          <> " have different forms")
 
 
 

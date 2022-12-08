@@ -6,7 +6,6 @@ module Syntax.Normal (Pattern(..),
                       Modifier(..),
                       Normal(..),
                       Neutral(..),
-                      Environment(..),
                       ProgState(..),
                       ArgType(..),
                       IEThread(..),
@@ -80,16 +79,10 @@ instance Show (CoPattern m) where
 newtype Thunk = Thunk { tid :: Int }
   deriving (Show, Eq, Ord)
 
-data Environment m = Environment {
-  localCtx      :: Map.Map String (Either (Normal m, Normal m) Thunk),
-  currentModule :: Normal m,
-  globalModule  :: Normal m
-}
-
 
 data Special
   -- Definition Forms 
-  = Def | Induct | Coinduct | Open | LetOpen | InstanceDef
+  = Def | Induct | Coinduct | Open | LetOpen | ClassInstance
   -- Control Flow 
   | If | MkMatch | MkCoMatch
   -- Value Constructors
@@ -314,7 +307,7 @@ instance Show (Normal m) where
     "(covalue : " <> show ty <> ")"
   show (BuiltinMac _) = show "<inbuilt-macro>"
   show (Special sp) = show sp
-  show (Keyword word) = "&" <> word
+  show (Keyword word) = "⁖" <> word
   show (Symbol sym) = "<" <> sym <> ">"
   show (AST ast) = "AST" <> show ast
   show (NormCModule _) = "<c-module>"
@@ -335,7 +328,7 @@ instance Show (Neutral m) where
     <> ")"
   show (NeuIf cond e1 e2 _) = "(if " <> show e1 <> " " <> show e2 <> ")"
 
-  show (NeuBuiltinApp fn neu ty)  = "((fn " <> show neu <> ") : " <>  show ty <> ")"
+  show (NeuBuiltinApp fn neu ty)  = "((<builtin> " <> show neu <> ") : " <>  show ty <> ")"
 
 
   

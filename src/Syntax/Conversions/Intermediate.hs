@@ -7,7 +7,6 @@ import Control.Monad.Except (Except, runExcept, throwError)
 import qualified Data.Set as Set
 import qualified Interpret.Environment as Env
 import Syntax.Normal (AST(..),
-                      Environment,
                       ArgType(..),
                       Special(..),
                       Normal(Symbol, Special, Keyword, NormIVal, NormCoDtor, PrimVal, NormUniv),
@@ -16,7 +15,7 @@ import Syntax.Normal (AST(..),
 
 import Syntax.Intermediate
 
-newtype GlobCtx m = GlobCtx (Environment m, (Set.Set String))
+newtype GlobCtx m = GlobCtx (Env.Environment m, (Set.Set String))
 
   
 
@@ -32,7 +31,7 @@ lookup s (GlobCtx (ctx, shadowed)) =
 shadow s (GlobCtx (ctx, shadowed)) = 
   GlobCtx (ctx, Set.insert s shadowed)
 
-toIntermediate :: AST m -> Environment m -> Either String (Intermediate m)
+toIntermediate :: AST m -> Env.Environment m -> Either String (Intermediate m)
 toIntermediate val ctx =
   runExcept (toIntermediateM val (GlobCtx (ctx, Set.empty)))
 
@@ -51,7 +50,7 @@ toIntermediateM (Cons (e : es)) ctx = do
   val <- toIntermediateM e ctx
   case val of  
     (IValue (Special Def)) -> mkDef es Nothing ctx >>= (pure . IDefinition)
-    (IValue (Special InstanceDef)) -> mkInstanceDef es ctx >>= (pure . IDefinition)
+    (IValue (Special ClassInstance)) -> mkInstanceDef es ctx >>= (pure . IDefinition)
     (IValue (Special Induct)) -> mkInduct IInductDef es ctx >>= (pure . IDefinition)
     (IValue (Special Coinduct)) -> mkInduct ICoinductDef es ctx >>= (pure . IDefinition)
     (IValue (Special Do)) -> mkDo es ctx
@@ -388,8 +387,10 @@ mkCoMatch (patterns) ctx = do
   
 
 mkOpen :: [AST m] -> GlobCtx m -> Except String (IDefinition m)
+mkOpen [Cons [Atom (Keyword "instance"), v]] ctx = do
+  (toIntermediateM v ctx) >>= (pure . IOpenClsDef)
 mkOpen [v] ctx = do
-  (toIntermediateM v ctx) >>= (\x-> pure $ IOpenDef x)
+  (toIntermediateM v ctx) >>= (pure . IOpenDef)
 mkOpen x _ =
       throwError ("ill-formed open clause : " <> show x)
 

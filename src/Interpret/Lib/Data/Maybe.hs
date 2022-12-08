@@ -10,6 +10,7 @@ import Control.Monad.Except (MonadError)
 import Syntax.Normal
 import Syntax.Core
 import Interpret.Eval (eval, liftFun, liftFun2, liftFun4)
+import Interpret.Environment (Environment) 
 import Syntax.Utils (mkVar)
 
 
