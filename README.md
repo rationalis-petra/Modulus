@@ -1,10 +1,10 @@
 # The Modulus Programming Language
 
-🚧🔨 **Under Construction**  🪛🚧
+⚠ **Deprecated** ⚠
 
-Modulus is currently under heavy development. As such, it is rife with bugs,
-idiosyncrasies and unimplemented features. However, you can still try it out if
-you're interested.
+Modulus is superseeded by [Sigil](https://github.com/rationalis-petra/Sigil).
+While not yet up to feature parity, Sigil is based around a much stronger
+theoretical core, Homotopy Type Theory.
 
 ## Overview
 Modulus is intended to bring together the development experience of the two

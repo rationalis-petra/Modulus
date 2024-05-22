@@ -216,7 +216,7 @@ constrain' t1 t2 =
   throwError ("cannot constrain terms " <> show t1 <> " and " <> show t2 <> " as they have different forms")
 
 -- nn constrain: constrain a neutral and normal term  
-nnConstrain :: MonadError String m => Neutral m -> Normal m -> m (LRSubst m)
+nnConstrain :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Neutral m -> Normal m -> m (LRSubst m)
 nnConstrain (NeuVar v _) norm = pure $ leftsubst norm v
 nnConstrain n1 (Neu n2 _) = neuConstrain n1 n2
 nnConstrain (NeuDot neu field) norm = do
@@ -227,7 +227,16 @@ nnConstrain n1 n2 = throwError ("nnConstrain incomplete OR terms " <> show n1 <>
 
 
 -- neuconstrain: constrain two neutral terms  
-neuConstrain :: MonadError String m => Neutral m -> Neutral m -> m (LRSubst m)
+neuConstrain :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Neutral m -> Neutral m -> m (LRSubst m)
+neuConstrain (NeuVar v1 t1) (NeuVar v2 t2) = do 
+  if v1 == v2 then 
+    pure lrnosubst
+  else
+    pure (varsame (v1, t1) (v2, t2))
+neuConstrain (NeuApp neu norm) (NeuApp neu' norm') = do 
+  subst1 <- neuConstrain neu neu'
+  subst2 <- constrain' norm norm'
+  composelr subst1 subst2
 neuConstrain n1 n2 = throwError ("neuConstrain incomplete OR terms " <> show n1 <> " and " <> show n2
                           <> " have different forms")
 

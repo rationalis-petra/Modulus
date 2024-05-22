@@ -26,6 +26,7 @@ consType = NormProd "A" Hidden (NormUniv 0) (NormArr (mkVar "A")
                                           (NormArr (CollTy (ListTy (mkVar "A")))
                                            (CollTy (ListTy (mkVar "A")))))
 
+
   
 mlsCons :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
 mlsCons = InbuiltCtor $ IndPat "cons" consMatch 1 (liftFun3 consCtor consType) consType
@@ -76,16 +77,16 @@ mlsIndicesOf = liftFun f mlsIndicesOfTy
           pure $ CollVal $ ListVal (map (PrimVal . Int) [1..n]) (PrimType IntT)
 
 
-mlsEachTy :: Normal m
-mlsEachTy = NormProd "A" Hidden (NormUniv 0)
+mlsMapTy :: Normal m
+mlsMapTy = NormProd "A" Hidden (NormUniv 0)
               (NormProd "B" Hidden (NormUniv 0)
                 (NormArr (NormArr (mkVar "A") (mkVar "B"))
                   (NormArr (CollTy (ListTy (mkVar "A")))
                     (CollTy (ListTy (mkVar "B"))))))
 
 
-mlsEach :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
-mlsEach = liftFun4 f mlsEachTy
+mlsMap :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
+mlsMap = liftFun4 f mlsMapTy
   where f ::  (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m -> Normal m -> Normal m -> Normal m -> m (Normal m)
         f _ b func (CollVal (ListVal xs _)) = do
           res <- mapM (\v -> eval (CApp (CNorm func) (CNorm v))) xs
@@ -265,6 +266,13 @@ mlsLen = liftFun2 f mlsLenTy
           pure $ PrimVal $ Int (fromIntegral (length xs))
 
 
+listFunctorSig :: Normal m
+listFunctorSig = NormSig [ ("map", mlsMapTy) ] 
+
+listFunctorStruct :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m
+listFunctorStruct = NormSct (toEmpty [ ("map", mlsMap) ]) listFunctorSig
+  
+
 listSignature :: Normal m
 listSignature = NormSig 
   [ ("M", mlsListCtorTy)
@@ -273,8 +281,9 @@ listSignature = NormSig
   , ("cons", consType)
   , ("Ɩ", mlsIndicesOfTy)
    
-  , ("¨", mlsEachTy)
-  , ("map", mlsEachTy)
+  , ("list-functor", listFunctorSig)
+  -- , ("¨", mlsEachTy)
+  -- , ("map", mlsEachTy)
   , ("fold", mlsFoldTy)
   , ("reduce", mlsReduceTy)
   , ("/", mlsReduceTy)
@@ -299,8 +308,9 @@ listStructure = NormSct (toEmpty
   , ("Ɩ", mlsIndicesOf)
  
     -- utility functions
-  , ("¨", mlsEach)
-  , ("map", mlsEach)
+  , ("list-functor", listFunctorStruct)
+  -- , ("¨", mlsEach)
+  -- , ("map", mlsEach)
   , ("fold", mlsFold)
   , ("reduce", mlsReduce)
   , ("/", mlsReduce)

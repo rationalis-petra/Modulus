@@ -161,7 +161,9 @@ data Modifier m = Implicit | MInstance (Normal m) | Private
 data ArgType = Visible | Hidden | Instance
   deriving (Show, Eq, Ord)
 
+
 data Normal m
+  -- term for trees that grow extension
   -- Neutral term
   = Neu (Neutral m) (Normal m)
   -- Basic & Inbuilt Values and Types
@@ -210,6 +212,7 @@ data Normal m
   -- Foreign values
   | NormCModule CModule      -- a foreign library
   | NormCValue CValue (Normal m) -- a foreign value + its' type
+
 
 
 data Neutral m

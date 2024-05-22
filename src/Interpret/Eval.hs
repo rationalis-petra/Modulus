@@ -34,7 +34,7 @@ import Foreign.C.String (peekCString)
 import System.IO.Unsafe (unsafePerformIO)
 
 import Control.Monad.State (State, MonadState, runState, runStateT)
-import Control.Monad.Except (ExceptT, MonadError, throwError, runExceptT)
+import Control.Monad.Except (ExceptT, MonadError, throwError, catchError, runExceptT)
 import Control.Monad.Reader (ReaderT, MonadReader, local, ask, runReaderT)
 import qualified Interpret.Environment as Env
 import Interpret.Environment (Environment)
@@ -273,8 +273,7 @@ eval (CArr l r) = do
   
 eval (CProd var aty a b) = do
   a' <- eval a
-  let ty = (NormUniv 0)
-  b' <- local (Env.insert var (Neu (NeuVar var ty) ty) ty) (eval b)
+  b' <- local (Env.insert var (Neu (NeuVar var a') a') a') (eval b)
   pure $ NormProd var aty a' b'
 
 eval (CAbs var body ty) = do   
@@ -649,10 +648,15 @@ tyField field (NormSct fields _) =
     Nothing -> throwError ("can't find field: " <> field)
 tyField field term = throwError ("can't get field  " <> field <> " of non struct/sig: " <> show term)
 
+
 tyApp :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m -> Normal m -> m (Normal m)
 tyApp (NormArr l r) _ = pure r 
 tyApp (NormProd sym _ a b) arg = normSubst (arg, sym) b
-
+tyApp (Neu neu ty) arg = do
+  argTy <- typeVal arg
+  ty' <- tyApp ty argTy
+  pure $ Neu (NeuApp neu arg) ty'
+tyApp a b = throwError ("Bad args to tyApp: " <> show a <> " and " <> show b)
 
 
 
@@ -729,8 +733,6 @@ getAsBuiltin m sym ty =
               (CollTy (IOMonadTy (PrimType UnitT)))
         _ -> throwError ("bad cffi ret ty: " <> show retTy)
 
-  
-
     getArg (PrimType CDoubleT) (PrimVal (CDouble d)) =  
       pure $ argCDouble d
     getArg (PrimType CIntT) (PrimVal (CInt i)) =  
@@ -744,7 +746,6 @@ getAsBuiltin m sym ty =
     getRet (NormArr _ r) = getRet r
     getRet (NormProd _ _ _ r) = getRet r
     getRet v = v
-
 
 
 apply :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) => Normal m -> Core m -> m (Normal m) 

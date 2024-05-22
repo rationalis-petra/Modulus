@@ -122,10 +122,19 @@ freshen set str =
   else
     str
 
+tyModifier :: (MonadError String m) => Normal n -> m ArgType
+tyModifier (NormArr _ _) = pure Visible
+tyModifier (NormProd _ m _ _) = pure m
+tyModifier ty = throwError ("can't get type modifier of " <> show ty)
+
 tyHead :: (MonadError String m) => Normal n -> m (Normal n)
 tyHead (NormArr l r) = pure l
 tyHead (NormProd sym _ a b) = pure a
-tyHead hd = throwError ("can't get type tail of " <> show hd)
+tyHead hd = throwError ("can't get type head of " <> show hd)
+
+tyHeadStr :: (MonadError String m) => Normal n -> m (Normal n, String)
+tyHeadStr (NormProd sym _ a b) = pure (a, sym)
+tyHeadStr hd = throwError ("can't get type head str of " <> show hd)
 
 tyTail :: (MonadError String m) => Normal n -> m (Normal n)
 tyTail (NormArr l r) = pure r

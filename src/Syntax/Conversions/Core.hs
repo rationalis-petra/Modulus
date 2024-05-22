@@ -104,11 +104,13 @@ toCore (TLambda args body lty) = do
 toCore (TProd (arg, aty) body) = do
   body' <- toCore body 
   case arg of 
-    BoundArg var ty -> pure $ CProd var aty (CNorm ty) body'
+    BoundArg var ty ->
+      pure $ CProd var aty (CNorm ty) body'
     TWildCard ty -> case aty of  
       Visible -> pure $ CArr (CNorm ty) body'
+      Instance -> pure $ CArr (CNorm ty) body'
       Hidden -> throwError "cannot have hidden arrow!"
-      Instance -> throwError "cannot have instance arrow!"
+      -- Instance -> throwError "cannot have instance arrow!"
   
   
 

@@ -5,21 +5,13 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 import Control.Monad (when)
-import Control.Monad.Except (MonadError, throwError)
+import Control.Monad.Except (MonadError, throwError, catchError)
 import Control.Monad.State (MonadState)
 import Control.Monad.Reader (MonadReader, ask, local)
 
-import Syntax.Normal (PrimType(..),
-                      Normal(..),
-                      Neutral(..),
-                      ArgType(..),
-                      ProgState,
-                      var_counter)
+import Syntax.Normal (PrimType(..), Normal(..), Neutral(..), ArgType(..), ProgState, var_counter)
 import Syntax.Core(Core(..))
 import Syntax.TIntermediate
-
-  
-
 
 import qualified Interpret.Environment as Env
 import Interpret.Environment (Environment)
@@ -27,7 +19,7 @@ import qualified Syntax.Conversions as Conv
 import Interpret.EvalM
 import qualified Interpret.Eval as Eval
 import Syntax.Expression
-import Syntax.Utils (tyHead, tyTail, typeVal, getField, mkVar)
+import Syntax.Utils (tyHead, tyHeadStr, tyTail, tyModifier, typeVal, getField, mkVar)
 
 import Typecheck.Constrain
 
@@ -237,7 +229,20 @@ typeCheck (TImplApply l r) = do
       appTy <- evalNIntermediate r'
       retTy <- Eval.normSubst (appTy, var) t2
       pure (TImplApply l' r', retTy, subst)
-    t -> throwError ("implicit application to non-implicit type" <> show t)
+    t -> throwError ("implicit application to non-implicit function" <> show t)
+
+typeCheck (TInstanceApply l r) = do
+  (l', tl, substl) <- typeCheck l
+  (r', tr, substr) <- typeCheck r
+  substboth <- compose substl substr
+  case tl of
+    NormProd var Instance t1 t2 -> do
+      (lapp, rapp, substcomb) <- ask >>= constrain t1 tr
+      subst <- compose substcomb substboth
+      appTy <- evalNIntermediate r'
+      retTy <- Eval.normSubst (appTy, var) t2
+      pure (TImplApply l' r', retTy, subst)
+    t -> throwError ("instance application to non-instance function" <> show t)
 
 typeCheck (TApply l r) = do
   (l', tl, substl) <- typeCheck l
@@ -280,6 +285,7 @@ typeCheck (TApply l r) = do
                 -- lhs/ty  rhs/ty     rhs
     deriveFn :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) =>
                  Normal m -> Normal m -> TIntermediate m Normal -> m ([(Bool, TIntermediate m Normal)], [(Normal m, String)], Subst m, Normal m)
+    --deriveFn (NormProd var Instance a t2) tr r = do
     deriveFn (NormProd var Hidden a t2) tr r = do
       (args, unbnd, subst, rettype) <- deriveFn t2 tr r
       case findStrSubst var subst of 
@@ -337,11 +343,13 @@ typeCheck (TApply l r) = do
           
 
 typeCheck (TLambda args body mty) = do
-  mty' <- case mty of
+  mty' <- case mty of 
     Just (TIntermediate' val) -> Just <$> evalTIntermediate val
     Nothing -> pure Nothing
   (args', mret) <- case mty' of
-    Just ty -> annArgs ty args >>= (\(x, y) -> pure (x, Just y))
+    Just ty -> do
+      (x, y) <- (annArgs ty args)
+      pure (x, Just y)
     Nothing -> pure (args, Nothing)
   (env', args'') <- updateFromArgs args'
   (body', ty, subst) <- local (const env') (typeCheck body)
@@ -403,17 +411,41 @@ typeCheck (TLambda args body mty) = do
                          subst',
                          ("#" <> show id) : impl)
 
-     -- ann args takes a type annotation and argument list, and will annotate
-     -- the arguments based on the type
-     -- TODO consider the inference status of an argument!
+     -- ann args takes a type annotation and argument list, and will annotate the arguments based on the type
      annArgs :: MonadError String m => Normal m -> [(TArg m TIntermediate', ArgType)] -> m ([(TArg m TIntermediate', ArgType)], Normal m)
      annArgs ret [] = pure ([], ret)
-     annArgs ty ((arg, bl) : args) = case arg of 
+     annArgs ty ((arg, modifier) : args) = case arg of 
        InfArg str id -> do
-         head <- tyHead ty
-         tail <- tyTail ty
-         (args', ret) <- annArgs tail args 
-         pure ((BoundArg str (TIntermediate' (TValue head)), bl) : args, ret)
+         tmodifier <- tyModifier ty
+         case (modifier, tmodifier) of 
+           (Visible, Visible) -> do
+             head <- tyHead ty
+             tail <- tyTail ty
+             (args', ret) <- annArgs tail args
+             pure ((BoundArg str (TIntermediate' (TValue head)), tmodifier) : args', ret)
+           (Visible, Hidden) -> do
+             (head, str) <- tyHeadStr ty
+             tail <- tyTail ty
+             (args', ret) <- annArgs tail ((arg, modifier) : args)
+             pure ((BoundArg str (TIntermediate' (TValue head)), tmodifier) : args', ret)
+           (Visible, Instance) -> do
+             head <- tyHead ty
+             tail <- tyTail ty
+             (args', ret) <- annArgs tail ((arg, modifier) : args)
+             pure ((TWildCard (TIntermediate' (TValue head)), tmodifier) : args', ret)
+             -- add an instance arg
+           (Hidden, Hidden) -> do
+             head <- tyHead ty
+             tail <- tyTail ty
+             (args', ret) <- annArgs tail args
+             pure ((BoundArg str (TIntermediate' (TValue head)), modifier) : args', ret)
+           (Instance, Instance) -> do
+             head <- tyHead ty
+             tail <- tyTail ty
+             (args', ret) <- annArgs tail args
+             pure ((BoundArg str (TIntermediate' (TValue head)), modifier) : args', ret)
+           (_, _) -> do
+             throwError "incompatible modifiers to annArgs"
        --BoundArg
          -- TOOD
          -- BoundArg str ty
@@ -422,29 +454,40 @@ typeCheck (TLambda args body mty) = do
      updateFromArgs :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) =>
                        [(TArg m TIntermediate', ArgType)] -> m (Environment m, [(TArg m Normal, ArgType)])
      updateFromArgs [] = do env <- ask; pure (env, [])
-     updateFromArgs ((arg, bl) : args) = do 
-       case arg of
-         BoundArg str (TIntermediate' ty) -> do
+     updateFromArgs ((arg, modifier) : args) = do 
+       case (arg, modifier) of
+         (BoundArg str (TIntermediate' ty), _) -> do
            ty' <- evalTIntermediate ty
-           (env', args') <- local (Env.insert str (Neu (NeuVar str ty') ty') ty') (updateFromArgs  args)
-           pure (Env.insert str (Neu (NeuVar str ty') ty') ty' env', ((BoundArg str ty', bl) : args'))
-         InfArg str id -> do
+           (env', args') <- local (Env.insert str (Neu (NeuVar str ty') ty') ty') (updateFromArgs args)
+           pure (Env.insert str (Neu (NeuVar str ty') ty') ty' env', ((BoundArg str ty', modifier) : args'))
+         (TWildCard (TIntermediate' ty), Instance) -> do
+           ty' <- evalTIntermediate ty
+           case ty' of 
+             NormSig fields -> do
+               fields' <- mapM (\(x, y) -> (,,) x y <$> typeVal y) fields
+               (env', args') <- local (flip (foldr (\(x, y, z) -> Env.insert x y z)) fields') (updateFromArgs args)
+               pure (env', ((TWildCard ty', modifier) : args'))
+         (TWildCard (TIntermediate' ty), _) -> do
+           ty' <- evalTIntermediate ty
+           (env, args') <- updateFromArgs args 
+           pure (env, ((TWildCard ty', modifier) : args'))
+         (InfArg str id, _) -> do
            (env', args') <- updateFromArgs args
            pure (Env.insert str (Neu (NeuVar str (mkVar ("#" <> show id))) (mkVar ("#" <> show id))) (mkVar ("#" <> show id))  env',
-                               (InfArg str id, bl) : args')
+                               (InfArg str id, modifier) : args')
 
   
 
-typeCheck (TProd (arg, bl) body) = do
+typeCheck (TProd (arg, modifier) body) = do
   case arg of
     BoundArg var (TIntermediate' ty) -> do
       ty' <- evalTIntermediate ty
       (body', bodyTy, subst) <- local (Env.insert var (Neu (NeuVar var ty') ty') ty') (typeCheck body)
-      pure (TProd (BoundArg var ty', bl) body', NormUniv 0, subst)
+      pure (TProd (BoundArg var ty', modifier) body', NormUniv 0, subst)
     TWildCard (TIntermediate' ty) -> do
       ty' <- evalTIntermediate ty
       (body', bodyTy, subst) <- typeCheck body
-      pure (TProd (TWildCard ty', bl) body', NormUniv 0, subst)
+      pure (TProd (TWildCard ty', modifier) body', NormUniv 0, subst)
 
 typeCheck (TAccess term field) = do
   (term', ty, subst) <- typeCheck term 
@@ -456,7 +499,6 @@ typeCheck (TAccess term field) = do
       Just ty -> pure (TAccess term' field, ty, subst)
       Nothing -> throwError ("cannot find field " <> field)
     t -> throwError ("expected signature, got " <> show t)
-         
        
 typeCheck (TIF cond e1 e2 Nothing) = do 
   (cond', tcond, substcond) <- typeCheck cond
@@ -651,8 +693,6 @@ typeCheck (TCoMatch patterns Nothing) = do
     getPatternType' :: (Normal m, TCoPattern m TIntermediate') -> (TCoPattern m Normal, Normal m, [(String, Normal m)])
     getPatternType' (ty, TCoWildPat) = (TCoWildPat, ty, [])
     getPatternType' (ty, TCoBindPat sym Nothing) = (TCoBindPat sym (Just ty), ty, [(sym, ty)])
-
-
   
 typeCheck (TAdaptForeign lang lib types Nothing) = do
   types' <- mapM (\(s1, s2, (TIntermediate' i)) -> (,,) s1 s2 <$> evalTIntermediate i) types
@@ -662,10 +702,6 @@ typeCheck (TAdaptForeign lang lib types Nothing) = do
 typeCheck other =
   throwError ("typecheck unimplemented for intermediate term " <> show other)
 
-  where
-
-
-  
 
 typeCheckDef :: (MonadReader (Environment m) m, MonadState (ProgState m) m, MonadError String m) =>
                 TDefinition m TIntermediate' -> m (TDefinition m Normal, [(String, Normal m)], Subst m)
@@ -742,7 +778,6 @@ typeCheckDef (TInductDef sym id params (TIntermediate' ty) alts) = do
     mkIndexTy' [] ((sym, ty) : ids) index args = do
       let (ctor, ctorty) = mkIndexTy' [] ids index ((sym, ty) : args)
         in (NormAbs sym ctor ctorty, ctorty)
-
 
 typeCheckDef def = do
   throwError ("typeCheckDef not implemented for")
